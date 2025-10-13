@@ -1,0 +1,21 @@
+name: Unit Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - name: Install dependences
+        run: npm install
+      - name: Executar test
+        run: npm run test
