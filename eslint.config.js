@@ -1,21 +1,9 @@
-import eslint from "@eslint/js";
-import tseslint from "typescript-eslint";
-import perfectionist from "eslint-plugin-perfectionist";
+import js from '@eslint/js';
+import globals from 'globals';
+import tseslint from 'typescript-eslint';
+import { defineConfig } from 'eslint/config';
 
-export default tseslint.config(
-  {
-    ignores: ["**/*.js"],
-  },
-  eslint.configs.recommended,
-  tseslint.configs.strictTypeChecked,
-  tseslint.configs.stylisticTypeChecked,
-  {
-    languageOptions: {
-      parserOptions: {
-        projectService: true,
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
-  },
-  perfectionist.configs["recommended-natural"]
-);
+export default defineConfig([
+  { files: ['**/*.{js,mjs,cjs,ts,mts,cts}'], plugins: { js }, extends: ['js/recommended'], languageOptions: { globals: globals.node } },
+  tseslint.configs.recommended,
+]);
