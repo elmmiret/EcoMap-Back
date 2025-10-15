@@ -2,7 +2,7 @@
   "name": "peskaos-back",
   "version": "1.0.0",
   "description": "Backend d'EcoMap amb Node.js, TypeScript i Express",
-  "main": "dist/index.js",
+  "main": "src/index.js",
   "type": "module",
   "scripts": {
     "dev": "tsx --watch src/index.ts",
@@ -54,5 +54,8 @@
     "*.{json,yml,yaml,md}": [
       "prettier --write"
     ]
+  },
+  "eslintConfig": {
+    "extends": "standard-with-typescript"
   }
 }

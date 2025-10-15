@@ -1,0 +1,53 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:15
+    container_name: ecomap-postgres
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: MR1F3EyzIMwSQbRj7RNRYqyBPJnXte11vpkVPeCp
+      POSTGRES_USER: admin
+      POSTGRES_DB: ecomapdb
+    ports:
+      - '5432:5432'
+    volumes:
+      - ./ecomap_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U admin -d ecomapdb']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - '8080:8080'
+
+  # Descomentar i configurar quan afegim els contenidors per backend i Redis
+  # backend:
+  #   build: ./backend
+  #   container_name: ecomap-backend
+  #   restart: always
+  #   environment:
+  #     DATABASE_URL: postgres://admin:MR1F3EyzIMwSQbRj7RNRYqyBPJnXte11vpkVPeCp@db:5432/ecomapdb
+  #     # más variables aquí si lo necesitas
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - db
+
+  # redis:
+  #   image: redis:7
+  #   container_name: ecomap-redis
+  #   restart: always
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+
+volumes:
+  ecomap_data:
+    driver: local
+  # redis_data:
+  #   driver: local
