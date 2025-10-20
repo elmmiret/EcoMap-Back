@@ -27,7 +27,7 @@ try {
 
 } catch (e) {
     console.error(`FATAL ERROR: No se ha podido cargar la llave de Firebase Service Account de: ${keyPath}`);
-    console.error("Details:", e.message);
+    console.error("Detalles:", process.env.NODE_ENV === 'development' ? e.message : 'Error al cargar la clave.');
     process.exit(1);
 }
 
@@ -38,10 +38,18 @@ app.use(express.urlencoded({ extended: true}));
 // montar las rutas de autentificación bajo el prefijo /api/users
 app.use('/api/users', authRoutes);
 
+// ruta base para verificar que la API está corriendo
 app.get('/', (req, res) => {
     res.send('API running.');
 })
 
+// manejo de errores globales
+app.use((err, req, res, next) => {
+    console.error('Error no controlado:', err);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+})
+
+// iniciar el servidor
 app.listen(PORT, () => {
     console.log(`Express server running on port ${PORT}`);
 })

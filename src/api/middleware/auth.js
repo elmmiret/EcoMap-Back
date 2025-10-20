@@ -12,7 +12,7 @@ const authenticateUser = async (req, res, next) => {
       error: 'Acceso denegado. Formato de token inválido o no proporcionado (espera: "Bearer <token>").' 
     });
   }
-  const idToken = authHeader.split('Bearer ')[1]; 
+  const idToken = authHeader.split('Bearer ')[1];
 
   try {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
@@ -20,9 +20,17 @@ const authenticateUser = async (req, res, next) => {
     req.user = decodedToken;
     next();
   } catch (error) {
-    // El token no es válido o ha expirado
+    // Manejo de errores específicos
     console.error('Error al verificar el token de Firebase:', error);
-    return res.status(403).json({ error: 'Token inválido o expirado. Acceso no autorizado.'});
+    
+    if (error.code === 'auth/id-token-expired') {
+      return res.status(403).json({ error: 'El token ha expirado. Por favor, inicia sesión nuevamente.' });
+    } else if (error.code === 'auth/argument-error') {
+      return res.status(400).json({ error: 'El token proporcionado no es válido.' });
+    } else {
+      // Error genérico
+      return res.status(403).json({ error: 'Token inválido o acceso no autorizado.' });
+    }
   }
 };
 
