@@ -1,0 +1,25 @@
+version: '3.7'
+services:
+  db:
+    image: postgres:15
+    container_name: ecomapdb
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: MR1F3EyzIMwSQbRj7RNRYqyBPJnXte11vpkVPeCp
+      POSTGRES_DB: ecomapdb
+    ports:
+      - '5432:5432'
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  adminer:
+    image: adminer
+    container_name: adminer
+    restart: always
+    ports:
+      - '8080:8080'
+    depends_on:
+      - db
+
+volumes:
+  db_data:
