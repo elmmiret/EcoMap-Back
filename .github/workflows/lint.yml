@@ -1,0 +1,19 @@
+name: Lint Codebase
+
+on:
+  pull_request:
+    branches:
+      - master
+      - develop
+
+jobs:
+  lint-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
