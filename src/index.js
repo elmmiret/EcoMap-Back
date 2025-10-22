@@ -45,7 +45,7 @@ app.get('/', (req, res) => {
 });
 
 // manejo de errores globales
-app.use((err, req, res) => {
+app.use((err, req, res, _next) => {
   console.error('Error no controlado:', err);
   res.status(500).json({ error: 'Error interno del servidor.' });
 });
