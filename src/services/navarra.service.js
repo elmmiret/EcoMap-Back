@@ -56,11 +56,6 @@ export async function importNavarraRecyclingPoints() {
       const apiId = parseInt(record['ID Equipamiento']);
       const tipo = record['TipoEquipamiento'];
       const horario = record['Horario'];
-      const lat = parseFloat(record['x']);
-      const lon = parseFloat(record['y']);
-      const direccion = record['Direccion'];
-      const localidad = record['Localidad'];
-      const mancomunidad = record['Mancomunidad'];
 
       if (!apiId || !lat || !lon) continue;
 
