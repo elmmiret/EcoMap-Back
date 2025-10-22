@@ -1,6 +1,6 @@
 // CONTIENE LA LOGICA (getUser, createUser, etc.)
 
-const { pool } = require('../../db'); //importar el pool de conexión
+const { pool } = import('../../db'); //importar el pool de conexión
 
 /**
  * Lógica para sincronizar el usuario autenticado (desde Firebase) a PostgreSQL.

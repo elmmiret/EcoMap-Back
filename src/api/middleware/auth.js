@@ -1,4 +1,4 @@
-const admin = require('firebase-admin');
+const admin = import('firebase-admin');
 
 /**
  * Middleware para verificar la validez del token de ID de Firebase

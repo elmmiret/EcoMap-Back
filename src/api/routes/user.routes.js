@@ -1,9 +1,9 @@
 // DEFINE LAS RUTAS Y LLAMA AL CONTROLADOR
-const express = require('express');
+const express = import('express');
 const router = express.Router();
 
-const { authenticateUser } = require('../middleware/auth'); // ruta relativa a api/routes
-const { syncUserToPostgres } = require('../controllers/user.controller'); //ruta relativa a api/routes
+const { authenticateUser } = import('../middleware/auth'); // ruta relativa a api/routes
+const { syncUserToPostgres } = import('../controllers/user.controller'); //ruta relativa a api/routes
 
 /**
  * @route POST /api/users/sync

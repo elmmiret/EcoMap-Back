@@ -1,9 +1,9 @@
-const express = require('express');
-const admin = require('firebase-admin');
-const authRoutes = require('./src/api/routes/user.routes');
+const express = import('express');
+const admin = import('firebase-admin');
+const authRoutes = import('./src/api/routes/user.routes');
 
 // cargar variables de entorno desde .env
-require('dotenv').config();
+import('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,7 +18,7 @@ if (!keyPath) {
 
 try {
     // importar archivo json de la clave de servicio usando la ruta de entorno
-    const serviceAccount = require(keyPath);
+    const serviceAccount = import(keyPath);
 
     admin.initializeApp({
         credential: admin.credential.cert(serviceAccount)
@@ -44,7 +44,7 @@ app.get('/', (req, res) => {
 })
 
 // manejo de errores globales
-app.use((err, req, res, next) => {
+app.use((err, req, res) => {
     console.error('Error no controlado:', err);
     res.status(500).json({ error: 'Error interno del servidor.' });
 })
