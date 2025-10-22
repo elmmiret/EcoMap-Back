@@ -51,5 +51,5 @@ app.use((err, req, res) => {
 
 // iniciar el servidor
 app.listen(PORT, () => {
-    console.log(`Express server running on port ${PORT}`);
+    console.log(`Servidor Express corriendo en http://localhost:${PORT}`);
 })

@@ -16,7 +16,7 @@ const authenticateUser = async (req, res, next) => {
 
   try {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
-    // El token es válido. Adjuntamos los datos del usuario a la solicitud
+    // si el token es válido, adjuntamos los datos del usuario a la solicitud
     req.user = decodedToken;
     next();
   } catch (error) {

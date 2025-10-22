@@ -8,6 +8,7 @@
     "dev": "tsx --watch src/index.ts",
     "start": "node dist/index.js",
     "build": "tsc",
+    "migrate": "prisma migrate deploy && prisma generate",
     "prepare": "husky install",
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
@@ -30,9 +31,10 @@
   },
   "homepage": "https://github.com/pes2526q1-1x-gei-upc/PESkaos-back#readme",
   "dependencies": {
-    "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "firebase-admin": "^13.5.0"
+    "firebase-admin": "^13.5.0",
+    "@prisma/client": "^6.17.1",
+    "dotenv": "^17.2.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.37.0",
@@ -44,7 +46,7 @@
     "jest": "^30.2.0",
     "lint-staged": "^16.2.4",
     "prettier": "^3.6.2",
-    "supertest": "^7.1.4",
+    "prisma": "^6.17.1",
     "tsx": "^3.12.7",
     "typescript": "^5.0.4",
     "typescript-eslint": "^8.46.0",
