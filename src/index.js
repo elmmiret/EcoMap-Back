@@ -9,25 +9,7 @@ import { readFileSync } from 'fs';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
-
-// --- CORS Configuration ---
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*'); // En producción, especifica el dominio exacto
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  // Maneja preflight requests
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-
-  next();
-});
-
-// middleware global
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+const PORT = process.env.PORT || 3000;
 
 // --- INICIALIZACION de Firebase Admin SDK ---
 const keyPath = process.env.FIREBASE_KEY_PATH;
@@ -50,6 +32,10 @@ try {
   console.error('Detalles:', process.env.NODE_ENV === 'development' ? e.message : 'Error al cargar la clave.');
   process.exit(1);
 }
+
+// middleware global
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // montar las rutas de autentificación bajo el prefijo /api/users
 app.use('/api/users', authRoutes);
