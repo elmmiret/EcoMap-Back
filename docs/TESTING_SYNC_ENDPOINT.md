@@ -11,17 +11,21 @@
 ## 🚨 Problemas Identificados y Solucionados
 
 ### ✅ 1. CORS configurado
+
 - Se añadió middleware CORS para permitir peticiones desde diferentes orígenes
 - Configurado para aceptar headers `Authorization` y `Content-Type`
 
 ### ✅ 2. Puerto corregido
+
 - Puerto por defecto cambiado de `3000` a `3001`
 
 ### ✅ 3. Mock de base de datos mejorado
+
 - Ahora muestra logs claros cuando se ejecutan queries
 - Advertencia visible de que es un mock
 
 ### ⚠️ 4. Base de datos en MOCK
+
 **IMPORTANTE:** La base de datos actual es un MOCK. Para usar PostgreSQL real:
 
 ```bash
@@ -70,7 +74,7 @@ const response = await fetch('http://localhost:3001/api/users/sync', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${idToken}`,
+    Authorization: `Bearer ${idToken}`,
   },
 });
 
@@ -83,6 +87,7 @@ console.log(data);
 ## 📊 Respuestas Esperadas
 
 ### ✅ Éxito (200)
+
 ```json
 {
   "message": "Sincronización de usuario exitosa",
@@ -91,6 +96,7 @@ console.log(data);
 ```
 
 ### ❌ Sin token (401)
+
 ```json
 {
   "error": "Acceso denegado. Formato de token inválido o no proporcionado (espera: \"Bearer <token>\")."
@@ -98,6 +104,7 @@ console.log(data);
 ```
 
 ### ❌ Token inválido (403)
+
 ```json
 {
   "error": "Token inválido o acceso no autorizado."
@@ -105,6 +112,7 @@ console.log(data);
 ```
 
 ### ❌ Token expirado (403)
+
 ```json
 {
   "error": "El token ha expirado. Por favor, inicia sesión nuevamente."
@@ -112,6 +120,7 @@ console.log(data);
 ```
 
 ### ❌ Usuario ya existe (409)
+
 ```json
 {
   "error": "El usuario ya existe en la base de datos."
@@ -150,19 +159,25 @@ Nuevo usuario registrado en PostgreSQL: firebase-user-id-123
 ## 🐛 Troubleshooting
 
 ### Problema: "CORS error"
+
 **Solución:** El CORS ya está configurado. Si aún falla, verifica que el frontend esté haciendo la petición correctamente.
 
 ### Problema: "Token inválido"
-**Solución:** 
+
+**Solución:**
+
 1. Verifica que el service account key de Firebase existe
 2. Asegúrate de que el token es reciente (expiran en 1 hora)
 3. Verifica que el formato es `Bearer TOKEN` (con espacio)
 
 ### Problema: "Cannot connect to database"
+
 **Solución:** Estás usando el mock. Para usar PostgreSQL real, sigue las instrucciones arriba.
 
 ### Problema: "Firebase not initialized"
-**Solución:** 
+
+**Solución:**
+
 1. Verifica que `FIREBASE_KEY_PATH` esté en `.env`
 2. Verifica que el archivo JSON existe en esa ruta
 3. El archivo debe ser el service account key descargado de Firebase Console
@@ -185,10 +200,12 @@ Antes de probar, asegúrate de:
 ## 🔐 Seguridad
 
 ### En Desarrollo:
+
 - CORS está abierto (`*`) para facilitar testing
 - Logs detallados habilitados
 
 ### En Producción (TODO):
+
 - Cambiar CORS para aceptar solo dominios específicos
 - Deshabilitar logs sensibles
 - Usar PostgreSQL real (no mock)
@@ -200,11 +217,13 @@ Antes de probar, asegúrate de:
 ## 🚀 Próximos Pasos
 
 1. **Instalar PostgreSQL:**
+
    ```bash
    npm install pg
    ```
 
 2. **Crear tabla en PostgreSQL:**
+
    ```sql
    CREATE TABLE users (
      uid TEXT PRIMARY KEY,
