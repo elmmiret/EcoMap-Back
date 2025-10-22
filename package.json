@@ -5,8 +5,8 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "dev": "node --watch index.js",
-    "start": "node index.js",
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
     "prepare": "husky install",
     "lint": "eslint .",
     "lint:fix": "eslint --fix .",
