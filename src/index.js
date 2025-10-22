@@ -1,9 +1,11 @@
-const express = import('express');
-const admin = import('firebase-admin');
-const authRoutes = import('./src/api/routes/user.routes');
+import express from 'express';
+import admin from 'firebase-admin';
+import authRoutes from './api/routes/user.routes.js';
+import dotenv from 'dotenv';
+import { readFileSync } from 'fs';
 
 // cargar variables de entorno desde .env
-import('dotenv').config();
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,7 +20,7 @@ if (!keyPath) {
 
 try {
   // importar archivo json de la clave de servicio usando la ruta de entorno
-  const serviceAccount = import(keyPath);
+  const serviceAccount = JSON.parse(readFileSync(keyPath, 'utf8'));
 
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
