@@ -1,10 +1,11 @@
 // src/db.js
 
 // En un proyecto real, usarías el paquete 'pg' así:
-// const { Pool } = require('pg');
-// const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// import pkg from 'pg';
+// const { Pool } = pkg;
+// export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-const pool = {
+export const pool = {
     query: async (text, params) => {
         try {
             // Validación básica de parámetros
@@ -25,8 +26,3 @@ const pool = {
         }
     }
   };
-  
-  module.exports = {
-      pool
-  };
-  
