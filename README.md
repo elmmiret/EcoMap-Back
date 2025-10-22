@@ -1,6 +1,3 @@
-Aquí tienes el README traducido al catalán:
-
-```markdown
 # EcoMap Backend
 
 **Backend del projecte EcoMap utilitzant Node.js, Express, TypeScript i Prisma amb PostgreSQL**.
@@ -16,6 +13,7 @@ Aquí tienes el README traducido al catalán:
 ---
 
 ## 1. Clona el repositori
+
 ```
 
 git clone https://github.com/pes2526q1-1x-gei-upc/PESkaos-back.git
@@ -93,15 +91,15 @@ npm run dev
 
 ## Comandes útils
 
-| Comanda | Descripció |
-|---------|-------------|
-| `npm run dev` | Executa el servidor en mode desenvolupament amb recàrrega automàtica |
-| `npm run build` | Compila el projecte TypeScript a JavaScript |
-| `npm run start` | Executa el servidor compilat en producció |
-| `npm run migrate` | Aplica totes les migracions de la base de dades pendents |
-| `npm run lint` | Revisa el codi amb ESLint |
-| `npm run format` | Formata el codi amb Prettier |
-| `npm test` | Executa els tests amb Vitest |
+| Comanda           | Descripció                                                           |
+| ----------------- | -------------------------------------------------------------------- |
+| `npm run dev`     | Executa el servidor en mode desenvolupament amb recàrrega automàtica |
+| `npm run build`   | Compila el projecte TypeScript a JavaScript                          |
+| `npm run start`   | Executa el servidor compilat en producció                            |
+| `npm run migrate` | Aplica totes les migracions de la base de dades pendents             |
+| `npm run lint`    | Revisa el codi amb ESLint                                            |
+| `npm run format`  | Formata el codi amb Prettier                                         |
+| `npm test`        | Executa els tests amb Vitest                                         |
 
 ---
 
@@ -137,6 +135,7 @@ npx prisma migrate dev --name <numero*migracio>*<nom_canvi>
 ```
 
 **Per obtenir el número de migració correcte:**
+
 1. Entra a la carpeta `prisma/migrations/`
 2. Veuràs carpetes amb el format `<data>_<numero_migracio>_<nom_canvi>`
 3. L'últim número que vegis serà l'últim número de migració utilitzat. La teva nova migració ha d'utilitzar el número següent.
@@ -167,4 +166,7 @@ npx prisma migrate dev --name <numero*migracio>*<nom_canvi>
 ```
 
 ---
+
+```
+
 ```
