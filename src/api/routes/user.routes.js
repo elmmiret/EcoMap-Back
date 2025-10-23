@@ -2,7 +2,7 @@
 import express from 'express';
 const router = express.Router();
 
-import { authenticateUser } from '../middleware/auth.js'; // ruta relativa a api/routes
+import { authenticateUser } from '../middlewares/auth.middleware.js'; // ruta relativa a api/routes
 import { syncUserToPostgres } from '../controllers/user.controller.js'; //ruta relativa a api/routes
 
 /**
