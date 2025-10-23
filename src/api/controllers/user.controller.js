@@ -2,6 +2,7 @@
 
 import { prisma } from '#lib/prisma.js';
 import { signUserJWT } from '#lib/jwt.js';
+import admin from 'firebase-admin';
 
 /**
  * Lógica para sincronizar el usuario autenticado (desde Firebase) a PostgreSQL.
@@ -155,6 +156,51 @@ export const syncUserToPostgres = async (req, res) => {
       message: 'Error interno del servidor al sincronizar el usuario en la base de datos.',
       code: 'DATABASE_ERROR',
       ...(process.env.NODE_ENV === 'development' && { details: error.message }),
+    });
+  }
+};
+
+/**
+ * Lógica para eliminar el usuario de Firebase y de PostgreSQL.
+ */
+export const deleteUserFromPostgres = async (req, res) => {
+  const { uid } = req.user; // obtiene el uid verificado del middleware
+
+  if (!uid) {
+    return res.status(400).json({ error: 'UID de usuario no proporcionado en el token.' });
+  }
+
+  try {
+    // eliminar de postgreSQL (usa el pool.query de db.js)
+    const dbResult = await pool.query('DELETE FROM users WHERE uid = $1 RETURNING uid', [uid]);
+
+    if (dbResult.rows.length === 0) {
+      console.warn(`Usuario ${uid} no encontrado en PostreSQL (continuando a Firebase).`);
+    } else {
+      console.log(`Usuario ${uid} eliminado de PostgreSQL.`);
+    }
+
+    // eliminar de Firebase
+    await admin.auth().deleteUser(uid);
+    console.log(`Usuario ${uid} eliminado de Firebase.`);
+
+    // respuesta exitosa
+    res.status(200).json({
+      message: 'Usuario eliminado exitosamente de Firebase y PostgreSQL.',
+      uid: uid,
+    });
+  } catch (error) {
+    console.error('Error al intentar eliminar el usuario:', error);
+
+    // manejo de errores de Firebase
+    if (error.code === 'auth/user-not-found') {
+      return res.status(404).json({ error: 'Usuario no encontrado en Firebase.' });
+    }
+
+    // error genérico
+    res.status(500).json({
+      error: 'Error interno del servidor al intentar eliminar el usuario.',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };
