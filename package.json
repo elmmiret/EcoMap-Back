@@ -12,6 +12,7 @@
     "lint:fix": "eslint --fix .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "migrate": "prisma migrate deploy && prisma generate",
     "test": "vitest",
     "test:run": "vitest --run",
     "test:ui": "vitest --ui",
