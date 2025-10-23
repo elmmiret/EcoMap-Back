@@ -61,6 +61,13 @@ docker-compose up -d
 
 Això arrencarà el contenidor de PostgreSQL configurat per al projecte.
 
+**Si ja tenies un contenidor i has oblidat la contrasenya, pots crear de nou el contenidor amb les noves credencials de .env utilitzant:**
+
+```
+docker compose down --volumes
+docker compose up -d
+```
+
 ---
 
 ## 5. Estructura la base de dades amb Prisma
@@ -105,17 +112,15 @@ npm run dev
 
 ## Ús de Prisma al codi
 
-Per realitzar queries a la base de dades, utilitza **Prisma Client**. Importa i utilitza Prisma d'aquesta manera:
+Per realitzar queries a la base de dades, utilitza **Prisma Client**. Per evitar crear múltiples connexions a la base de dades (especialment en desenvolupament amb hot-reload), el projecte exposa una instància singleton a `src/lib/prisma.js`.
 
-```
+Importa-la i utilitza-la així:
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+```js
+import { prisma } from '#lib/prisma.js';
 
 // Exemple de query
 const users = await prisma.user.findMany();
-
 ```
 
 Prisma facilita les operacions amb la base de dades de forma segura i tipada, sense necessitat d'escriure SQL manualment en la majoria de casos.

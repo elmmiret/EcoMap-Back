@@ -1,4 +1,4 @@
 node_modules/
 dist/
 .env
-ServiceAccountKey.json
+firebase-service-account-key.json

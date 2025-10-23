@@ -37,7 +37,6 @@ model registered_user {
   surname      String?
   dni          String?
   email        String            @unique
-  password     String
   app_language app_language_type
   admin        admin?
   client       client?
