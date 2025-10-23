@@ -1,6 +1,7 @@
 import express from 'express';
 import admin from 'firebase-admin';
 import authRoutes from './api/routes/user.routes.js';
+import navarraRoutes from './api/routes/navarra.routes.js';
 import dotenv from 'dotenv';
 import { readFileSync } from 'fs';
 
@@ -38,19 +39,20 @@ app.use(express.urlencoded({ extended: true }));
 
 // montar las rutas de autentificación bajo el prefijo /api/users
 app.use('/api/users', authRoutes);
+app.use('/api/navarra', navarraRoutes);
 
 // ruta base para verificar que la API está corriendo
 app.get('/', (req, res) => {
   res.send('API running.');
 });
 
-// manejo de errores globales
+// manejo de errores global
 app.use((err, req, res, _next) => {
   console.error('Error no controlado:', err);
   res.status(500).json({ error: 'Error interno del servidor.' });
 });
 
-// iniciar el servidor
+// iniciar servidor
 app.listen(PORT, () => {
   console.log(`Servidor Express corriendo en http://localhost:${PORT}`);
 });
