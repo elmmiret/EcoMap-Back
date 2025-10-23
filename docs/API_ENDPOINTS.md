@@ -78,13 +78,15 @@ Content-Type: application/json
 
 **Respuestas:**
 
-| Código                      | Descripción             | Respuesta                                                                                       |
-| --------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------- |
-| `200 OK`                    | Usuario ya existía      | `{ "message": "Usuario ya existía", "user": { "uid": "...", "email": "..." } }`                 |
-| `201 Created`               | Usuario creado          | `{ "message": "Usuario sincronizado correctamente", "user": { "uid": "...", "email": "..." } }` |
-| `401 Unauthorized`          | Token inválido/expirado | `{ "error": "No autorizado" }`                                                                  |
-| `403 Forbidden`             | Token no proporcionado  | `{ "error": "Token no proporcionado" }`                                                         |
-| `500 Internal Server Error` | Error del servidor      | `{ "error": "Error al sincronizar usuario" }`                                                   |
+| Código                      | Descripción                 | Respuesta                                                                                                        |
+| --------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `200 OK`                    | Usuario ya existía          | `{ "success": true, "message": "Usuario ya existía", "user": { "uid": "...", "email": "..." } }`                 |
+| `201 Created`               | Usuario creado exitosamente | `{ "success": true, "message": "Usuario sincronizado correctamente", "user": { "uid": "...", "email": "..." } }` |
+| `400 Bad Request`           | Datos incompletos           | `{ "success": false, "message": "Datos de usuario incompletos", "code": "INCOMPLETE_DATA" }`                     |
+| `401 Unauthorized`          | Token inválido/expirado     | `{ "success": false, "message": "Invalid authentication token", "code": "INVALID_TOKEN" }`                       |
+| `401 Unauthorized`          | Token no proporcionado      | `{ "success": false, "message": "No authentication token provided", "code": "NO_TOKEN" }`                        |
+| `409 Conflict`              | Usuario duplicado           | `{ "success": false, "message": "El usuario ya existe", "code": "USER_EXISTS" }`                                 |
+| `500 Internal Server Error` | Error del servidor          | `{ "success": false, "message": "Error interno del servidor", "code": "DATABASE_ERROR" }`                        |
 
 **Ejemplo en Dart:**
 
@@ -108,14 +110,28 @@ Future<Map<String, dynamic>?> syncUser() async {
       },
     );
 
+    final data = jsonDecode(response.body);
+
     if (response.statusCode == 200 || response.statusCode == 201) {
-      return jsonDecode(response.body);
+      if (data['success'] == true) {
+        print('✅ ${data['message']}');
+        print('Usuario: ${data['user']}');
+        return data;
+      }
+    } else if (response.statusCode == 401) {
+      print('❌ Error de autenticación: ${data['code']}');
+      if (data['code'] == 'TOKEN_EXPIRED') {
+        // Obtener nuevo token
+        final newToken = await user.getIdToken(forceRefresh: true);
+        // Reintentar con el nuevo token...
+      }
     } else {
-      print('Error ${response.statusCode}: ${response.body}');
-      return null;
+      print('❌ Error ${response.statusCode}: ${data['message']} (${data['code']})');
     }
+
+    return null;
   } catch (e) {
-    print('Excepción: $e');
+    print('❌ Excepción: $e');
     return null;
   }
 }
@@ -154,16 +170,86 @@ Future<Map<String, dynamic>?> syncUser() async {
 
 ---
 
-## 🚨 Códigos de Error Comunes
+## 🚨 Códigos de Error y Respuesta
+
+Todas las respuestas siguen el formato:
+
+```json
+{
+  "success": true/false,
+  "message": "Descripción legible",
+  "code": "ERROR_CODE",  // Solo en errores
+  "user": {...}          // Solo en respuestas exitosas con datos
+}
+```
+
+### Códigos HTTP Comunes
 
 | Código | Significado           | Causa Común               | Solución                                                  |
 | ------ | --------------------- | ------------------------- | --------------------------------------------------------- |
+| `200`  | OK                    | Operación exitosa         | Procesar la respuesta normalmente                         |
+| `201`  | Created               | Recurso creado            | Procesar la respuesta normalmente                         |
 | `400`  | Bad Request           | Datos mal formateados     | Verifica el formato del request body                      |
 | `401`  | Unauthorized          | Token inválido o expirado | Obtén un nuevo token con `getIdToken(forceRefresh: true)` |
-| `403`  | Forbidden             | Token no enviado          | Asegúrate de incluir el header `Authorization`            |
 | `404`  | Not Found             | Ruta incorrecta           | Verifica la URL del endpoint                              |
 | `409`  | Conflict              | Recurso duplicado         | El usuario ya existe (no es error crítico)                |
 | `500`  | Internal Server Error | Error del servidor        | Verifica los logs del servidor                            |
+
+### Códigos de Error Específicos de Autenticación
+
+| Code              | Descripción             | Cuándo ocurre                      | Solución                                       |
+| ----------------- | ----------------------- | ---------------------------------- | ---------------------------------------------- |
+| `NO_TOKEN`        | No se proporcionó token | Header `Authorization` faltante    | Incluir header `Authorization: Bearer <token>` |
+| `TOKEN_EXPIRED`   | Token expirado          | Token de Firebase caducó (>1 hora) | Llamar `user.getIdToken(forceRefresh: true)`   |
+| `INVALID_TOKEN`   | Token inválido          | Token malformado o revocado        | Re-autenticar al usuario                       |
+| `INCOMPLETE_DATA` | Datos incompletos       | uid o email faltantes en token     | Verificar configuración de Firebase            |
+| `USER_EXISTS`     | Usuario duplicado       | Intento de crear usuario existente | No es crítico, continuar normalmente           |
+| `DATABASE_ERROR`  | Error de base de datos  | Problema en PostgreSQL             | Contactar al equipo backend                    |
+
+### Ejemplo de Manejo en Dart
+
+```dart
+Future<bool> handleApiResponse(http.Response response) async {
+  final data = jsonDecode(response.body);
+
+  // Verificar si la operación fue exitosa
+  if (data['success'] == true) {
+    print('✅ ${data['message']}');
+    return true;
+  }
+
+  // Manejar errores según el código
+  switch (data['code']) {
+    case 'NO_TOKEN':
+    case 'INVALID_TOKEN':
+      // Re-autenticar usuario
+      await FirebaseAuth.instance.signOut();
+      // Navegar a login
+      break;
+
+    case 'TOKEN_EXPIRED':
+      // Refrescar token y reintentar
+      final newToken = await FirebaseAuth.instance.currentUser?.getIdToken(forceRefresh: true);
+      // Reintentar request con nuevo token
+      break;
+
+    case 'DATABASE_ERROR':
+      // Mostrar mensaje al usuario
+      showError('Error del servidor. Intenta más tarde.');
+      break;
+
+    case 'USER_EXISTS':
+      // No es crítico, continuar
+      print('⚠️ Usuario ya existe');
+      return true;
+
+    default:
+      print('❌ Error: ${data['message']}');
+  }
+
+  return false;
+}
+```
 
 ---
 
