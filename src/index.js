@@ -4,7 +4,6 @@ import authRoutes from './api/routes/user.routes.js';
 import navarraRoutes from './api/routes/navarra.routes.js';
 import dotenv from 'dotenv';
 import { readFileSync } from 'fs';
-import './services/cron.service.js';
 
 // cargar variables de entorno desde .env
 dotenv.config();
