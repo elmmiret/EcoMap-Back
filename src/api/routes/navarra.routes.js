@@ -1,11 +1,16 @@
 import express from 'express';
-import { importNavarraRecyclingPoints } from '../../services/navarra.service.js';
+import { getNavarraRecyclingPoints } from '../../services/navarra.service.js';
 
 const router = express.Router();
 
-router.post('/refresh', async (_req, res) => {
-  await importNavarraRecyclingPoints();
-  res.json({ message: 'Dades de reciclatge de Navarra actualitzades manualment' });
+router.get('/points', async (req, res) => {
+  try {
+    const records = await getNavarraRecyclingPoints();
+    res.json(records);
+  } catch (err) {
+    console.error('Error obtenint punts de reciclatge:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 export default router;
