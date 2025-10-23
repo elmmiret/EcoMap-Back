@@ -1,13 +1,15 @@
 // CONTIENE LA LOGICA (getUser, createUser, etc.)
 
-import { pool } from '../../db.js'; //importar el pool de conexión
+import { prisma } from '#lib/prisma.js';
+import { signUserJWT } from '#lib/jwt.js';
 
 /**
  * Lógica para sincronizar el usuario autenticado (desde Firebase) a PostgreSQL.
+ * Crea: user -> registered_user -> client
  */
 export const syncUserToPostgres = async (req, res) => {
-  // Los datos del usuario (uid, email) vienen verificados del middleware req.user
-  const { uid, email } = req.user;
+  // Los datos del usuario (uid, email, name, etc.) vienen verificados del middleware req.user
+  const { uid, email, name, surname, phone_number, picture } = req.user;
 
   // Validación básica de los datos
   if (!uid || !email) {
@@ -18,35 +20,119 @@ export const syncUserToPostgres = async (req, res) => {
     });
   }
 
+  // Validar que name esté disponible (es NOT NULL en registered_user)
+  if (!name) {
+    return res.status(400).json({
+      success: false,
+      message: 'El nombre del usuario es obligatorio.',
+      code: 'NAME_REQUIRED',
+    });
+  }
+
   try {
-    // mirar si el usuario ya existe en la bd
-    const checkResult = await pool.query('SELECT uid, email FROM users WHERE uid = $1', [uid]);
+    // Verificar si el usuario ya existe
+    const existingUser = await prisma.registered_user.findUnique({
+      where: { user_id: uid },
+      include: {
+        user: true,
+        client: true,
+      },
+    });
 
-    if (checkResult.rows.length === 0) {
-      // si el usuario no existe, se inserta
-      await pool.query('INSERT INTO users (uid, email) VALUES ($1, $2)', [uid, email]);
-      console.log(`Nuevo usuario registrado en PostgreSQL: ${uid}`);
+    if (existingUser) {
+      // Determinar el rol
+      let role = 'client';
+      if (existingUser.admin) role = 'admin';
+      if (existingUser.institution) role = 'institution';
 
-      return res.status(201).json({
-        success: true,
-        message: 'Usuario sincronizado correctamente',
-        user: { uid, email },
-      });
-    } else {
-      console.log(`Usuario ya existente en PostgreSQL: ${uid}`);
+      // Generar JWT
+      const jwtPayload = {
+        uid: existingUser.user_id,
+        email: existingUser.email,
+        name: existingUser.name,
+        surname: existingUser.surname,
+        profile_picture: existingUser.client?.profile_picture || null,
+        role,
+        points: existingUser.client?.points || 0,
+        streak: existingUser.client?.streak || 0,
+      };
+      const jwt = signUserJWT(jwtPayload);
+
+      // Opcional: guardar el JWT en la BD si quieres revocación
+      // await prisma.session.upsert({ ... })
 
       return res.status(200).json({
         success: true,
         message: 'Usuario ya existía',
-        user: checkResult.rows[0],
+        jwt,
       });
     }
+
+    // Crear el usuario completo en una transacción
+    const newUser = await prisma.$transaction(async (tx) => {
+      // 1. Crear user base
+      const user = await tx.user.create({
+        data: {
+          user_id: uid,
+        },
+      });
+
+      // 2. Crear registered_user
+      const registeredUser = await tx.registered_user.create({
+        data: {
+          user_id: uid,
+          name: name,
+          email: email,
+          app_language: 'Spanish',
+          // Campos opcionales
+          ...(surname && { surname: surname }),
+        },
+      });
+
+      // 3. Crear client asociado
+      const client = await tx.client.create({
+        data: {
+          user_id: uid,
+          points: 0, // Puntos iniciales
+          streak: 0, // Racha inicial
+          // Campos opcionales
+          ...(picture && { profile_picture: picture }),
+          ...(phone_number && { phone: parseInt(phone_number) }),
+        },
+      });
+
+      return { user, registeredUser, client };
+    });
+
+    // Determinar el rol
+    let role = 'client';
+    // Generar JWT
+    const jwtPayload = {
+      uid: newUser.registeredUser.user_id,
+      email: newUser.registeredUser.email,
+      name: newUser.registeredUser.name,
+      surname: newUser.registeredUser.surname,
+      profile_picture: newUser.client.profile_picture || null,
+      role,
+      points: newUser.client.points,
+      streak: newUser.client.streak,
+    };
+    const jwt = signUserJWT(jwtPayload);
+
+    // Opcional: guardar el JWT en la BD si quieres revocación
+    // await prisma.session.create({ ... })
+
+    return res.status(201).json({
+      success: true,
+      message: 'Usuario y cliente sincronizados correctamente',
+      jwt,
+    });
   } catch (error) {
     console.error('Error synchronizing user with PostgreSQL:', error);
 
-    // manejo de errores específicos
-    if (error.code === '23505') {
-      // Código de error para violación de clave única en PostgreSQL
+    // Manejo de errores específicos de Prisma
+    if (error.code === 'P2002') {
+      // Violación de constraint único (email duplicado)
       return res.status(409).json({
         success: false,
         message: 'El usuario ya existe en la base de datos.',
@@ -54,11 +140,21 @@ export const syncUserToPostgres = async (req, res) => {
       });
     }
 
-    // respuesta genérica para otros errores
+    if (error.code === 'P2003') {
+      // Violación de foreign key
+      return res.status(400).json({
+        success: false,
+        message: 'Error de referencia en la base de datos.',
+        code: 'FOREIGN_KEY_ERROR',
+      });
+    }
+
+    // Respuesta genérica para otros errores
     return res.status(500).json({
       success: false,
       message: 'Error interno del servidor al sincronizar el usuario en la base de datos.',
       code: 'DATABASE_ERROR',
+      ...(process.env.NODE_ENV === 'development' && { details: error.message }),
     });
   }
 };
