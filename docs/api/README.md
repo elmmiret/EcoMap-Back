@@ -35,6 +35,8 @@ docs/api/
 
 - [POST /api/users/sync](endpoints/users-sync.md) - Sincronizar usuario y obtener JWT
 - [GET /](endpoints/health-check.md) - Verificar estado del servidor
+- [GET /api/barcelona/points](endpoints/barcelona-points.md) - Puntos de reciclaje (Barcelona)
+- [GET /api/navarra/points](endpoints/navarra-points.md) - Puntos de reciclaje (Navarra)
 
 ## 📱 Para Desarrolladores Frontend
 
@@ -59,6 +61,11 @@ Ver detalles completos en [Configuración General](01-configuracion-general.md).
 
 ## 🆕 Últimas Actualizaciones
 
+**25 de Octubre 2025**
+
+- ✅ Nuevos endpoints públicos de puntos de reciclaje para Barcelona y Navarra (fuente CKAN)
+- ✅ Documentación detallada con ejemplos de consumo en JS/Dart
+
 **23 de Octubre 2025**
 
 - ✅ Sistema de JWT propio del backend implementado
@@ -68,4 +75,4 @@ Ver detalles completos en [Configuración General](01-configuracion-general.md).
 ---
 
 **Versión del API:** 1.0.0  
-**Última actualización:** 23 de Octubre 2025
+**Última actualización:** 25 de Octubre 2025
