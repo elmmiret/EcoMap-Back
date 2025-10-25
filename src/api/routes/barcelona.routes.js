@@ -5,7 +5,11 @@ const router = express.Router();
 
 router.get('/points', async (req, res) => {
   try {
-    const records = await getBarcelonaRecyclingPoints();
+    // Captura los parametros del query (ej: ?municipio=Pamplona)
+    const filters = req.query;
+
+    // Paasa los filtros a la función del servicio
+    const records = await getBarcelonaRecyclingPoints(filters);
     res.json(records);
   } catch (err) {
     console.error('Error obtenint punts de reciclatge:', err);

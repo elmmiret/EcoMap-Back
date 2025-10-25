@@ -1,6 +1,7 @@
 import fetch from 'node-fetch';
 
-export async function getNavarraRecyclingPoints() {
+// Acepta queryParams como argumento
+export async function getNavarraRecyclingPoints(queryParams = {}) {
   const resourceId = process.env.NAVARRA_RESOURCE_ID;
   const baseUrl = 'https://datosabiertos.navarra.es/es/api/3/action/datastore_search';
 
@@ -11,8 +12,28 @@ export async function getNavarraRecyclingPoints() {
 
   console.log('♻️ Descargando puntos de reciclaje desde CKAN Navarra...');
 
+  // Separa 'q' (búsqueda full-text) del resto de filtros
+  const { q, ...filters } = queryParams;
+
   while (hasMore) {
-    const url = `${baseUrl}?resource_id=${resourceId}&limit=${limit}&offset=${offset}`;
+    // Construye los parámeteos de la URL dinámicamente
+    let urlParams = `resource_id=${resourceId}&limit=${limit}&offset=${offset}`;
+
+    if (q) {
+      urlParams += `&q=${encodeURIComponent(q)}`;
+    }
+
+    // Si hay filtros (ej: municipio=Pamplona), los convierte en JSON
+    const filterKeys = Object.keys(filters);
+    if (filterKeys.length > 0) {
+      const filtersString = JSON.stringify(filters);
+      urlParams += `&filters=${encodeURIComponent(filtersString)}`;
+    }
+
+    const url = `${baseUrl}?${urlParams}`;
+
+    console.log(`Consultando: ${url}`); // para depurar
+
     const response = await fetch(url);
 
     if (!response.ok) {
