@@ -131,7 +131,7 @@ export const syncUserToPostgres = async (req, res) => {
         try {
           userData.phone = parseInt(userRecord.phoneNumber.replace('+', ''));
         } catch (e) {
-          console.warn(`No se pudo parsear el número de teléfono: ${userRecord.phoneNumber}.`);
+          console.warn(`No se pudo parsear el número de teléfono: ${userRecord.phoneNumber}.`, e);
         }
       }
     }
