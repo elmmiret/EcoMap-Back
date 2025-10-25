@@ -46,7 +46,17 @@ export const syncUserToPostgres = async (req, res) => {
       if (existingUser.admin) role = 'admin';
       if (existingUser.institution) role = 'institution';
 
-      // Generar JWT
+      // Limpiar sesiones expiradas
+      await prisma.session.deleteMany({
+        where: {
+          user_id: uid,
+          expiry_date: {
+            lt: new Date(),
+          },
+        },
+      });
+
+      // Generar y guardar nuevo JWT
       const jwtPayload = {
         uid: existingUser.user_id,
         email: existingUser.email,
@@ -57,20 +67,25 @@ export const syncUserToPostgres = async (req, res) => {
         points: existingUser.client?.points || 0,
         streak: existingUser.client?.streak || 0,
       };
-      const jwt = signUserJWT(jwtPayload);
+      const { token, expiryDate } = signUserJWT(jwtPayload);
 
-      // Opcional: guardar el JWT en la BD si quieres revocación
-      // await prisma.session.upsert({ ... })
+      await prisma.session.create({
+        data: {
+          jwt: token,
+          expiry_date: expiryDate,
+          user_id: uid,
+        },
+      });
 
       return res.status(200).json({
         success: true,
         message: 'Usuario ya existía',
-        jwt,
+        jwt: token,
       });
     }
 
     // Crear el usuario completo en una transacción
-    const newUser = await prisma.$transaction(async (tx) => {
+    const { registeredUser, client } = await prisma.$transaction(async (tx) => {
       // 1. Crear user base
       const user = await tx.user.create({
         data: {
@@ -105,28 +120,32 @@ export const syncUserToPostgres = async (req, res) => {
       return { user, registeredUser, client };
     });
 
-    // Determinar el rol
-    let role = 'client';
-    // Generar JWT
+    // Generar y guardar nuevo JWT
+    const role = 'client';
     const jwtPayload = {
-      uid: newUser.registeredUser.user_id,
-      email: newUser.registeredUser.email,
-      name: newUser.registeredUser.name,
-      surname: newUser.registeredUser.surname,
-      profile_picture: newUser.client.profile_picture || null,
+      uid: registeredUser.user_id,
+      email: registeredUser.email,
+      name: registeredUser.name,
+      surname: registeredUser.surname,
+      profile_picture: client.profile_picture || null,
       role,
-      points: newUser.client.points,
-      streak: newUser.client.streak,
+      points: client.points,
+      streak: client.streak,
     };
-    const jwt = signUserJWT(jwtPayload);
+    const { token, expiryDate } = signUserJWT(jwtPayload);
 
-    // Opcional: guardar el JWT en la BD si quieres revocación
-    // await prisma.session.create({ ... })
+    await prisma.session.create({
+      data: {
+        jwt: token,
+        expiry_date: expiryDate,
+        user_id: uid,
+      },
+    });
 
     return res.status(201).json({
       success: true,
       message: 'Usuario y cliente sincronizados correctamente',
-      jwt,
+      jwt: token,
     });
   } catch (error) {
     console.error('Error synchronizing user with PostgreSQL:', error);
@@ -161,46 +180,41 @@ export const syncUserToPostgres = async (req, res) => {
 };
 
 /**
- * Lógica para eliminar el usuario de Firebase y de PostgreSQL.
+ * Lógica para cerrar la sesión de un usuario.
  */
-export const deleteUserFromPostgres = async (req, res) => {
-  const { uid } = req.user; // obtiene el uid verificado del middleware
+export const logoutUser = async (req, res) => {
+  // El middleware `authenticateUser` ya verificó el token y adjuntó el payload a `req.user`
+  // y el token en sí a `req.token`
+  const { uid } = req.user;
+  const token = req.token;
 
-  if (!uid) {
-    return res.status(400).json({ error: 'UID de usuario no proporcionado en el token.' });
+  if (!uid || !token) {
+    return res.status(400).json({
+      success: false,
+      message: 'Token o UID de usuario no proporcionado.',
+      code: 'BAD_REQUEST',
+    });
   }
 
   try {
-    // eliminar de postgreSQL (usa el pool.query de db.js)
-    const dbResult = await pool.query('DELETE FROM users WHERE uid = $1 RETURNING uid', [uid]);
+    // Eliminar la sesión de la base de datos
+    await prisma.session.deleteMany({
+      where: {
+        user_id: uid,
+        jwt: token,
+      },
+    });
 
-    if (dbResult.rows.length === 0) {
-      console.warn(`Usuario ${uid} no encontrado en PostreSQL (continuando a Firebase).`);
-    } else {
-      console.log(`Usuario ${uid} eliminado de PostgreSQL.`);
-    }
-
-    // eliminar de Firebase
-    await admin.auth().deleteUser(uid);
-    console.log(`Usuario ${uid} eliminado de Firebase.`);
-
-    // respuesta exitosa
-    res.status(200).json({
-      message: 'Usuario eliminado exitosamente de Firebase y PostgreSQL.',
-      uid: uid,
+    return res.status(200).json({
+      success: true,
+      message: 'Sesión cerrada correctamente.',
     });
   } catch (error) {
-    console.error('Error al intentar eliminar el usuario:', error);
-
-    // manejo de errores de Firebase
-    if (error.code === 'auth/user-not-found') {
-      return res.status(404).json({ error: 'Usuario no encontrado en Firebase.' });
-    }
-
-    // error genérico
-    res.status(500).json({
-      error: 'Error interno del servidor al intentar eliminar el usuario.',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    console.error('Error al cerrar la sesión:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor al cerrar la sesión.',
+      code: 'DATABASE_ERROR',
     });
   }
 };

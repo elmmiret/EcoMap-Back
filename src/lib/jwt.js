@@ -10,5 +10,8 @@ if (!JWT_SECRET) {
 }
 
 export function signUserJWT(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  const decoded = jwt.decode(token);
+  const expiryDate = new Date(decoded.exp * 1000);
+  return { token, expiryDate };
 }

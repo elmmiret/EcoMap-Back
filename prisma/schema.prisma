@@ -43,11 +43,22 @@ model registered_user {
   institution  institution?
   notification notification[]
   user         user              @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  sessions     session[]
 }
 
 model user {
   user_id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   registered_user registered_user?
+}
+
+model session {
+  session_id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jwt             String          @unique
+  expiry_date     DateTime
+  user_id         String          @db.Uuid
+  registered_user registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([user_id])
 }
 
 model container {

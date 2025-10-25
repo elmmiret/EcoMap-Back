@@ -40,11 +40,12 @@ Estos endpoints requieren el JWT del backend en el header `Authorization`.
 
 ### 👥 Usuarios
 
-| Método   | Endpoint        | Descripción                       | Rol Requerido |
-| -------- | --------------- | --------------------------------- | ------------- |
-| `GET`    | `/api/users/me` | Obtener perfil del usuario actual | Todos         |
-| `PUT`    | `/api/users/me` | Actualizar perfil                 | Todos         |
-| `DELETE` | `/api/users/me` | Eliminar cuenta                   | Todos         |
+| Método   | Endpoint            | Descripción                         | Rol Requerido |
+| -------- | ------------------- | ----------------------------------- | ------------- |
+| `POST`   | `/api/users/logout` | Cierra la sesión del usuario actual | Todos         |
+| `GET`    | `/api/users/me`     | Obtener perfil del usuario actual   | Todos         |
+| `PUT`    | `/api/users/me`     | Actualizar perfil                   | Todos         |
+| `DELETE` | `/api/users/me`     | Eliminar cuenta                     | Todos         |
 
 ### ♻️ Puntos de Reciclaje
 

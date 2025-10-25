@@ -539,6 +539,8 @@ class _MyAppState extends State<MyApp> {
 
 6. **Puntos y racha iniciales**: Los nuevos clientes comienzan con 0 puntos y 0 racha.
 
+7. **Auto-refresh sugerido ("Recuérdame")**: Si una petición te devuelve `401 TOKEN_EXPIRED`, pide un token fresco a Firebase con `getIdToken(forceRefresh: true)`, vuelve a llamar a `POST /api/users/sync`, guarda el nuevo JWT y reintenta la petición original de forma transparente para el usuario.
+
 ---
 
 ## 🔗 Endpoints Relacionados

@@ -249,8 +249,124 @@ Future<bool> handleApiResponse(http.Response response) async {
 
 ### Backend JWT
 
-- **Duración**: Configurable (por defecto 1 hora)
+- **Duración**: Configurable (por defecto 24 horas)
 - **Solución al expirar**: Llamar a `/api/users/sync` con un Firebase token fresco
+
+---
+
+## 🔁 Auto-refresh ("Recuérdame")
+
+Para que el usuario no tenga que iniciar sesión manualmente con frecuencia, utiliza este patrón:
+
+1. Usa el JWT del backend en todas las peticiones.
+2. Si recibes `401 TOKEN_EXPIRED`, pide a Firebase un token fresco con `getIdToken(forceRefresh: true)`.
+3. Llama a `POST /api/users/sync` con ese token para obtener un nuevo JWT del backend.
+4. Guarda el nuevo JWT y reintenta automáticamente la petición original.
+
+### Dart/Flutter (patrón de reintento)
+
+```dart
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+Future<http.Response> apiRequest(
+  String method,
+  Uri uri, {
+  Map<String, String>? headers,
+  Object? body,
+}) async {
+  final prefs = await SharedPreferences.getInstance();
+  String? jwt = prefs.getString('backend_jwt');
+
+  Future<http.Response> _send(String? token) {
+    final h = {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+      ...?headers,
+    };
+    switch (method.toUpperCase()) {
+      case 'POST':
+        return http.post(uri, headers: h, body: body);
+      case 'PUT':
+        return http.put(uri, headers: h, body: body);
+      case 'DELETE':
+        return http.delete(uri, headers: h);
+      default:
+        return http.get(uri, headers: h);
+    }
+  }
+
+  // 1º intento
+  var res = await _send(jwt);
+  if (res.statusCode != 401) return res;
+
+  // Intentar auto-refresh
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return res; // No hay sesión en Firebase
+
+  final freshFirebaseToken = await user.getIdToken(true);
+  // Re-sincronizar con backend
+  final syncRes = await http.post(
+    Uri.parse('http://localhost:3001/api/users/sync'),
+    headers: {
+      'Authorization': 'Bearer $freshFirebaseToken',
+      'Content-Type': 'application/json',
+    },
+  );
+
+  if (syncRes.statusCode == 200 || syncRes.statusCode == 201) {
+    final data = jsonDecode(syncRes.body);
+    final newJWT = data['jwt'];
+    await prefs.setString('backend_jwt', newJWT);
+    // Reintentar la petición original
+    return _send(newJWT);
+  }
+
+  return res; // Falló el refresh
+}
+```
+
+### JavaScript/TypeScript (fetch wrapper)
+
+```javascript
+async function apiFetch(input, init = {}) {
+  const getJWT = () => localStorage.getItem('backend_jwt');
+  const setJWT = (t) => localStorage.setItem('backend_jwt', t);
+
+  const send = async (token) => {
+    const headers = new Headers(init.headers || {});
+    headers.set('Content-Type', 'application/json');
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const resp = await fetch(input, { ...init, headers });
+    return resp;
+  };
+
+  let resp = await send(getJWT());
+  if (resp.status !== 401) return resp;
+
+  // Intentar auto-refresh llamando a /api/users/sync con Firebase ID Token
+  const firebaseToken = await window.firebase.auth().currentUser?.getIdToken(true);
+  if (!firebaseToken) return resp;
+
+  const syncResp = await fetch('http://localhost:3001/api/users/sync', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${firebaseToken}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (syncResp.ok) {
+    const { jwt } = await syncResp.json();
+    setJWT(jwt);
+    resp = await send(jwt); // reintento
+  }
+
+  return resp;
+}
+```
 
 ---
 
