@@ -1,7 +1,8 @@
 import fetch from 'node-fetch';
 
-export async function getBarcelonaRecyclingPoints() {
-  const resourceId = process.env.Barcelona_RESOURCE_ID;
+// Acepta queryParams como argumento
+export async function getBarcelonaRecyclingPoints(queryParams = {}) {
+  const resourceId = process.env.BARCELONA_RESOURCE_ID;
   const baseUrl = 'https://opendata-ajuntament.barcelona.cat/data/api/3/action/datastore_search';
 
   const limit = 1000;
@@ -11,8 +12,27 @@ export async function getBarcelonaRecyclingPoints() {
 
   console.log('♻️ Descargando puntos de reciclaje desde CKAN Barcelona...');
 
+  const { q, ...filters } = queryParams;
+
   while (hasMore) {
-    const url = `${baseUrl}?resource_id=${resourceId}&limit=${limit}&offset=${offset}`;
+    let urlParams = `resource_id=${resourceId}&limit=${limit}&offset=${offset}`;
+
+    if (q) {
+      urlParams += `&q=${encodeURIComponent(q)}`;
+    }
+
+    // Si hay filtros, los convierte a JSON
+
+    const filterKeys = Object.keys(filters);
+    if (filterKeys.length > 0) {
+      const filtersString = JSON.stringify(filters);
+      urlParams += `&filters=${encodeURIComponent(filtersString)}`;
+    }
+
+    const url = `${baseUrl}?${urlParams}`;
+
+    console.log(`Consultando: ${url}`); // para depurar
+
     const response = await fetch(url);
 
     if (!response.ok) {
