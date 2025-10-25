@@ -44,7 +44,7 @@ export async function getNavarraRecyclingPoints() {
   return allRecords;
 }
 
-/*export async function getNavarraRecyclingPointById(id) {
+export async function getNavarraRecyclingPointById(id) {
   const resourceId = process.env.NAVARRA_RESOURCE_ID;
   const baseUrl = 'https://datosabiertos.navarra.es/es/api/3/action/datastore_search';
 
@@ -74,4 +74,4 @@ export async function getNavarraRecyclingPoints() {
   }
 
   return record;
-}*/
+}

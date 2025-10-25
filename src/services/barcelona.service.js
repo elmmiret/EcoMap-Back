@@ -41,7 +41,7 @@ export async function getBarcelonaRecyclingPoints() {
   return allRecords;
 }
 
-/*export async function getBarcelonaRecyclingPointById(id) {
+export async function getBarcelonaRecyclingPointById(id) {
   const resourceId = process.env.Barcelona_RESOURCE_ID;
   const baseUrl = 'https://opendata-ajuntament.barcelona.cat/data/api/3/action/datastore_search';
 
@@ -70,4 +70,4 @@ export async function getBarcelonaRecyclingPoints() {
   }
 
   return record;
-}*/
+}

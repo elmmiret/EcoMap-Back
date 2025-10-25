@@ -1,6 +1,6 @@
 import express from 'express';
-import { getNavarraRecyclingPoints } from '../../services/navarra.service.js';
-import { getBarcelonaRecyclingPoints } from '../../services/barcelona.service.js';
+import { getNavarraRecyclingPoints, getNavarraRecyclingPointById } from '../../services/navarra.service.js';
+import { getBarcelonaRecyclingPoints, getBarcelonaRecyclingPointById } from '../../services/barcelona.service.js';
 
 const router = express.Router();
 
@@ -46,31 +46,41 @@ router.get('/', async (_req, res) => {
   }
 });
 
-/*router.get('/:id', async (req, res) => {
-  const { id } = req.params;
+/**
+ * GET /api/recycling-points/:region/:id
+ * Ejemplo: /api/recycling-points/navarra/25  o  /api/recycling-points/barcelona/25
+ */
+router.get('/:region/:id', async (req, res) => {
+  const { region, id } = req.params;
 
   try {
-    const navarraPoint = await getNavarraRecyclingPointById(id);
-    if (navarraPoint) {
-      return res.status(200).json({
-        success: true,
-        message: `Punto de reciclaje encontrado en Navarra`,
-        data: { ...navarraPoint, location: 'Navarra' },
-      });
+    let record = null;
+
+    if (region.toLowerCase() === 'navarra') {
+      record = await getNavarraRecyclingPointById(id);
+      if (record) {
+        return res.status(200).json({
+          success: true,
+          message: `Punto de reciclaje encontrado en Navarra`,
+          data: { ...record, location: 'Navarra' },
+        });
+      }
     }
 
-    const barcelonaPoint = await getBarcelonaRecyclingPointById(id);
-    if (barcelonaPoint) {
-      return res.status(200).json({
-        success: true,
-        message: `Punto de reciclaje encontrado en Barcelona`,
-        data: { ...barcelonaPoint, location: 'Barcelona' },
-      });
+    if (region.toLowerCase() === 'barcelona') {
+      record = await getBarcelonaRecyclingPointById(id);
+      if (record) {
+        return res.status(200).json({
+          success: true,
+          message: `Punto de reciclaje encontrado en Barcelona`,
+          data: { ...record, location: 'Barcelona' },
+        });
+      }
     }
 
-    res.status(404).json({
+    return res.status(404).json({
       success: false,
-      message: `No se ha encontrado ningún punto con id ${id}`,
+      message: `No se ha encontrado ningún punto con id ${id} en ${region}`,
       code: 'RECYCLING_POINT_NOT_FOUND',
     });
   } catch (error) {
@@ -81,6 +91,6 @@ router.get('/', async (_req, res) => {
       code: 'RECYCLING_POINT_ERROR',
     });
   }
-});*/
+});
 
 export default router;
