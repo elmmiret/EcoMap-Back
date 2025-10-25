@@ -46,6 +46,40 @@ router.get('/', async (_req, res) => {
   }
 });
 
+router.get('/:region', async (req, res) => {
+  const { region } = req.params;
+  try {
+    if (region.toLowerCase() === 'navarra') {
+      const navarraPoints = await getNavarraRecyclingPoints();
+      return res.status(200).json({
+        success: true,
+        message: `Puntos de reciclaje en Navarra (${navarraPoints.length} puntos)`,
+        data: navarraPoints,
+      });
+    }
+    if (region.toLowerCase() === 'barcelona') {
+      const barcelonaPoints = await getBarcelonaRecyclingPoints();
+      return res.status(200).json({
+        success: true,
+        message: `Puntos de reciclaje en Barcelona (${barcelonaPoints.length} puntos)`,
+        data: barcelonaPoints,
+      });
+    }
+    return res.status(400).json({
+      success: false,
+      message: `Región no soportada: ${region}`,
+      code: 'REGION_NOT_SUPPORTED',
+    });
+  } catch (error) {
+    console.error(`❌ Error al obtener puntos de reciclaje en ${region}:`, error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener los puntos de reciclaje',
+      code: 'RECYCLING_POINTS_ERROR',
+    });
+  }
+});
+
 router.get('/:region/:id', async (req, res) => {
   const { region, id } = req.params;
 
