@@ -24,7 +24,7 @@ export async function getBarcelonaRecyclingPoints(queryParams = {}) {
     // Si hay filtros, los convierte a JSON
 
     const filterKeys = Object.keys(filters);
-    if(filterKeys.length > 0) {
+    if (filterKeys.length > 0) {
       const filtersString = JSON.stringify(filters);
       urlParams += `&filters=${encodeURIComponent(filtersString)}`;
     }
