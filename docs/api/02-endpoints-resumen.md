@@ -6,11 +6,17 @@ Vista rápida de todos los endpoints disponibles en la API de PESkaos.
 
 ## 🟢 Públicos (Sin autenticación)
 
-| Método | Endpoint | Descripción                   | Respuesta        |
-| ------ | -------- | ----------------------------- | ---------------- |
-| `GET`  | `/`      | Verificar estado del servidor | `"API running."` |
+| Método | Endpoint                | Descripción                            | Respuesta        |
+| ------ | ----------------------- | -------------------------------------- | ---------------- |
+| `GET`  | `/`                     | Verificar estado del servidor          | `"API running."` |
+| `GET`  | `/api/barcelona/points` | Puntos de reciclaje (Barcelona - CKAN) | `Array<object>`  |
+| `GET`  | `/api/navarra/points`   | Puntos de reciclaje (Navarra - CKAN)   | `Array<object>`  |
 
-📖 [Ver detalles →](endpoints/health-check.md)
+📖 Ver detalles:
+
+- [GET / - Health Check](endpoints/health-check.md)
+- [GET /api/barcelona/points](endpoints/barcelona-points.md)
+- [GET /api/navarra/points](endpoints/navarra-points.md)
 
 ---
 
