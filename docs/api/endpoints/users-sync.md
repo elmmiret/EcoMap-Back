@@ -1,6 +1,6 @@
-# POST /api/users/sync - Sincronizar Usuario
+# POST /api/users/sync - Sincronizar o Iniciar Sesión de Usuario
 
-Sincroniza el usuario autenticado de Firebase con la base de datos PostgreSQL y devuelve un JWT propio del backend con toda la información del usuario.
+Este endpoint centraliza tanto el **inicio de sesión** de usuarios existentes como el **registro (sincronización)** de nuevos usuarios. Utiliza el token de Firebase para identificar al usuario y decide si debe crear una nueva entrada en la base de datos o simplemente generar una nueva sesión.
 
 ---
 
@@ -24,38 +24,34 @@ Authorization: Bearer <FIREBASE_ID_TOKEN>
 Content-Type: application/json
 ```
 
-### Body
+### Flujos de Operación
 
-Este endpoint funciona en dos modos. En ambos casos el header `Authorization: Bearer <FIREBASE_ID_TOKEN>` es obligatorio.
+Este endpoint opera en tres flujos distintos, todos requiriendo el token de Firebase en el header `Authorization`.
 
-- Registro Social (Google/Firebase): No requiere body. Los datos del usuario se obtienen desde Firebase.
-- Registro Manual: Requiere body JSON con los siguientes campos:
+#### 1. Inicio de Sesión (Login)
 
-```json
-{
-  "name": "Nombre Apellido",
-  "email": "usuario@ejemplo.com",
-  "username": "usuario"
-}
-```
+- **Condición**: El usuario (identificado por el `uid` del token de Firebase) ya existe en la base de datos.
+- **Body**: Vacío (`{}`).
+- **Lógica**: El backend verifica la existencia del usuario, genera un nuevo JWT de sesión y lo devuelve.
 
-### Datos utilizados por modo
+#### 2. Registro Social (ej. Google)
 
-- Registro Social (Google/Firebase):
-  - Se extraen de Firebase (User Record) los siguientes datos:
-    - `uid` (requerido)
-    - `email` (requerido)
-    - `displayName` -> se separa en `name` y `surname` (si hay)
-    - `photoURL` -> `profile_picture` (opcional)
-    - `phoneNumber` -> `phone` (opcional, intenta parsear formato E.164)
-  - `username` se genera automáticamente como la parte inicial del email (antes de `@`).
+- **Condición**: El usuario no existe en la base de datos.
+- **Body**: Vacío (`{}`).
+- **Lógica**: El backend extrae los datos del perfil del usuario desde Firebase (email, nombre, foto) y los usa para crear un nuevo registro en la base de datos.
 
-- Registro Manual:
-  - Se usa el `uid` del token de Firebase y los datos del body:
-    - `name` (requerido)
-    - `email` (requerido)
-    - `username` (requerido)
-  - El `surname` se calcula a partir de `name` si viene en formato "Nombre Apellido" (opcional).
+#### 3. Registro Manual
+
+- **Condición**: El usuario no existe en la base de datos.
+- **Body**: Requiere un JSON con los datos del usuario.
+  ```json
+  {
+    "name": "Nombre Apellido",
+    "email": "usuario@ejemplo.com",
+    "username": "usuario"
+  }
+  ```
+- **Lógica**: El backend usa los datos del body para crear el nuevo registro.
 
 ---
 
@@ -63,23 +59,27 @@ Este endpoint funciona en dos modos. En ambos casos el header `Authorization: Be
 
 ### Respuesta Exitosa
 
-#### 200 OK - Usuario ya existía
+#### 200 OK - Inicio de Sesión Correcto
+
+Se devuelve cuando un usuario ya existente se autentica.
 
 ```json
 {
   "success": true,
-  "message": "Usuario ya existía",
+  "message": "Inicio de sesión correcto.",
   "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "expiryDate": "2025-10-25T12:34:56.789Z"
 }
 ```
 
-#### 201 Created - Usuario creado exitosamente
+#### 201 Created - Usuario Registrado y Sincronizado
+
+Se devuelve cuando un nuevo usuario (manual o social) es creado en la base de datos.
 
 ```json
 {
   "success": true,
-  "message": "Usuario y cliente sincronizados correctamente",
+  "message": "Usuario registrado y sincronizado correctamente.",
   "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "expiryDate": "2025-10-25T12:34:56.789Z"
 }

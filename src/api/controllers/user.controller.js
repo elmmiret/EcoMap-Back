@@ -13,162 +13,41 @@ const dbg = (...args) => console.log('[syncUserToPostgres]', ...args);
  * Crea: user -> registered_user -> client
  */
 export const syncUserToPostgres = async (req, res) => {
-  // UID del token de Firebase (siempre presente)
+  // UID del token de Firebase (siempre presente gracias al middleware)
   const { uid: firebaseUID } = req.user;
-  // Datos del body (para registro manual)
-  const { name: bodyName, email: bodyEmail, username: bodyUsername } = req.body;
 
-  const isManualRegistration = !!(bodyName && bodyEmail && bodyUsername);
-
-  dbg('Inicio handler', {
-    firebaseUID,
-    isManualRegistration,
-    bodyKeys: Object.keys(req.body || {}),
-    body: req.body,
-  });
+  dbg('Inicio handler', { firebaseUID, bodyKeys: Object.keys(req.body || {}) });
 
   try {
-    // --- 1. Validar y preparar los datos del usuario ---
-    const userData = {
-      uid: firebaseUID,
-      email: '',
-      name: '',
-      surname: '',
-      username: isManualRegistration ? bodyUsername : null,
-      profile_picture: null,
-      phone: null,
-    };
-
-    if (isManualRegistration) {
-      // --- REGISTRO MANUAL ---
-      dbg('Registro manual detectado');
-      userData.email = bodyEmail;
-      const nameParts = bodyName.split(' ');
-      userData.name = nameParts[0];
-      userData.surname = nameParts.slice(1).join(' ');
-    } else {
-      // --- REGISTRO SOCIAL (Google) ---
-      dbg('Registro social detectado; obteniendo datos de Firebase');
-      const auth = getFirebaseAuth();
-      const userRecord = await auth.getUser(firebaseUID);
-
-      dbg('Datos RAW de Firebase userRecord:', {
-        uid: userRecord.uid,
-        email: userRecord.email,
-        displayName: userRecord.displayName,
-        photoURL: userRecord.photoURL,
-        phoneNumber: userRecord.phoneNumber,
-        emailVerified: userRecord.emailVerified,
-        disabled: userRecord.disabled,
-        providerData: userRecord.providerData,
-      });
-
-      userData.email = userRecord.email;
-      userData.username = userRecord.email ? userRecord.email.split('@')[0] : null;
-      userData.profile_picture = userRecord.photoURL || null;
-
-      dbg('Datos básicos extraídos:', {
-        email: userData.email,
-        username: userData.username,
-        profile_picture: userData.profile_picture,
-      });
-
-      if (userRecord.displayName) {
-        const nameParts = userRecord.displayName.split(' ');
-        userData.name = nameParts[0];
-        userData.surname = nameParts.slice(1).join(' ');
-        dbg('Nombre parseado desde displayName:', {
-          displayName: userRecord.displayName,
-          name: userData.name,
-          surname: userData.surname,
-          nameParts,
-        });
-      } else {
-        dbg('WARNING: displayName NO está presente en userRecord de Firebase');
-      }
-
-      if (userRecord.phoneNumber) {
-        try {
-          // Intenta parsear, pero asume formato internacional E.164
-          userData.phone = parseInt(userRecord.phoneNumber.replace('+', ''));
-          dbg('Teléfono parseado:', {
-            phoneNumber: userRecord.phoneNumber,
-            parsedPhone: userData.phone,
-          });
-        } catch (e) {
-          console.warn(`Could not parse phone number: ${userRecord.phoneNumber}. Error: ${e?.message || e}`);
-          dbg('Error al parsear teléfono:', {
-            phoneNumber: userRecord.phoneNumber,
-            error: e?.message || e,
-          });
-        }
-      } else {
-        dbg('phoneNumber NO está presente en userRecord de Firebase');
-      }
-
-      dbg('Datos finales de userData después de registro social:', userData);
-    }
-
-    // Validaciones finales de datos
-    if (!userData.uid || !userData.email) {
-      dbg('Validación fallida: uid o email faltante', {
-        hasUid: !!userData.uid,
-        hasEmail: !!userData.email,
-      });
-      return res.status(400).json({
-        success: false,
-        message: 'Datos de usuario incompletos (uid o email faltante).',
-        code: 'INCOMPLETE_DATA',
-      });
-    }
-    if (!userData.name) {
-      dbg('Validación fallida: nombre faltante');
-      return res.status(400).json({
-        success: false,
-        message: 'El nombre del usuario es obligatorio.',
-        code: 'NAME_REQUIRED',
-      });
-    }
-
-    dbg('Datos de usuario normalizados', {
-      uid: userData.uid,
-      email: userData.email,
-      name: userData.name,
-      surname: userData.surname,
-      username: userData.username,
-      hasProfilePicture: !!userData.profile_picture,
-      hasPhone: !!userData.phone,
-    });
-
-    // --- 2. Verificar si el usuario ya existe ---
-    dbg('Consultando si el usuario ya existe en registered_user', { user_id: userData.uid });
+    // --- 1. ¿El usuario ya existe? (Lógica de LOGIN) ---
+    dbg('Consultando si el usuario ya existe en la BD', { user_id: firebaseUID });
     const existingUser = await prisma.registered_user.findUnique({
-      where: { user_id: userData.uid },
+      where: { user_id: firebaseUID },
       include: {
-        client: true,
+        client: true, // para obtener profile_picture, points, streak
+        admin: true, // para rol
+        institution: true, // para rol
       },
     });
 
     if (existingUser) {
-      // Usuario ya existe, solo refrescar sesión
-      let role = 'client';
-      if (existingUser.admin) role = 'admin';
-      if (existingUser.institution) role = 'institution';
+      dbg('Usuario existente encontrado -> INICIO DE SESIÓN', { user_id: existingUser.user_id });
 
-      dbg('Usuario existente encontrado. Refrescando sesión', {
-        user_id: existingUser.user_id,
-        role,
-        hasClient: !!existingUser.client,
-      });
-
-      // Limpiar sesiones expiradas
-      const deleteExpired = await prisma.session.deleteMany({
+      // Limpiar sesiones expiradas para este usuario
+      const { count: deletedCount } = await prisma.session.deleteMany({
         where: {
-          user_id: userData.uid,
+          user_id: firebaseUID,
           expiry_date: { lt: new Date() },
         },
       });
-      dbg('Sesiones expiradas eliminadas', { count: deleteExpired?.count || 0 });
+      if (deletedCount > 0) {
+        dbg('Sesiones expiradas eliminadas', { count: deletedCount });
+      }
+
+      // Determinar el rol del usuario
+      let role = 'client';
+      if (existingUser.admin) role = 'admin';
+      if (existingUser.institution) role = 'institution';
 
       // Generar y guardar nuevo JWT
       const jwtPayload = {
@@ -184,53 +63,114 @@ export const syncUserToPostgres = async (req, res) => {
       };
       const { token, expiryDate } = signUserJWT(jwtPayload);
 
-      dbg('JWT generado para usuario existente', {
-        uid: existingUser.user_id,
-        expISO: expiryDate?.toISOString?.() || null,
-      });
-
       await prisma.session.create({
         data: {
           jwt: token,
           expiry_date: expiryDate,
-          user_id: userData.uid,
+          user_id: firebaseUID,
         },
       });
       dbg('Nueva sesión almacenada para usuario existente');
 
       return res.status(200).json({
         success: true,
-        message: 'Usuario ya existía',
+        message: 'Inicio de sesión correcto.',
         jwt: token,
         expiryDate: expiryDate.toISOString(),
       });
     }
 
-    // --- 3. Crear el usuario completo si no existe ---
-    dbg('Usuario no existe; iniciando transacción de creación');
-    const { registeredUser, client } = await prisma.$transaction(async (tx) => {
-      // 1. Crear user base
-      dbg('Creando fila en table user');
-      const userRow = await tx.user.create({ data: { user_id: userData.uid } });
-      dbg('Fila user creada', { user_id: userRow.user_id });
+    // --- 2. Si no existe, es un REGISTRO ---
+    dbg('Usuario no existe -> REGISTRO');
+    const { name: bodyName, email: bodyEmail, username: bodyUsername } = req.body;
+    const isManualRegistration = !!(bodyName && bodyEmail); // Username es opcional
 
-      // 2. Crear registered_user
-      dbg('Creando fila en table registered_user');
-      const registeredUser = await tx.registered_user.create({
+    const userData = {
+      uid: firebaseUID,
+      email: '',
+      name: '',
+      surname: '',
+      username: null,
+      profile_picture: null,
+      phone: null,
+    };
+
+    if (isManualRegistration) {
+      // --- REGISTRO MANUAL ---
+      dbg('Detectado REGISTRO MANUAL');
+      userData.email = bodyEmail;
+      userData.username = bodyUsername || null;
+      const nameParts = bodyName.split(' ');
+      userData.name = nameParts[0];
+      userData.surname = nameParts.slice(1).join(' ');
+    } else {
+      // --- REGISTRO SOCIAL (Google, etc.) ---
+      dbg('Detectado REGISTRO SOCIAL (obteniendo datos de Firebase)');
+      const auth = getFirebaseAuth();
+      const userRecord = await auth.getUser(firebaseUID);
+
+      dbg('Datos RAW de Firebase userRecord:', {
+        uid: userRecord.uid,
+        email: userRecord.email,
+        displayName: userRecord.displayName,
+        photoURL: userRecord.photoURL,
+        phoneNumber: userRecord.phoneNumber,
+      });
+
+      userData.email = userRecord.email;
+      userData.username = userRecord.email ? userRecord.email.split('@')[0] : null;
+      userData.profile_picture = userRecord.photoURL || null;
+
+      if (userRecord.displayName) {
+        const nameParts = userRecord.displayName.split(' ');
+        userData.name = nameParts[0];
+        userData.surname = nameParts.slice(1).join(' ');
+      }
+
+      if (userRecord.phoneNumber) {
+        try {
+          userData.phone = parseInt(userRecord.phoneNumber.replace('+', ''));
+        } catch (e) {
+          console.warn(`No se pudo parsear el número de teléfono: ${userRecord.phoneNumber}.`);
+        }
+      }
+    }
+
+    // Validaciones finales de datos para el registro
+    if (!userData.uid || !userData.email || !userData.name) {
+      dbg('Validación de registro fallida: faltan uid, email o nombre', { userData });
+      return res.status(400).json({
+        success: false,
+        message: 'Datos de registro incompletos (uid, email o nombre).',
+        code: 'INCOMPLETE_REGISTRATION_DATA',
+      });
+    }
+
+    dbg('Datos de usuario normalizados para creación', {
+      uid: userData.uid,
+      email: userData.email,
+      name: userData.name,
+    });
+
+    // --- 3. Crear el usuario completo en una transacción ---
+    dbg('Iniciando transacción de creación de usuario');
+    const { registeredUser, client } = await prisma.$transaction(async (tx) => {
+      await tx.user.create({ data: { user_id: userData.uid } });
+      dbg('Fila creada en tabla `user`');
+
+      const newRegisteredUser = await tx.registered_user.create({
         data: {
           user_id: userData.uid,
           name: userData.name,
           email: userData.email,
-          app_language: 'Spanish',
+          app_language: 'Spanish', // Valor por defecto
           ...(userData.surname && { surname: userData.surname }),
           ...(userData.username && { username: userData.username }),
         },
       });
-      dbg('Fila registered_user creada', { user_id: registeredUser.user_id });
+      dbg('Fila creada en tabla `registered_user`');
 
-      // 3. Crear client asociado
-      dbg('Creando fila en table client');
-      const client = await tx.client.create({
+      const newClient = await tx.client.create({
         data: {
           user_id: userData.uid,
           points: 0,
@@ -239,15 +179,14 @@ export const syncUserToPostgres = async (req, res) => {
           ...(userData.phone && { phone: userData.phone }),
         },
       });
-      dbg('Fila client creada', { user_id: client.user_id });
+      dbg('Fila creada en tabla `client`');
 
-      return { registeredUser, client };
+      return { registeredUser: newRegisteredUser, client: newClient };
     });
 
-    dbg('Transacción completada correctamente');
+    dbg('Transacción de creación completada');
 
     // --- 4. Generar y devolver JWT para el nuevo usuario ---
-    const role = 'client';
     const jwtPayload = {
       uid: registeredUser.user_id,
       email: registeredUser.email,
@@ -255,16 +194,11 @@ export const syncUserToPostgres = async (req, res) => {
       surname: registeredUser.surname,
       username: registeredUser.username || null,
       profile_picture: client.profile_picture || null,
-      role,
+      role: 'client', // Rol por defecto para nuevos registros
       points: client.points,
       streak: client.streak,
     };
     const { token, expiryDate } = signUserJWT(jwtPayload);
-
-    dbg('JWT generado para nuevo usuario', {
-      uid: registeredUser.user_id,
-      expISO: expiryDate?.toISOString?.() || null,
-    });
 
     await prisma.session.create({
       data: {
@@ -277,49 +211,31 @@ export const syncUserToPostgres = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Usuario y cliente sincronizados correctamente',
+      message: 'Usuario registrado y sincronizado correctamente.',
       jwt: token,
       expiryDate: expiryDate.toISOString(),
     });
   } catch (error) {
-    console.error('Error synchronizing user with PostgreSQL:', error);
-    // Log extendido para diagnóstico
-    try {
-      dbg('Detalles de error', {
-        name: error?.name,
-        code: error?.code,
-        message: error?.message,
-        meta: error?.meta,
-      });
-    } catch (e) {
-      console.warn('[syncUserToPostgres] Error al loguear detalles del error:', e?.message || e);
-    }
+    console.error('Error en syncUserToPostgres:', error);
+    dbg('Detalles del error:', {
+      name: error?.name,
+      code: error?.code,
+      message: error?.message,
+      meta: error?.meta,
+    });
 
-    // Manejo de errores específicos de Prisma
     if (error.code === 'P2002') {
-      // Violación de constraint único (email duplicado)
       return res.status(409).json({
         success: false,
-        message: 'El usuario ya existe en la base de datos.',
-        code: 'USER_EXISTS',
+        message: 'El email o identificador de usuario ya existe.',
+        code: 'USER_ALREADY_EXISTS',
       });
     }
 
-    if (error.code === 'P2003') {
-      // Violación de foreign key
-      return res.status(400).json({
-        success: false,
-        message: 'Error de referencia en la base de datos.',
-        code: 'FOREIGN_KEY_ERROR',
-      });
-    }
-
-    // Respuesta genérica para otros errores
     return res.status(500).json({
       success: false,
-      message: 'Error interno del servidor al sincronizar el usuario en la base de datos.',
+      message: 'Error interno del servidor al sincronizar el usuario.',
       code: 'DATABASE_ERROR',
-      ...(process.env.NODE_ENV === 'development' && { details: error.message }),
     });
   }
 };
