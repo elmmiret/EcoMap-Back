@@ -1,9 +1,8 @@
 import express from 'express';
-import admin from 'firebase-admin';
+import { initializeFirebaseAdmin } from './config/firebase.js';
 import authRoutes from './api/routes/user.routes.js';
 import recyclingPoints from './api/routes/recycling-points.routes.js';
 import dotenv from 'dotenv';
-import { readFileSync } from 'fs';
 
 // cargar variables de entorno desde .env
 dotenv.config();
@@ -12,26 +11,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // --- INICIALIZACION de Firebase Admin SDK ---
-const keyPath = process.env.FIREBASE_KEY_PATH;
-
-if (!keyPath) {
-  console.error('FATAL ERROR: FIREBASE_KEY_PATH no se encuentra definido en las variables de entorno');
-  process.exit(1);
-}
-
-try {
-  // importar archivo json de la clave de servicio usando la ruta de entorno
-  const serviceAccount = JSON.parse(readFileSync(keyPath, 'utf8'));
-
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-  console.log(`Firebase Admin SDK inicializado correctamente usando la llave de: ${keyPath}`);
-} catch (e) {
-  console.error(`FATAL ERROR: No se ha podido cargar la llave de Firebase Service Account de: ${keyPath}`);
-  console.error('Detalles:', process.env.NODE_ENV === 'development' ? e.message : 'Error al cargar la clave.');
-  process.exit(1);
-}
+initializeFirebaseAdmin();
 
 // middleware global
 app.use(express.json());

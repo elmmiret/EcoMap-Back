@@ -26,18 +26,36 @@ Content-Type: application/json
 
 ### Body
 
-No requiere body. Los datos del usuario se extraen del token de Firebase.
+Este endpoint funciona en dos modos. En ambos casos el header `Authorization: Bearer <FIREBASE_ID_TOKEN>` es obligatorio.
 
-### Datos extraídos del Firebase Token
+- Registro Social (Google/Firebase): No requiere body. Los datos del usuario se obtienen desde Firebase.
+- Registro Manual: Requiere body JSON con los siguientes campos:
 
-El backend extrae automáticamente:
+```json
+{
+  "name": "Nombre Apellido",
+  "email": "usuario@ejemplo.com",
+  "username": "usuario"
+}
+```
 
-- `uid` - ID único del usuario en Firebase (requerido)
-- `email` - Correo electrónico (requerido)
-- `name` - Nombre (requerido)
-- `surname` - Apellido (opcional)
-- `phone_number` - Teléfono (opcional)
-- `picture` - URL de foto de perfil (opcional)
+### Datos utilizados por modo
+
+- Registro Social (Google/Firebase):
+  - Se extraen de Firebase (User Record) los siguientes datos:
+    - `uid` (requerido)
+    - `email` (requerido)
+    - `displayName` -> se separa en `name` y `surname` (si hay)
+    - `photoURL` -> `profile_picture` (opcional)
+    - `phoneNumber` -> `phone` (opcional, intenta parsear formato E.164)
+  - `username` se genera automáticamente como la parte inicial del email (antes de `@`).
+
+- Registro Manual:
+  - Se usa el `uid` del token de Firebase y los datos del body:
+    - `name` (requerido)
+    - `email` (requerido)
+    - `username` (requerido)
+  - El `surname` se calcula a partir de `name` si viene en formato "Nombre Apellido" (opcional).
 
 ---
 
@@ -51,7 +69,8 @@ El backend extrae automáticamente:
 {
   "success": true,
   "message": "Usuario ya existía",
-  "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expiryDate": "2025-10-25T12:34:56.789Z"
 }
 ```
 
@@ -61,7 +80,8 @@ El backend extrae automáticamente:
 {
   "success": true,
   "message": "Usuario y cliente sincronizados correctamente",
-  "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expiryDate": "2025-10-25T12:34:56.789Z"
 }
 ```
 
@@ -75,6 +95,7 @@ El JWT devuelto contiene el siguiente payload:
   "email": "usuario@ejemplo.com",
   "name": "Nombre",
   "surname": "Apellido",
+  "username": "usuario",
   "profile_picture": "https://...",
   "role": "client",
   "points": 0,
@@ -350,10 +371,20 @@ class AuthService {
 ### cURL
 
 ```bash
-# Reemplaza YOUR_FIREBASE_TOKEN con tu token real
+# Registro Social (sin body)
 curl -X POST http://localhost:3001/api/users/sync \
   -H "Authorization: Bearer YOUR_FIREBASE_TOKEN" \
   -H "Content-Type: application/json"
+
+# Registro Manual (con body)
+curl -X POST http://localhost:3001/api/users/sync \
+  -H "Authorization: Bearer YOUR_FIREBASE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Nombre Apellido",
+    "email": "usuario@ejemplo.com",
+    "username": "usuario"
+  }'
 ```
 
 ### JavaScript/TypeScript
@@ -374,6 +405,9 @@ const syncUser = async (firebaseToken) => {
     if (data.success) {
       // Guardar JWT
       localStorage.setItem('backend_jwt', data.jwt);
+      if (data.expiryDate) {
+        localStorage.setItem('backend_jwt_expiry', data.expiryDate);
+      }
 
       // Decodificar JWT (usar librería jwt-decode)
       const payload = jwtDecode(data.jwt);

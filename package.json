@@ -16,10 +16,12 @@
     "test": "vitest",
     "test:run": "vitest --run",
     "test:ui": "vitest --ui",
-    "coverage": "vitest run --coverage"
+    "coverage": "vitest run --coverage",
+    "token:firebase": "node scripts/generate-firebase-token.js"
   },
   "imports": {
-    "#lib/*": "./src/lib/*"
+    "#lib/*": "./src/lib/*",
+    "#config/*": "./src/config/*"
   },
   "repository": {
     "type": "git",

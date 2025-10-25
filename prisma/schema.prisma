@@ -47,7 +47,7 @@ model registered_user {
 }
 
 model user {
-  user_id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id         String           @id @db.Uuid
   registered_user registered_user?
 }
 
