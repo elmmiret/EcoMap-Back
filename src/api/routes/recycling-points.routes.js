@@ -46,10 +46,6 @@ router.get('/', async (_req, res) => {
   }
 });
 
-/**
- * GET /api/recycling-points/:region/:id
- * Ejemplo: /api/recycling-points/navarra/25  o  /api/recycling-points/barcelona/25
- */
 router.get('/:region/:id', async (req, res) => {
   const { region, id } = req.params;
 
