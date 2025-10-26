@@ -31,6 +31,6 @@ router.post('/logout', authenticateBackendJWT, logoutUser);
  * @description Elimina el perfil del usuario autenticado.
  * @access Protegido (requiere autenticación con token de Firebase y sesión reciente)
  */
-router.delete('/me', authenticateUser, deleteUser);
+router.delete('/me', authenticateBackendJWT, deleteUser);
 
 export default router;
