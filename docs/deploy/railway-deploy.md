@@ -87,36 +87,41 @@ Configura estas variables en ambos servicios (Release y Prod). Usa valores reale
 
 ### Firebase Admin (clave de servicio)
 
-El código actual espera `FIREBASE_KEY_PATH` apuntando a un fichero JSON. En Railway no hay sistema de archivos persistente pre-configurado, así que hay dos opciones:
+**Opción A) Desde variable de entorno (✅ Recomendado - Más seguro)**
 
-A) Sin cambiar código (recomendado aquí)
+El código soporta leer las credenciales directamente desde una variable de entorno sin escribir archivo en disco:
 
 - Crea una variable `FIREBASE_KEY_JSON` con el contenido completo del JSON de la service account.
-- Crea otra variable `FIREBASE_KEY_PATH` con el valor `/tmp/firebase.json`.
-- Establece el Start Command en Railway (Service → Settings → Start Command) a:
+- El código lee automáticamente esta variable y parsea el JSON en memoria.
+- Start Command simplificado:
 
+```bash
+npm run migrate && npm start
 ```
-bash -lc 'echo "$FIREBASE_KEY_JSON" > /tmp/firebase.json && npm run migrate && npm start'
-```
 
-Esto:
-1) Escribe el JSON en `/tmp/firebase.json` en tiempo de arranque.
-2) Ejecuta migraciones de Prisma.
-3) Levanta el servidor con `npm start`.
+**Ventajas de seguridad:**
+- ✅ No hay archivo en disco que pueda filtrarse.
+- ✅ El secreto solo existe en memoria durante la ejecución.
+- ✅ Menor superficie de ataque (sin filesystem exposure).
 
-B) Cambiando código (alternativa)
+**Opción B) Desde archivo temporal (desarrollo local)**
 
-- Modificar `src/config/firebase.js` para aceptar un `FIREBASE_KEY_JSON` y parsearlo directamente si existe. (No incluido aquí por mantener el alcance en documentación.)
+Para desarrollo local con Docker, el código mantiene soporte para `FIREBASE_KEY_PATH`:
+
+- Define `FIREBASE_KEY_PATH=./firebase-service-account-key.json` en tu `.env` local.
+- El código detecta automáticamente que no hay `FIREBASE_KEY_JSON` y usa el archivo.
+
+**No necesitas cambiar nada en Railway si usas la Opción A.**
 
 ---
 
 ## 5) Build & Start en Railway
 
 - Railway detecta Node y usa Nixpacks. Con `type: module` y `main: src/index.js`, todo OK.
-- Sugerido Start Command (con migraciones y firebase file):
+- Start Command recomendado (migraciones + servidor):
 
-```
-bash -lc 'echo "$FIREBASE_KEY_JSON" > /tmp/firebase.json && npm run migrate && npm start'
+```bash
+npm run migrate && npm start
 ```
 
 `npm start` ejecuta `node src/index.js`.
@@ -147,10 +152,13 @@ bash -lc 'echo "$FIREBASE_KEY_JSON" > /tmp/firebase.json && npm run migrate && n
 ## 8) Checklist de validación
 
 - [ ] Variables de entorno configuradas en Release y Prod.
-- [ ] `FIREBASE_KEY_JSON` creado, Start Command escribe `/tmp/firebase.json`.
+- [ ] `FIREBASE_KEY_JSON` configurado con el JSON completo de la service account.
 - [ ] Conectado a Postgres correcto (`DATABASE_URL`).
 - [ ] `npm run migrate` aplicado sin errores.
-- [ ] Logs sin errores al arrancar (`Firebase Admin SDK initialized successfully`, `Servidor Express corriendo en ...`).
+- [ ] Logs sin errores al arrancar:
+  - `Firebase credentials loaded from FIREBASE_KEY_JSON (secure mode)`
+  - `Firebase Admin SDK initialized successfully`
+  - `Servidor Express corriendo en ...`
 - [ ] Endpoints críticos responden 200: `/` health, `/api/users/me` con JWT válido.
 - [ ] Logout invalida sesión (401 `INVALID_SESSION` tras logout).
 
@@ -165,10 +173,13 @@ bash -lc 'echo "$FIREBASE_KEY_JSON" > /tmp/firebase.json && npm run migrate && n
 
 ## 10) Problemas frecuentes y soluciones
 
-- "PrismaClientInitializationError / credenciales inválidas": verifica `DATABASE_URL` y que el servicio está vinculado al Postgres correcto. Comprueba que el password no tenga caracteres especiales sin URL-encode.
-- Errores de Firebase al iniciar: asegúrate de que `FIREBASE_KEY_JSON` es válido, `FIREBASE_KEY_PATH=/tmp/firebase.json` y el Start Command escribe el archivo antes de arrancar.
-- 401/`INVALID_SESSION`: recuerda que `/api/users/logout` elimina la sesión en BD; el mismo JWT no funcionará después (esperado).
-- Puerto: Railway inyecta `PORT`; nuestro servidor lo usa automáticamente. No fuerces `3000` en producción.
+- **"PrismaClientInitializationError / credenciales inválidas"**: verifica `DATABASE_URL` y que el servicio está vinculado al Postgres correcto. Comprueba que el password no tenga caracteres especiales sin URL-encode.
+- **Errores de Firebase al iniciar**: 
+  - Asegúrate de que `FIREBASE_KEY_JSON` contiene el JSON completo y válido (copia-pega directo desde el archivo descargado de Firebase Console).
+  - Verifica que el JSON no tenga saltos de línea rotos o caracteres escapados incorrectamente en Railway.
+  - Comprueba logs: debe aparecer `Firebase credentials loaded from FIREBASE_KEY_JSON (secure mode)`.
+- **401/`INVALID_SESSION`**: recuerda que `/api/users/logout` elimina la sesión en BD; el mismo JWT no funcionará después (esperado).
+- **Puerto**: Railway inyecta `PORT`; nuestro servidor lo usa automáticamente. No fuerces `3000` en producción.
 
 ---
 
@@ -182,16 +193,22 @@ bash -lc 'echo "$FIREBASE_KEY_JSON" > /tmp/firebase.json && npm run migrate && n
 
 ## Apéndice A: Variables mínimas (producción)
 
-- `DATABASE_URL`
-- `JWT_SECRET`
+**Variables obligatorias:**
+- `DATABASE_URL` (desde el plugin Postgres de Railway)
+- `JWT_SECRET` (secreto robusto, mínimo 32 caracteres)
 - `JWT_EXPIRES_IN` (p. ej. `24h`)
-- `FIREBASE_KEY_JSON` (contenido del JSON)
-- `FIREBASE_KEY_PATH` = `/tmp/firebase.json`
-- `FIREBASE_WEB_API_KEY`
-- `NAVARRA_RESOURCE_ID`, `BARCELONA_RESOURCE_ID`
+- `FIREBASE_KEY_JSON` (contenido completo del JSON de la service account)
+- `FIREBASE_WEB_API_KEY` (Web API Key de tu proyecto Firebase)
+- `NAVARRA_RESOURCE_ID` (ID del recurso CKAN)
+- `BARCELONA_RESOURCE_ID` (ID del recurso CKAN)
 
-Start Command sugerido:
+**Start Command:**
 
+```bash
+npm run migrate && npm start
 ```
-bash -lc 'echo "$FIREBASE_KEY_JSON" > /tmp/firebase.json && npm run migrate && npm start'
-```
+
+**Notas de seguridad:**
+- ✅ `FIREBASE_KEY_JSON` se lee en memoria, nunca se escribe en disco.
+- ✅ Railway encripta las variables de entorno en reposo.
+- ✅ No expongas estos valores en logs, código cliente o repos públicos.
