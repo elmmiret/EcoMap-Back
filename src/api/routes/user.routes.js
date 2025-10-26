@@ -3,7 +3,7 @@ import express from 'express';
 const router = express.Router();
 
 import { authenticateUser, authenticateBackendJWT } from '#middlewares/auth.middleware.js';
-import { syncUserToPostgres, logoutUser, deleteUser } from '#controllers/user.controller.js';
+import { syncUserToPostgres, changeAppLanguage, logoutUser, deleteUser } from '#controllers/user.controller.js';
 
 /**
  * @route POST /api/users/sync
@@ -25,5 +25,12 @@ router.post('/logout', authenticateBackendJWT, logoutUser);
  * @access Protegido (requiere autenticación con token de Firebase y sesión reciente)
  */
 router.delete('/me', authenticateUser, deleteUser);
+
+/**
+ * @route PUT /api/users/language
+ * @description Actualiza el idioma de la aplicación del usuario
+ * @access Protegido (requiere autenticación con JWT del backend)
+ */
+router.put('/language', authenticateBackendJWT, changeAppLanguage);
 
 export default router;
