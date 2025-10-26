@@ -21,7 +21,11 @@
   },
   "imports": {
     "#lib/*": "./src/lib/*",
-    "#config/*": "./src/config/*"
+    "#config/*": "./src/config/*",
+    "#services/*": "./src/services/*",
+    "#controllers/*": "./src/api/controllers/*",
+    "#middlewares/*": "./src/api/middlewares/*",
+    "#routes/*": "./src/api/routes/*"
   },
   "repository": {
     "type": "git",

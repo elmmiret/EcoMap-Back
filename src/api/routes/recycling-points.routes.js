@@ -1,6 +1,6 @@
 import express from 'express';
-import { getNavarraRecyclingPoints } from '../../services/navarra.service.js';
-import { getBarcelonaRecyclingPoints } from '../../services/barcelona.service.js';
+import { getNavarraRecyclingPoints } from '#services/navarra.service.js';
+import { getBarcelonaRecyclingPoints } from '#services/barcelona.service.js';
 
 const router = express.Router();
 

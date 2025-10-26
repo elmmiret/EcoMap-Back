@@ -1,4 +1,4 @@
-import { verifyIdToken } from '../../services/auth.service.js';
+import { verifyIdToken } from '#services/auth.service.js';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 dotenv.config();
