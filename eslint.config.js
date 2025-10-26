@@ -19,6 +19,6 @@ export default [
     },
   },
   {
-    ignores: ['node_modules/', 'dist/', 'ecomap_data/', '*.config.js'],
+    ignores: ['node_modules/', 'docs/', 'dist/', 'ecomap_data/', '*.config.js'],
   },
 ];
