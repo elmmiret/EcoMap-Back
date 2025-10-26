@@ -1,5 +1,23 @@
 import fetch from 'node-fetch';
 
+// Nota importante:
+// - Railway (US-West Metal Edge) tiene problemas de conectividad hacia https://datosabiertos.navarra.es/
+//   que provocan ETIMEDOUT en producción.
+// - Workaround: Enviar las peticiones a través de un Cloudflare Worker (relay/proxy) desplegado en Europa,
+//   que sí puede conectar al origen, y devolver la respuesta al backend en streaming.
+// - Configura la URL base del Worker en NAVARRA_PROXY_BASE (por ejemplo: https://navarra-proxy.tuorg.workers.dev)
+// - Si cambias de Worker/hostname, solo actualiza esta variable de entorno.
+
+const NAVARRA_PROXY_BASE = process.env.NAVARRA_PROXY_BASE; // Configura en Railway, p. ej. https://navarra-proxy.<tu>.workers.dev
+// Importante: el timeout del backend debe ser MAYOR que el del Worker para recibir su 502 en vez de abortar antes.
+const FETCH_TIMEOUT_MS = Number(process.env.NAVARRA_FETCH_TIMEOUT_MS || 25000); // backend timeout (por defecto 25s)
+const WORKER_TIMEOUT_MS = Number(process.env.NAVARRA_WORKER_TIMEOUT_MS || 20000); // worker timeout (por defecto 20s)
+
+function viaWorker(targetUrl) {
+  // Envía la URL destino como parámetro al Worker (incluye timeout_ms para que el Worker corte antes)
+  return `${NAVARRA_PROXY_BASE}?url=${encodeURIComponent(targetUrl)}&timeout_ms=${WORKER_TIMEOUT_MS}`;
+}
+
 // Acepta queryParams como argumento
 export async function getNavarraRecyclingPoints(queryParams = {}) {
   const serviceStartTime = Date.now();
@@ -20,7 +38,6 @@ export async function getNavarraRecyclingPoints(queryParams = {}) {
 
   try {
     while (hasMore) {
-      const fetchStartTime = Date.now();
       let urlParams = `resource_id=${resourceId}&limit=${limit}&offset=${offset}`;
 
       if (q) {
@@ -39,9 +56,21 @@ export async function getNavarraRecyclingPoints(queryParams = {}) {
         timestamp: new Date().toISOString(),
         elapsed: `${Date.now() - serviceStartTime}ms`,
         url,
+        proxied: true,
+        worker: NAVARRA_PROXY_BASE,
       });
 
-      const response = await fetch(url);
+      // Fetch con timeout y a través del Worker
+      const fetchStartTime = Date.now();
+      const ac = new AbortController();
+      const timeoutId = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
+      let response;
+      try {
+        console.log('[WORKER FETCH URL]', viaWorker(url));
+        response = await fetch(viaWorker(url), { signal: ac.signal });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       console.log(`[NAVARRA FETCH END] Respuesta recibida:`, {
         timestamp: new Date().toISOString(),
@@ -49,6 +78,7 @@ export async function getNavarraRecyclingPoints(queryParams = {}) {
         fetchElapsed: `${Date.now() - fetchStartTime}ms`,
         statusCode: response.status,
         ok: response.ok,
+        proxied: true,
       });
 
       if (!response.ok) {
@@ -101,7 +131,10 @@ export async function getNavarraRecyclingPointById(id) {
   const serviceStartTime = Date.now();
   const resourceId = process.env.NAVARRA_RESOURCE_ID;
   const baseUrl = 'https://datosabiertos.navarra.es/es/api/3/action/datastore_search';
-  const url = `${baseUrl}?resource_id=${resourceId}&filters={"_id":${id}}`;
+  // El filtro se debe ENCODEAR siempre
+  const filterObj = JSON.stringify({ _id: id });
+  const filtersEncoded = encodeURIComponent(filterObj);
+  const url = `${baseUrl}?resource_id=${resourceId}&filters=${filtersEncoded}`;
 
   console.log(`[NAVARRA BY ID START] Consultando punto:`, {
     timestamp: new Date().toISOString(),
@@ -111,7 +144,14 @@ export async function getNavarraRecyclingPointById(id) {
 
   try {
     const fetchStartTime = Date.now();
-    const response = await fetch(url);
+    const ac = new AbortController();
+    const timeoutId = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
+    let response;
+    try {
+      response = await fetch(viaWorker(url), { signal: ac.signal });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     console.log(`[NAVARRA BY ID FETCH END] Respuesta recibida:`, {
       timestamp: new Date().toISOString(),
@@ -119,6 +159,7 @@ export async function getNavarraRecyclingPointById(id) {
       fetchElapsed: `${Date.now() - fetchStartTime}ms`,
       statusCode: response.status,
       ok: response.ok,
+      proxied: true,
     });
 
     if (!response.ok) {
@@ -148,6 +189,7 @@ export async function getNavarraRecyclingPointById(id) {
       id,
       errorCode: error.code,
       errorMessage: error.message,
+      isAbort: error.name === 'AbortError',
     });
     throw error;
   }
