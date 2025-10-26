@@ -1,4 +1,4 @@
-import { getFirebaseAuth } from '../config/firebase.js';
+import { getFirebaseAuth } from '#config/firebase.js';
 
 /**
  * Verifies Firebase ID token and returns decoded token with user info
@@ -75,4 +75,8 @@ export const revokeRefreshTokens = async (uid) => {
     console.error(`❌ Error revoking tokens for ${uid}:`, error.message);
     throw new Error('Failed to revoke tokens');
   }
+};
+
+export const getAuth = () => {
+  return getFirebaseAuth();
 };

@@ -2,8 +2,8 @@
 import express from 'express';
 const router = express.Router();
 
-import { authenticateUser, authenticateBackendJWT } from '../middlewares/auth.middleware.js'; // ruta relativa a api/routes
-import { syncUserToPostgres, logoutUser, deleteUserFromPostgres } from '../controllers/user.controller.js'; //ruta relativa a api/routes
+import { authenticateUser, authenticateBackendJWT } from '#middlewares/auth.middleware.js';
+import { syncUserToPostgres, logoutUser, deleteUser } from '#controllers/user.controller.js';
 
 /**
  * @route POST /api/users/sync
@@ -21,9 +21,9 @@ router.post('/logout', authenticateBackendJWT, logoutUser);
 
 /**
  * @route DELETE /api/users/me
- * @description Elimina el usuario autenticado de Firebase y de PostgreSQL.
- * @access Protegido (requiere autenticación con token de Firebase)
+ * @description Elimina el perfil del usuario autenticado.
+ * @access Protegido (requiere autenticación con token de Firebase y sesión reciente)
  */
-router.delete('/me', authenticateUser, deleteUserFromPostgres);
+router.delete('/me', authenticateUser, deleteUser);
 
 export default router;

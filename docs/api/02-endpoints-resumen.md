@@ -6,17 +6,16 @@ Vista rápida de todos los endpoints disponibles en la API de PESkaos.
 
 ## 🟢 Públicos (Sin autenticación)
 
-| Método | Endpoint                | Descripción                            | Respuesta        |
-| ------ | ----------------------- | -------------------------------------- | ---------------- |
-| `GET`  | `/`                     | Verificar estado del servidor          | `"API running."` |
-| `GET`  | `/api/barcelona/points` | Puntos de reciclaje (Barcelona - CKAN) | `Array<object>`  |
-| `GET`  | `/api/navarra/points`   | Puntos de reciclaje (Navarra - CKAN)   | `Array<object>`  |
+| Método | Endpoint                        | Descripción                                                                                              | Respuesta                                 |
+| ------ | ------------------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `GET`  | `/`                             | Verificar estado del servidor                                                                            | `"API running."`                          |
+| `GET`  | `/api/recycling-points/:region` | Puntos de reciclaje por región (`:region` puede ser `barcelona` o `navarra`). Soporta búsqueda y filtros | `Object` con `success`, `message`, `data` |
 
 📖 Ver detalles:
 
 - [GET / - Health Check](endpoints/health-check.md)
-- [GET /api/barcelona/points](endpoints/barcelona-points.md)
-- [GET /api/navarra/points](endpoints/navarra-points.md)
+- [GET /api/recycling-points/barcelona](endpoints/barcelona-points.md)
+- [GET /api/recycling-points/navarra](endpoints/navarra-points.md)
 
 ---
 
@@ -46,6 +45,11 @@ Estos endpoints requieren el JWT del backend en el header `Authorization`.
 | `GET`    | `/api/users/me`     | Obtener perfil del usuario actual   | Todos         |
 | `PUT`    | `/api/users/me`     | Actualizar perfil                   | Todos         |
 | `DELETE` | `/api/users/me`     | Eliminar cuenta                     | Todos         |
+
+📖 Ver detalles:
+
+- [POST /api/users/logout](endpoints/logout.md)
+- [DELETE /api/users/me](endpoints/users-delete.md)
 
 ### ♻️ Puntos de Reciclaje
 

@@ -2,7 +2,7 @@
 
 import { prisma } from '#lib/prisma.js';
 import { signUserJWT } from '#lib/jwt.js';
-import { getFirebaseAuth } from '#config/firebase.js';
+import { getAuth } from '#services/auth.service.js';
 
 // Debug helper to keep logs consistent
 const dbg = (...args) => console.log('[syncUserToPostgres]', ...args);
@@ -106,7 +106,7 @@ export const syncUserToPostgres = async (req, res) => {
     } else {
       // --- REGISTRO SOCIAL (Google, etc.) ---
       dbg('Detectado REGISTRO SOCIAL (obteniendo datos de Firebase)');
-      const auth = getFirebaseAuth();
+      const auth = getAuth();
       const userRecord = await auth.getUser(firebaseUID);
 
       dbg('Datos RAW de Firebase userRecord:', {
@@ -280,4 +280,81 @@ export const logoutUser = async (req, res) => {
   }
 };
 
-export const deleteUserFromPostgres = async (_req, _res) => {};
+/**
+ * Elimina el perfil de un usuario de la base de datos y de Firebase.
+ * Requiere autenticación reciente.
+ */
+export const deleteUser = async (req, res) => {
+  const { uid, auth_time: authTime } = req.user; // auth_time viene del token decodificado
+  const dbg = (...args) => console.log('[deleteUser]', ...args);
+  dbg(`Solicitud de eliminación para el usuario: ${uid}`);
+
+  // 1. Comprobar autenticación reciente (ej. últimos 5 minutos)
+  const fiveMinutesInSeconds = 5 * 60;
+  const nowInSeconds = Math.floor(Date.now() / 1000);
+  const tokenAgeInSeconds = nowInSeconds - authTime;
+
+  if (tokenAgeInSeconds > fiveMinutesInSeconds) {
+    dbg(`Fallo de autenticación reciente. Token age: ${tokenAgeInSeconds}s`);
+    return res.status(401).json({
+      success: false,
+      message: 'La sesión ha expirado. Por favor, inicie sesión de nuevo para continuar.',
+      code: 'RECENT_LOGIN_REQUIRED',
+    });
+  }
+  dbg('Autenticación reciente verificada.');
+
+  try {
+    // 2. Eliminar al usuario de Firebase Authentication
+    dbg(`Iniciando borrado en Firebase Auth para UID: ${uid}`);
+    const auth = getAuth();
+    await auth.deleteUser(uid);
+    dbg(`Usuario ${uid} eliminado de Firebase Authentication.`);
+
+    // 3. Si el borrado en Firebase fue exitoso, eliminar de la BD local
+    // Gracias a ON DELETE CASCADE, se borrarán todas las referencias.
+    dbg(`Iniciando borrado en BD para user_id: ${uid}`);
+    await prisma.user.delete({
+      where: { user_id: uid },
+    });
+    dbg(`Usuario ${uid} eliminado de la base de datos.`);
+
+    // 4. Enviar respuesta de éxito
+    return res.status(200).json({
+      success: true,
+      message: 'Tu cuenta ha sido eliminada permanentemente.',
+    });
+  } catch (error) {
+    // Manejo de errores
+    // Error de Firebase: el usuario no existe, etc.
+    if (error.code?.startsWith('auth/')) {
+      console.error(`Error de Firebase al intentar eliminar al usuario ${uid}:`, error);
+      // Si el usuario no se encuentra en Firebase, puede que ya haya sido eliminado.
+      // Podríamos continuar para asegurarnos de que se borre de nuestra BD,
+      // pero por seguridad es mejor detenerse y registrar el error.
+      return res.status(500).json({
+        success: false,
+        message: 'Ocurrió un error con el servicio de autenticación al intentar eliminar tu cuenta.',
+        code: 'FIREBASE_ERROR',
+      });
+    }
+
+    // Error de Prisma: el registro a eliminar no existe.
+    if (error.code === 'P2025') {
+      // Esto es inesperado si el borrado de Firebase tuvo éxito.
+      // Lo registramos como un problema de inconsistencia.
+      console.error(`[CRITICAL] Inconsistencia: el usuario ${uid} fue borrado de Firebase pero no se encontró en la BD local.`);
+      return res.status(404).json({
+        success: false,
+        message: 'El usuario no fue encontrado en nuestra base de datos.',
+        code: 'USER_NOT_FOUND_IN_DB',
+      });
+    }
+
+    console.error(`Error inesperado al eliminar al usuario ${uid}:`, error);
+    return res.status(500).json({
+      success: false,
+      message: 'Ocurrió un error al intentar eliminar tu cuenta.',
+    });
+  }
+};
