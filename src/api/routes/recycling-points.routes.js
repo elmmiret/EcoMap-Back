@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/:region', async (req, res) => {
   const startTime = Date.now();
   const requestId = `${req.params.region}-${Date.now()}`;
-  
+
   console.log(`[START][${requestId}] Request iniciado:`, {
     timestamp: new Date().toISOString(),
     region: req.params.region,
