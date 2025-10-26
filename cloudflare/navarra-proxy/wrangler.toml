@@ -1,0 +1,5 @@
+name = "navarra-proxy"
+main = "src/index.js"
+compatibility_date = "2025-10-26"
+# Descomenta para habilitar despliegue en workers.dev por defecto
+workers_dev = true
