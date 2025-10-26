@@ -67,7 +67,13 @@ export async function getNavarraRecyclingPoints(queryParams = {}) {
       let response;
       try {
         console.log('[WORKER FETCH URL]', viaWorker(url));
-        response = await fetch(viaWorker(url), { signal: ac.signal });
+        response = await fetch(viaWorker(url), {
+          signal: ac.signal,
+          headers: {
+            // User-Agent típico de navegador para evitar bloqueos anti-bot/anti-cloud
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          },
+        });
       } finally {
         clearTimeout(timeoutId);
       }
@@ -148,7 +154,13 @@ export async function getNavarraRecyclingPointById(id) {
     const timeoutId = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
     let response;
     try {
-      response = await fetch(viaWorker(url), { signal: ac.signal });
+      response = await fetch(viaWorker(url), {
+        signal: ac.signal,
+        headers: {
+          // User-Agent típico de navegador para evitar bloqueos anti-bot/anti-cloud
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+      });
     } finally {
       clearTimeout(timeoutId);
     }
