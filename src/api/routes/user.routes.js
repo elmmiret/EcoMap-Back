@@ -3,7 +3,7 @@ import express from 'express';
 const router = express.Router();
 
 import { authenticateUser, authenticateBackendJWT } from '#middlewares/auth.middleware.js';
-import { syncUserToPostgres, logoutUser, deleteUser } from '#controllers/user.controller.js';
+import { syncUserToPostgres, logoutUser, deleteUser, getUserProfile } from '#controllers/user.controller.js';
 
 /**
  * @route POST /api/users/sync
@@ -11,6 +11,13 @@ import { syncUserToPostgres, logoutUser, deleteUser } from '#controllers/user.co
  * @access Protegido (requiere autenticación con token de Firebase)
  */
 router.post('/sync', authenticateUser, syncUserToPostgres);
+
+/**
+ * @route GET /api/users/me
+ * @description Obtiene el perfil del usuario autenticado.
+ * @access Protegido (requiere autenticación con JWT del backend)
+ */
+router.get('/me', authenticateBackendJWT, getUserProfile);
 
 /**
  * @route POST /api/users/logout

@@ -358,3 +358,84 @@ export const deleteUser = async (req, res) => {
     });
   }
 };
+
+/**
+ * Obtiene el perfil del usuario autenticado a través del JWT del backend.
+ */
+export const getUserProfile = async (req, res) => {
+  // El UID del usuario viene del payload del JWT verificado por el middleware
+  const { uid } = req.user;
+
+  try {
+    const userProfile = await prisma.registered_user.findUnique({
+      where: { user_id: uid },
+      select: {
+        user_id: true,
+        email: true,
+        name: true,
+        surname: true,
+        username: true,
+        dni: true,
+        app_language: true,
+        client: {
+          select: {
+            profile_picture: true,
+            address: true,
+            phone: true,
+            birth_date: true,
+            description: true,
+            points: true,
+            streak: true,
+          },
+        },
+        admin: true,
+        institution: true,
+      },
+    });
+
+    if (!userProfile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    // Determinar el rol
+    let role = 'client';
+    if (userProfile.admin) role = 'admin';
+    if (userProfile.institution) role = 'institution';
+
+    // Formatear la respuesta para que coincida con el contrato de la API
+    const responseData = {
+      uid: userProfile.user_id,
+      email: userProfile.email,
+      name: userProfile.name,
+      surname: userProfile.surname,
+      username: userProfile.username,
+      dni: userProfile.dni,
+      profile_picture: userProfile.client?.profile_picture || null,
+      app_language: userProfile.app_language,
+      address: userProfile.client?.address || null,
+      phone: userProfile.client?.phone || null,
+      birth_date: userProfile.client?.birth_date ? userProfile.client.birth_date.toISOString().split('T')[0] : null,
+      description: userProfile.client?.description || null,
+      role,
+      points: userProfile.client?.points || 0,
+      streak: userProfile.client?.streak || 0,
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: 'Perfil obtenido correctamente',
+      data: responseData,
+    });
+  } catch (error) {
+    console.error('[getUserProfile] Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al obtener el perfil del usuario.',
+      code: 'GET_PROFILE_ERROR',
+    });
+  }
+};
