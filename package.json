@@ -16,7 +16,12 @@
     "test": "vitest",
     "test:run": "vitest --run",
     "test:ui": "vitest --ui",
-    "coverage": "vitest run --coverage"
+    "coverage": "vitest run --coverage",
+    "token:firebase": "node scripts/generate-firebase-token.js"
+  },
+  "imports": {
+    "#lib/*": "./src/lib/*",
+    "#config/*": "./src/config/*"
   },
   "repository": {
     "type": "git",
@@ -32,12 +37,16 @@
     "@prisma/client": "^6.17.1",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "firebase-admin": "^13.5.0"
+    "firebase-admin": "^13.5.0",
+    "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.37.0",
+    "@vitest/coverage-v8": "^4.0.3",
     "eslint": "^9.37.0",
     "eslint-plugin-perfectionist": "^4.15.1",
+    "execa": "^9.6.0",
+    "firebase": "^12.4.0",
     "globals": "^16.4.0",
     "husky": "^9.1.7",
     "inquirer": "^12.9.6",
@@ -45,7 +54,7 @@
     "lint-staged": "^16.2.4",
     "prettier": "^3.6.2",
     "prisma": "^6.17.1",
-    "vitest": "^3.2.4"
+    "vitest": "^4.0.3"
   },
   "engines": {
     "node": ">=20.0.0",

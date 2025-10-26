@@ -36,7 +36,6 @@ CREATE TABLE "registered_user" (
     "surname" TEXT,
     "dni" TEXT,
     "email" TEXT NOT NULL,
-    "password" TEXT NOT NULL,
     "app_language" "app_language_type" NOT NULL,
 
     CONSTRAINT "registered_user_pkey" PRIMARY KEY ("user_id")

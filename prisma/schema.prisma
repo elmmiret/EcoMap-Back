@@ -8,12 +8,12 @@ datasource db {
 }
 
 model admin {
-  user_id         String          @id @db.Uuid
+  user_id         String          @id
   registered_user registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 model client {
-  user_id                             String          @id @db.Uuid
+  user_id                             String          @id
   address                             String?
   phone                               Int?
   points                              Int?
@@ -27,28 +27,39 @@ model client {
 }
 
 model institution {
-  user_id         String          @id @db.Uuid
+  user_id         String          @id
   registered_user registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 model registered_user {
-  user_id      String            @id @db.Uuid
+  user_id      String            @id
   name         String
+  username     String
   surname      String?
   dni          String?
   email        String            @unique
-  password     String
   app_language app_language_type
   admin        admin?
   client       client?
   institution  institution?
   notification notification[]
   user         user              @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  sessions     session[]
 }
 
 model user {
-  user_id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id         String           @id
   registered_user registered_user?
+}
+
+model session {
+  session_id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jwt             String          @unique
+  expiry_date     DateTime
+  user_id         String
+  registered_user registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([user_id])
 }
 
 model container {
@@ -130,8 +141,8 @@ model message {
   text                               String
   read                               Boolean         @default(false)
   sent_at                            DateTime        @default(now()) @db.Timestamp(6)
-  sender_id                          String          @db.Uuid
-  receiver_id                        String          @db.Uuid
+  sender_id                          String
+  receiver_id                        String
   client_message_receiver_idToclient client          @relation("message_receiver_idToclient", fields: [receiver_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
   client_message_sender_idToclient   client          @relation("message_sender_idToclient", fields: [sender_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
   message_media                      message_media[]
@@ -146,7 +157,7 @@ model message_media {
 
 model notification {
   notification_id   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id           String            @db.Uuid
+  user_id           String
   notification_type notification_type
   content           String
   delivered         Boolean           @default(false)
