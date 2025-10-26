@@ -11,7 +11,7 @@ import fetch from 'node-fetch';
 const NAVARRA_PROXY_BASE = process.env.NAVARRA_PROXY_BASE; // Configura en Railway, p. ej. https://navarra-proxy.<tu>.workers.dev
 // Importante: el timeout del backend debe ser MAYOR que el del Worker para recibir su 502 en vez de abortar antes.
 const FETCH_TIMEOUT_MS = Number(process.env.NAVARRA_FETCH_TIMEOUT_MS || 25000); // backend timeout (por defecto 25s)
-const WORKER_TIMEOUT_MS = Number(process.env.NAVARRA_WORKER_TIMEOUT_MS || 20000); // worker timeout (por defecto 20s)
+const WORKER_TIMEOUT_MS = Number(process.env.NAVARRA_WORKER_TIMEOUT_MS || 2500); // worker timeout (por defecto 20s)
 
 function viaWorker(targetUrl) {
   // Envía la URL destino como parámetro al Worker (incluye timeout_ms para que el Worker corte antes)
