@@ -165,9 +165,9 @@ model notification {
 }
 
 enum app_language_type {
-  Catalan
-  Spanish
-  English
+  ca
+  es
+  en
 }
 
 enum api_location {
