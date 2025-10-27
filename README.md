@@ -55,7 +55,7 @@ Assegura't de tenir Docker Desktop obert i després executa:
 
 ```
 
-docker-compose up -d
+docker compose up -d
 
 ```
 

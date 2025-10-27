@@ -163,7 +163,7 @@ export const syncUserToPostgres = async (req, res) => {
           user_id: userData.uid,
           name: userData.name,
           email: userData.email,
-          app_language: 'Spanish', // Valor por defecto
+          app_language: 'es', // Valor por defecto
           ...(userData.surname && { surname: userData.surname }),
           ...(userData.username && { username: userData.username }),
         },
@@ -235,6 +235,58 @@ export const syncUserToPostgres = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Error interno del servidor al sincronizar el usuario.',
+      code: 'DATABASE_ERROR',
+    });
+  }
+};
+
+/**
+ * Lógica para cambiar el idioma de la aplicación (app_language) de un usuario autenticado.
+ */
+export const changeAppLanguage = async (req, res) => {
+  const dbg = (...args) => console.log('[changeAppLanguage]', ...args);
+
+  // UID del usuario autenticado
+  const { uid } = req.user;
+  const { newLanguage } = req.body;
+
+  if (!newLanguage || typeof newLanguage !== 'string' || newLanguage.length < 2) {
+    dbg('Validación fallida: newLanguage no válido');
+    return res.status(400).json({
+      success: false,
+      message: 'Debe proporcionar un idioma válido en el campo "newLanguage" del cuerpo de la solicitud.',
+      code: 'INVALID_LANGUAGE',
+    });
+  }
+
+  try {
+    // Actualizar el campo app_language en la base de datos
+    const updatedUser = await prisma.registered_user.update({
+      where: { user_id: uid },
+      data: { app_language: newLanguage },
+    });
+
+    dbg(`Idioma actualizado a ${updatedUser.app_language} en la BD.`);
+
+    return res.status(200).json({
+      success: true,
+      message: `Idioma de la aplicación cambiado a ${updatedUser.app_language}.`,
+      newLanguage: updatedUser.app_language,
+    });
+  } catch (error) {
+    console.error('Error en changeAppLanguage:', error);
+
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor al cambiar el idioma.',
       code: 'DATABASE_ERROR',
     });
   }
