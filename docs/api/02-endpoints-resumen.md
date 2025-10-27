@@ -54,6 +54,7 @@ Estos endpoints requieren el JWT del backend en el header `Authorization`.
 - [POST /api/users/logout](endpoints/logout.md)
 - [GET /api/users/me](endpoints/users-me.md)
 - [PUT /api/users/language](endpoints/users-language.md)
+- [PUT /api/users/me](endpoints/users-update.md)
 - [DELETE /api/users/me](endpoints/users-delete.md)
 
 ### ♻️ Puntos de Reciclaje
