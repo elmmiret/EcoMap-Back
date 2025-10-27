@@ -10,12 +10,14 @@ Vista rápida de todos los endpoints disponibles en la API de PESkaos.
 | ------ | ------------------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
 | `GET`  | `/`                             | Verificar estado del servidor                                                                            | `"API running."`                          |
 | `GET`  | `/api/recycling-points/:region` | Puntos de reciclaje por región (`:region` puede ser `barcelona` o `navarra`). Soporta búsqueda y filtros | `Object` con `success`, `message`, `data` |
+| `GET`  | `/api/routes`                   | Calcular ruta entre coordenadas (perfiles ORS: `driving-car`, `cycling-regular`, `foot-walking`, etc.)   | `Object` con `success`, `message`, `data` |
 
 📖 Ver detalles:
 
 - [GET / - Health Check](endpoints/health-check.md)
 - [GET /api/recycling-points/barcelona](endpoints/barcelona-points.md)
 - [GET /api/recycling-points/navarra](endpoints/navarra-points.md)
+- [GET /api/routes - Calcular Ruta](endpoints/routes-calculate.md)
 
 ---
 

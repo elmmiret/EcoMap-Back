@@ -4,7 +4,7 @@ import { calculateRoute } from '#controllers/route.controller.js';
 const router = express.Router();
 
 /**
- * @route GET /api/route
+ * @route GET /api/routes
  * @description Calcula la ruta óptima entre dos puntos geográficos.
  * @access Público
  * @query {string} start - Coordenadas de inicio en formato "lat,lng" (ej: "41.3851,2.1734")
