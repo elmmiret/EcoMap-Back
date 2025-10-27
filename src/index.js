@@ -2,6 +2,7 @@ import express from 'express';
 import { initializeFirebaseAdmin } from './config/firebase.js';
 import authRoutes from './api/routes/user.routes.js';
 import recyclingPoints from './api/routes/recycling-points.routes.js';
+import routeRoutes from './api/routes/route.routes.js';
 import dotenv from 'dotenv';
 
 // cargar variables de entorno desde .env
@@ -20,6 +21,7 @@ app.use(express.urlencoded({ extended: true }));
 // montar las rutas de autentificación bajo el prefijo /api/users
 app.use('/api/users', authRoutes);
 app.use('/api/recycling-points', recyclingPoints);
+app.use('/api/routes', routeRoutes);
 
 // ruta base para verificar que la API está corriendo
 app.get('/', (req, res) => {
