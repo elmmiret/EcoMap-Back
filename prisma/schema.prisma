@@ -1,0 +1,222 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model admin {
+  user_id         String          @id
+  registered_user registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model client {
+  user_id                             String          @id
+  address                             String?
+  phone                               Int?
+  points                              Int?
+  birth_date                          DateTime?       @db.Date
+  description                         String?
+  profile_picture                     String?
+  streak                              Int?
+  registered_user                     registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  message_message_receiver_idToclient message[]       @relation("message_receiver_idToclient")
+  message_message_sender_idToclient   message[]       @relation("message_sender_idToclient")
+}
+
+model institution {
+  user_id         String          @id
+  registered_user registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model registered_user {
+  user_id      String            @id
+  name         String
+  username     String
+  surname      String?
+  dni          String?
+  email        String            @unique
+  app_language app_language_type
+  admin        admin?
+  client       client?
+  institution  institution?
+  notification notification[]
+  user         user              @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  sessions     session[]
+}
+
+model user {
+  user_id         String           @id
+  registered_user registered_user?
+}
+
+model session {
+  session_id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jwt             String          @unique
+  expiry_date     DateTime
+  user_id         String
+  registered_user registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model container {
+  container_id       String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type               product_type
+  is_full            Boolean
+  is_damaged         Boolean
+  recycling_point_id String?          @db.Uuid
+  recycling_point    recycling_point? @relation(fields: [recycling_point_id], references: [recycling_point_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model recycling_point {
+  recycling_point_id String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  api_id             Int
+  api_location       api_location
+  container          container[]
+  timetable          timetable[]
+}
+
+model time_interval {
+  time_interval_id    String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  open_time           DateTime              @db.Time(6)
+  end_time            DateTime              @db.Time(6)
+  timetable_intervals timetable_intervals[]
+}
+
+model timetable {
+  timetable_id        String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  week_day            week_day
+  recycling_point_id  String                @db.Uuid
+  recycling_point     recycling_point       @relation(fields: [recycling_point_id], references: [recycling_point_id], onDelete: Cascade, onUpdate: NoAction)
+  timetable_intervals timetable_intervals[]
+}
+
+model timetable_intervals {
+  timetable_id     String        @db.Uuid
+  time_interval_id String        @db.Uuid
+  time_interval    time_interval @relation(fields: [time_interval_id], references: [time_interval_id], onDelete: Cascade, onUpdate: NoAction)
+  timetable        timetable     @relation(fields: [timetable_id], references: [timetable_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([timetable_id, time_interval_id])
+}
+
+model object_trade {
+  publication_id String          @id @db.Uuid
+  item_state     item_state_type
+  points_price   Int?
+  publication    publication     @relation(fields: [publication_id], references: [publication_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model publication {
+  publication_id    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title             String
+  description       String?
+  date              DateTime            @db.Date
+  publication_state state_type
+  object_trade      object_trade?
+  publication_media publication_media[]
+  reward            reward?
+}
+
+model publication_media {
+  media_id       String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  media_url      String
+  publication_id String      @db.Uuid
+  publication    publication @relation(fields: [publication_id], references: [publication_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model reward {
+  publication_id String      @id @db.Uuid
+  content        String
+  points_price   Int
+  publication    publication @relation(fields: [publication_id], references: [publication_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model message {
+  message_id                         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  text                               String
+  read                               Boolean         @default(false)
+  sent_at                            DateTime        @default(now()) @db.Timestamp(6)
+  sender_id                          String
+  receiver_id                        String
+  client_message_receiver_idToclient client          @relation("message_receiver_idToclient", fields: [receiver_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  client_message_sender_idToclient   client          @relation("message_sender_idToclient", fields: [sender_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  message_media                      message_media[]
+}
+
+model message_media {
+  media_id   String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  media_url  String
+  message_id String  @db.Uuid
+  message    message @relation(fields: [message_id], references: [message_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model notification {
+  notification_id   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id           String
+  notification_type notification_type
+  content           String
+  delivered         Boolean           @default(false)
+  registered_user   registered_user   @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+enum app_language_type {
+  Catalan
+  Spanish
+  English
+}
+
+enum api_location {
+  Barcelona
+  Navarra
+}
+
+enum product_type {
+  Glass
+  Paper
+  Plastic
+  Organic
+  General_waste @map("General waste")
+  Textile
+  Electronics
+  Batteries
+  Oil
+  Hazardous
+}
+
+enum week_day {
+  Monday
+  Tuesday
+  Wednesday
+  Thursday
+  Friday
+  Saturday
+  Sunday
+}
+
+enum item_state_type {
+  New
+  Little_used   @map("Little used")
+  Widely_used   @map("Widely used")
+  Bad_condition @map("Bad condition")
+}
+
+enum state_type {
+  Completed
+  Cancelled
+  Pending
+}
+
+enum notification_type {
+  CollectionServices
+  ContainerStates
+  RecyclingEvents
+  NewRewards
+  NewTrade
+  NewMessage
+  Incidences
+}

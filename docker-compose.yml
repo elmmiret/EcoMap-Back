@@ -1,0 +1,59 @@
+version: '3.7'
+services:
+  db:
+    image: postgres:15
+    container_name: ecomapdb
+    environment:
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+      POSTGRES_DB: ${PGDATABASE}
+    ports:
+      - '5432:5432'
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  adminer:
+    image: adminer
+    container_name: adminer
+    restart: always
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    ports:
+      - '8080:8080'
+    depends_on:
+      - db
+
+  # Descomentar quan vulguem montar el servei de l'aplicació a Docker
+
+  # app:
+  #   image: node:20-alpine
+  #   container_name: ecomap-back
+  #   working_dir: /app
+  #   volumes:
+  #     - ./:/app
+  #     # Keep node_modules inside the container, not overridden by the host bind mount
+  #     - /app/node_modules
+  #   environment:
+  #     NODE_ENV: development
+  #     PORT: ${PORT}
+  #     # Use the compose service name 'db' as host inside the network
+  #     PGHOST: db
+  #     PGPORT: ${PGPORT}
+  #     PGDATABASE: ${PGDATABASE}
+  #     PGUSER: ${PGUSER}
+  #     PGPASSWORD: ${PGPASSWORD}
+  #     DATABASE_URL: postgres://${PGUSER}:${PGPASSWORD}@db:${PGPORT}/${PGDATABASE}
+  #     FIREBASE_KEY_PATH: ${FIREBASE_KEY_PATH}
+  #   ports:
+  #     - "${PORT:-3000}:3000"
+  #   depends_on:
+  #     - db
+  #   command: sh -c "npm ci && npm run dev"
+
+volumes:
+  db_data:
