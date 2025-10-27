@@ -35,17 +35,11 @@ npm install
 
 ## 3. Configura l'entorn de variables
 
-- Copia l'arxiu d'exemple de variables:
+- Obté les credencials reals del canal **#archivos-back** del servidor de Discord de l'equip:
+  - Descarrega l'arxiu `.env.txt` i renombra'l a `.env` a l'arrel del projecte
+  - Descarrega l'arxiu `firebase-service-account-key.json` i col·loca'l a l'arrel del projecte
 
-```
-
-cp .env.example .env
-
-```
-
-- Edita el nou `.env` amb les teves pròpies credencials/configuracions.
-
-**⚠️ IMPORTANT: Mai pugis el teu `.env` al repositori. Assegura't que està al teu `.gitignore`.**
+**⚠️ IMPORTANT: Mai pugis el teu `.env` ni el `firebase-service-account-key.json` al repositori. Assegura't que estan al teu `.gitignore`.**
 
 ---
 
