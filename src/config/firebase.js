@@ -16,11 +16,25 @@ export const initializeFirebaseAdmin = () => {
   }
 
   try {
+    // Opción 1: Leer desde variable de entorno (más seguro, sin archivo en disco)
+    const serviceAccountJson = process.env.FIREBASE_KEY_JSON;
+
+    // Opción 2: Leer desde archivo (fallback para desarrollo local)
     const serviceAccountPath = process.env.FIREBASE_KEY_PATH;
-    if (!serviceAccountPath) {
-      throw new Error('FIREBASE_KEY_PATH is not defined in environment variables.');
+
+    let serviceAccount;
+
+    if (serviceAccountJson) {
+      // Producción: usar JSON directo desde variable de entorno
+      serviceAccount = JSON.parse(serviceAccountJson);
+      console.log('Firebase credentials loaded from FIREBASE_KEY_JSON (secure mode)');
+    } else if (serviceAccountPath) {
+      // Desarrollo: usar archivo local
+      serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
+      console.log('Firebase credentials loaded from file:', serviceAccountPath);
+    } else {
+      throw new Error('Neither FIREBASE_KEY_JSON nor FIREBASE_KEY_PATH is defined in environment variables.');
     }
-    const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
 
     firebaseApp = admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
