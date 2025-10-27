@@ -3,7 +3,7 @@ import express from 'express';
 const router = express.Router();
 
 import { authenticateUser, authenticateBackendJWT } from '#middlewares/auth.middleware.js';
-import { syncUserToPostgres, changeAppLanguage, logoutUser, deleteUser } from '#controllers/user.controller.js';
+import { syncUserToPostgres, changeAppLanguage, logoutUser, getUserProfile, deleteUser } from '#controllers/user.controller.js';
 
 /**
  * @route POST /api/users/sync

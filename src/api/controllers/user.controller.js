@@ -250,7 +250,7 @@ export const changeAppLanguage = async (req, res) => {
   const { uid, ...currentPayload } = req.user;
 
   // El token antiguo adjuntado por el middleware (para eliminar la sesión)
-  const token = req.token; 
+  const token = req.token;
   const { newLanguage } = req.body;
 
   if (!newLanguage || typeof newLanguage !== 'string' || newLanguage.lenght < 2) {
@@ -266,7 +266,7 @@ export const changeAppLanguage = async (req, res) => {
     // Comprobar si existe una sesión abierta conn el user_id que solicita el cambio
     const activeSession = await prisma.session.findFirst({
       where: { user_id: uid, jwt: token },
-      select: { session_id: true }
+      select: { session_id: true },
     });
 
     if (!activeSession) {
@@ -281,7 +281,7 @@ export const changeAppLanguage = async (req, res) => {
 
     // Actualizar el campo app_language en la base de datos
     const updatedUser = await prisma.registered_user.update({
-      where: { user_id: uid},
+      where: { user_id: uid },
       data: { app_language: newLanguage },
       include: { client: true }, // para obtener todos los campos necesarios
     });
@@ -301,9 +301,7 @@ export const changeAppLanguage = async (req, res) => {
       address: updatedUser.client?.address || null,
       phone: updatedUser.client?.phone || null,
       description: updatedUser.client?.description || null,
-      birth_date: updatedUser.client?.birth_date
-        ? updatedUser.client.birth_date.toISOString().split('T')[0]
-        : null,
+      birth_date: updatedUser.client?.birth_date ? updatedUser.client.birth_date.toISOString().split('T')[0] : null,
       role: currentPayload.role || 'client',
       points: updatedUser.client?.points || 0,
       streak: updatedUser.client?.streak || 0,
@@ -338,11 +336,9 @@ export const changeAppLanguage = async (req, res) => {
       expiryDate: expiryDate.toISOString(),
       newLanguage: updatedUser.app_language,
     });
-  }
-
-  catch (error) {
+  } catch (error) {
     console.error('Error en changeAppLanguage:', error);
-    
+
     // ... (Manejo de errores P2025 y 500)
     if (error.code === 'P2025') {
       return res.status(404).json({
