@@ -1,6 +1,7 @@
 import { verifyIdToken } from '#services/auth.service.js';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+import { prisma } from '#lib/prisma.js';
 dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -60,7 +61,7 @@ export const authenticateUser = async (req, res, next) => {
  * Attaches decoded user info (payload) to req.user and the raw token to req.token
  * Use this for endpoints protected by our own JWT (e.g., /api/users/logout)
  */
-export const authenticateBackendJWT = (req, res, next) => {
+export const authenticateBackendJWT = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -84,6 +85,19 @@ export const authenticateBackendJWT = (req, res, next) => {
 
     const decoded = jwt.verify(token, JWT_SECRET);
 
+    // Verificar que la sesión existe en la base de datos
+    const session = await prisma.session.findUnique({
+      where: { jwt: token },
+    });
+
+    if (!session) {
+      return res.status(401).json({
+        success: false,
+        message: 'Session is not valid',
+        code: 'INVALID_SESSION',
+      });
+    }
+
     req.user = decoded; // payload contains uid, email, etc.
     req.token = token;
 
@@ -99,10 +113,18 @@ export const authenticateBackendJWT = (req, res, next) => {
       });
     }
 
-    return res.status(401).json({
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token signature',
+        code: 'INVALID_TOKEN',
+      });
+    }
+
+    return res.status(500).json({
       success: false,
-      message: 'Invalid authentication token',
-      code: 'INVALID_TOKEN',
+      message: 'Internal server error during token authentication',
+      code: 'AUTH_SERVER_ERROR',
     });
   }
 };

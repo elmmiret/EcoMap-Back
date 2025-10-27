@@ -104,7 +104,14 @@ El JWT devuelto por el backend contiene:
   "email": "usuario@ejemplo.com",
   "name": "Nombre",
   "surname": "Apellido",
+  "username": "usuario",
+  "dni": "12345678A",
   "profile_picture": "url_de_foto",
+  "app_language": "es",
+  "address": "C/ Ejemplo 123, Barcelona",
+  "phone": "+34 600 000 000",
+  "birth_date": "1990-01-01",
+  "description": "Sobre mí...",
   "role": "client", // o "admin", "institution"
   "points": 0,
   "streak": 0,
@@ -124,6 +131,7 @@ print('UID: ${payload['uid']}');
 print('Email: ${payload['email']}');
 print('Rol: ${payload['role']}');
 print('Puntos: ${payload['points']}');
+print('Idioma: ${payload['app_language']}');
 ```
 
 ---

@@ -96,7 +96,13 @@ El JWT devuelto contiene el siguiente payload:
   "name": "Nombre",
   "surname": "Apellido",
   "username": "usuario",
+  "dni": "12345678A",
   "profile_picture": "https://...",
+  "app_language": "es",
+  "address": "C/ Ejemplo 123, Barcelona",
+  "phone": "+34 600 000 000",
+  "birth_date": "1990-01-01",
+  "description": "Sobre mí...",
   "role": "client",
   "points": 0,
   "streak": 0,
@@ -570,6 +576,8 @@ class _MyAppState extends State<MyApp> {
 4. **Roles automáticos**: Por defecto, todos los usuarios nuevos se crean como `client`.
 
 5. **Idioma por defecto**: Se configura como `Spanish` automáticamente.
+
+- Nuevo claim: `app_language` (por defecto `es`).
 
 6. **Puntos y racha iniciales**: Los nuevos clientes comienzan con 0 puntos y 0 racha.
 

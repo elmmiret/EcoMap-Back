@@ -34,9 +34,10 @@ docs/api/
 ### Endpoints Principales
 
 - [POST /api/users/sync](endpoints/users-sync.md) - Sincronizar usuario y obtener JWT
+- [GET /api/users/me](endpoints/users-me.md) - Obtener perfil del usuario
 - [GET /](endpoints/health-check.md) - Verificar estado del servidor
-- [GET /api/barcelona/points](endpoints/barcelona-points.md) - Puntos de reciclaje (Barcelona)
-- [GET /api/navarra/points](endpoints/navarra-points.md) - Puntos de reciclaje (Navarra)
+- [GET /api/recycling-points/barcelona](endpoints/barcelona-points.md) - Puntos de reciclaje (Barcelona)
+- [GET /api/recycling-points/navarra](endpoints/navarra-points.md) - Puntos de reciclaje (Navarra)
 
 ## 📱 Para Desarrolladores Frontend
 

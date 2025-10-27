@@ -13,6 +13,13 @@ import { syncUserToPostgres, changeAppLanguage, logoutUser, deleteUser } from '#
 router.post('/sync', authenticateUser, syncUserToPostgres);
 
 /**
+ * @route GET /api/users/me
+ * @description Obtiene el perfil del usuario autenticado.
+ * @access Protegido (requiere autenticación con JWT del backend)
+ */
+router.get('/me', authenticateBackendJWT, getUserProfile);
+
+/**
  * @route POST /api/users/logout
  * @description Elimina la sesión del usuario autenticado de PostgreSQL.
  * @access Protegido (requiere autenticación con JWT del backend)
@@ -24,7 +31,7 @@ router.post('/logout', authenticateBackendJWT, logoutUser);
  * @description Elimina el perfil del usuario autenticado.
  * @access Protegido (requiere autenticación con token de Firebase y sesión reciente)
  */
-router.delete('/me', authenticateUser, deleteUser);
+router.delete('/me', authenticateBackendJWT, deleteUser);
 
 /**
  * @route PUT /api/users/language
