@@ -39,17 +39,19 @@ Estos endpoints requieren el JWT del backend en el header `Authorization`.
 
 ### 👥 Usuarios
 
-| Método   | Endpoint            | Descripción                         | Rol Requerido |
-| -------- | ------------------- | ----------------------------------- | ------------- |
-| `POST`   | `/api/users/logout` | Cierra la sesión del usuario actual | Todos         |
-| `GET`    | `/api/users/me`     | Obtener perfil del usuario actual   | Todos         |
-| `PUT`    | `/api/users/me`     | Actualizar perfil                   | Todos         |
-| `DELETE` | `/api/users/me`     | Eliminar cuenta                     | Todos         |
+| Método   | Endpoint              | Descripción                         | Rol Requerido |
+| -------- | --------------------- | ----------------------------------- | ------------- |
+| `POST`   | `/api/users/logout`   | Cierra la sesión del usuario actual | Todos         |
+| `GET`    | `/api/users/me`       | Obtener perfil del usuario actual   | Todos         |
+| `PUT`    | `/api/users/language` | Actualizar idioma de la app         | Todos         |
+| `PUT`    | `/api/users/me`       | Actualizar perfil                   | Todos         |
+| `DELETE` | `/api/users/me`       | Eliminar cuenta                     | Todos         |
 
 📖 Ver detalles:
 
 - [POST /api/users/logout](endpoints/logout.md)
 - [GET /api/users/me](endpoints/users-me.md)
+- [PUT /api/users/language](endpoints/users-language.md)
 - [DELETE /api/users/me](endpoints/users-delete.md)
 
 ### ♻️ Puntos de Reciclaje

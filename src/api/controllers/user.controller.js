@@ -163,7 +163,7 @@ export const syncUserToPostgres = async (req, res) => {
           user_id: userData.uid,
           name: userData.name,
           email: userData.email,
-          app_language: 'Spanish', // Valor por defecto
+          app_language: 'es', // Valor por defecto
           ...(userData.surname && { surname: userData.surname }),
           ...(userData.username && { username: userData.username }),
         },
@@ -246,14 +246,11 @@ export const syncUserToPostgres = async (req, res) => {
 export const changeAppLanguage = async (req, res) => {
   const dbg = (...args) => console.log('[changeAppLanguage]', ...args);
 
-  // UID y payload actual del JWT del backend
-  const { uid, ...currentPayload } = req.user;
-
-  // El token antiguo adjuntado por el middleware (para eliminar la sesión)
-  const token = req.token;
+  // UID del usuario autenticado
+  const { uid } = req.user;
   const { newLanguage } = req.body;
 
-  if (!newLanguage || typeof newLanguage !== 'string' || newLanguage.lenght < 2) {
+  if (!newLanguage || typeof newLanguage !== 'string' || newLanguage.length < 2) {
     dbg('Validación fallida: newLanguage no válido');
     return res.status(400).json({
       success: false,
@@ -267,63 +264,18 @@ export const changeAppLanguage = async (req, res) => {
     const updatedUser = await prisma.registered_user.update({
       where: { user_id: uid },
       data: { app_language: newLanguage },
-      include: { client: true }, // para obtener todos los campos necesarios
     });
 
     dbg(`Idioma actualizado a ${updatedUser.app_language} en la BD.`);
 
-    // Generar un nuevo JWT conn el idioma actualizado
-    const newJwtPayload = {
-      uid: updatedUser.user_id,
-      email: updatedUser.email,
-      name: updatedUser.name,
-      surname: updatedUser.surname,
-      username: updatedUser.username,
-      dni: updatedUser.dni || null,
-      app_language: updatedUser.app_language,
-      profile_picture: updatedUser.client?.profile_picture || null,
-      address: updatedUser.client?.address || null,
-      phone: updatedUser.client?.phone || null,
-      description: updatedUser.client?.description || null,
-      birth_date: updatedUser.client?.birth_date ? updatedUser.client.birth_date.toISOString().split('T')[0] : null,
-      role: currentPayload.role || 'client',
-      points: updatedUser.client?.points || 0,
-      streak: updatedUser.client?.streak || 0,
-    };
-
-    const { token: newToken, expiryDate } = signUserJWT(newJwtPayload);
-
-    // Reemplazar la sesión antigua con la nueva en una transacción
-    await prisma.$transaction(async (tx) => {
-      // Eliminar la sesión antigua (con el token original)
-      await tx.session.deleteMany({
-        where: { jwt: token, user_id: uid },
-      });
-
-      // Crear la nueva sesión (con el nuevo token)
-      await tx.session.create({
-        data: {
-          jwt: newToken,
-          expiry_date: expiryDate,
-          user_id: uid,
-        },
-      });
-    });
-
-    dbg('Sesión actualizada y nuevo JWT almacenado.');
-
-    // Devolver el nuevo JWT y el idioma
     return res.status(200).json({
       success: true,
       message: `Idioma de la aplicación cambiado a ${updatedUser.app_language}.`,
-      jwt: newToken, // devolvemos el nuevo token
-      expiryDate: expiryDate.toISOString(),
       newLanguage: updatedUser.app_language,
     });
   } catch (error) {
     console.error('Error en changeAppLanguage:', error);
 
-    // ... (Manejo de errores P2025 y 500)
     if (error.code === 'P2025') {
       return res.status(404).json({
         success: false,
