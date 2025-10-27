@@ -263,22 +263,6 @@ export const changeAppLanguage = async (req, res) => {
   }
 
   try {
-    // Comprobar si existe una sesión abierta conn el user_id que solicita el cambio
-    const activeSession = await prisma.session.findFirst({
-      where: { user_id: uid, jwt: token },
-      select: { session_id: true },
-    });
-
-    if (!activeSession) {
-      dbg('Sesión activa no encontrada para el token proporcionado en la BD.');
-      return res.status(401).json({
-        success: false,
-        message: 'Sesión no encontrada o expirada. Por favor, inicie sesión de nuevo.',
-        code: 'SESSION_NOT_FOUND_OR_EXPIRED',
-      });
-    }
-    dbg('Sesión activa encontrada. Procediendo con la actualización.');
-
     // Actualizar el campo app_language en la base de datos
     const updatedUser = await prisma.registered_user.update({
       where: { user_id: uid },
