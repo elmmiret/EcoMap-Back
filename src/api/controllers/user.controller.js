@@ -225,9 +225,29 @@ export const syncUserToPostgres = async (req, res) => {
     });
 
     if (error.code === 'P2002') {
+      // Determinar qué campo causó el conflicto
+      const target = error.meta?.target;
+
+      if (target?.includes('username')) {
+        return res.status(409).json({
+          success: false,
+          message: 'El nombre de usuario ya está en uso.',
+          code: 'USERNAME_TAKEN',
+        });
+      }
+
+      if (target?.includes('email')) {
+        return res.status(409).json({
+          success: false,
+          message: 'El email ya está registrado.',
+          code: 'EMAIL_ALREADY_EXISTS',
+        });
+      }
+
+      // Fallback genérico si no se puede determinar el campo
       return res.status(409).json({
         success: false,
-        message: 'El email o identificador de usuario ya existe.',
+        message: 'El email o nombre de usuario ya existe.',
         code: 'USER_ALREADY_EXISTS',
       });
     }
