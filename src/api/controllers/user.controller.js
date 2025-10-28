@@ -584,6 +584,8 @@ export const updateUserProfile = async (req, res) => {
       const parsedDate = new Date(birth_date);
       if (isNaN(parsedDate.getTime())) {
         errors.push({ field: 'birth_date', message: 'El campo "birth_date" no es una fecha válida.' });
+      } else if (parsedDate > new Date()) {
+        errors.push({ field: 'birth_date', message: 'El campo "birth_date" no puede ser una fecha futura.' });
       } else {
         clientData.birth_date = parsedDate;
       }
