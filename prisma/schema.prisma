@@ -34,7 +34,7 @@ model institution {
 model registered_user {
   user_id      String            @id
   name         String
-  username     String
+  username     String            @unique
   surname      String?
   dni          String?
   email        String            @unique

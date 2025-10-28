@@ -225,9 +225,29 @@ export const syncUserToPostgres = async (req, res) => {
     });
 
     if (error.code === 'P2002') {
+      // Determinar qué campo causó el conflicto
+      const target = error.meta?.target;
+
+      if (target?.includes('username')) {
+        return res.status(409).json({
+          success: false,
+          message: 'El nombre de usuario ya está en uso.',
+          code: 'USERNAME_TAKEN',
+        });
+      }
+
+      if (target?.includes('email')) {
+        return res.status(409).json({
+          success: false,
+          message: 'El email ya está registrado.',
+          code: 'EMAIL_ALREADY_EXISTS',
+        });
+      }
+
+      // Fallback genérico si no se puede determinar el campo
       return res.status(409).json({
         success: false,
-        message: 'El email o identificador de usuario ya existe.',
+        message: 'El email o nombre de usuario ya existe.',
         code: 'USER_ALREADY_EXISTS',
       });
     }
@@ -488,6 +508,283 @@ export const getUserProfile = async (req, res) => {
       success: false,
       message: 'Error al obtener el perfil del usuario.',
       code: 'GET_PROFILE_ERROR',
+    });
+  }
+};
+
+/**
+ * Actualiza el perfil del usuario autenticado.
+ * Soporta actualización parcial de campos.
+ */
+export const updateUserProfile = async (req, res) => {
+  const { uid } = req.user;
+  const dbg = (...args) => console.log('[updateUserProfile]', ...args);
+  dbg(`Solicitud de actualización de perfil para usuario: ${uid}`);
+
+  // Extraer campos del body
+  const { name, surname, username, address, phone, birth_date, description } = req.body;
+
+  // --- Validaciones críticas del backend Y preparación de datos ---
+  const errors = [];
+  const registeredUserData = {};
+  const clientData = {};
+
+  // name: si se envía, validar tipo y longitud máxima (BD constraint)
+  if (name !== undefined && name !== null) {
+    if (typeof name !== 'string' || name.trim().length === 0 || name.length > 80) {
+      errors.push({ field: 'name', message: 'El campo "name" debe ser un texto válido de máximo 80 caracteres.' });
+    } else {
+      registeredUserData.name = name.trim();
+    }
+  }
+
+  // surname: si se envía, validar longitud máxima
+  if (surname !== undefined && surname !== null) {
+    if (typeof surname !== 'string' || surname.length > 80) {
+      errors.push({ field: 'surname', message: 'El campo "surname" debe tener máximo 80 caracteres.' });
+    } else {
+      registeredUserData.surname = surname.trim();
+    }
+  }
+
+  // username: si se envía, validar formato y longitud
+  if (username !== undefined && username !== null) {
+    if (typeof username !== 'string' || username.trim().length === 0 || username.length > 30) {
+      errors.push({ field: 'username', message: 'El campo "username" debe tener máximo 30 caracteres.' });
+    } else if (!/^[a-zA-Z0-9_.]+$/.test(username)) {
+      errors.push({ field: 'username', message: 'El campo "username" solo puede contener letras, números, puntos y guiones bajos.' });
+    } else {
+      registeredUserData.username = username.trim();
+    }
+  }
+
+  // address: si se envía, validar longitud máxima
+  if (address !== undefined && address !== null) {
+    if (typeof address !== 'string' || address.length > 200) {
+      errors.push({ field: 'address', message: 'El campo "address" debe tener máximo 200 caracteres.' });
+    } else {
+      clientData.address = address.trim();
+    }
+  }
+
+  // phone: si se envía, validar que sea entero positivo
+  if (phone !== undefined && phone !== null) {
+    if (!Number.isInteger(phone) || phone <= 0) {
+      errors.push({ field: 'phone', message: 'El campo "phone" debe ser un número entero positivo.' });
+    } else {
+      clientData.phone = phone;
+    }
+  }
+
+  // birth_date: si se envía, validar formato ISO y que sea fecha válida
+  if (birth_date !== undefined && birth_date !== null) {
+    if (typeof birth_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(birth_date)) {
+      errors.push({ field: 'birth_date', message: 'El campo "birth_date" debe estar en formato YYYY-MM-DD.' });
+    } else {
+      const parsedDate = new Date(birth_date);
+      if (isNaN(parsedDate.getTime())) {
+        errors.push({ field: 'birth_date', message: 'El campo "birth_date" no es una fecha válida.' });
+      } else if (parsedDate > new Date()) {
+        errors.push({ field: 'birth_date', message: 'El campo "birth_date" no puede ser una fecha futura.' });
+      } else {
+        clientData.birth_date = parsedDate;
+      }
+    }
+  }
+
+  // description: si se envía, validar longitud máxima
+  if (description !== undefined && description !== null) {
+    if (typeof description !== 'string' || description.length > 1000) {
+      errors.push({ field: 'description', message: 'El campo "description" debe tener máximo 1000 caracteres.' });
+    } else {
+      clientData.description = description.trim();
+    }
+  }
+
+  // Si hay errores de validación, devolverlos
+  if (errors.length > 0) {
+    dbg('Errores de validación:', errors);
+    return res.status(400).json({
+      success: false,
+      message: 'Errores de validación en los campos enviados.',
+      code: 'VALIDATION_ERROR',
+      errors,
+    });
+  }
+
+  try {
+    // Si no hay nada que actualizar, retornar el perfil actual sin cambios
+    if (Object.keys(registeredUserData).length === 0 && Object.keys(clientData).length === 0) {
+      dbg('No hay campos para actualizar, devolviendo perfil actual');
+      const userProfile = await prisma.registered_user.findUnique({
+        where: { user_id: uid },
+        select: {
+          user_id: true,
+          email: true,
+          name: true,
+          surname: true,
+          username: true,
+          dni: true,
+          app_language: true,
+          client: {
+            select: {
+              profile_picture: true,
+              address: true,
+              phone: true,
+              birth_date: true,
+              description: true,
+              points: true,
+              streak: true,
+            },
+          },
+          admin: true,
+          institution: true,
+        },
+      });
+
+      if (!userProfile) {
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no encontrado.',
+          code: 'USER_NOT_FOUND',
+        });
+      }
+
+      let role = 'client';
+      if (userProfile.admin) role = 'admin';
+      if (userProfile.institution) role = 'institution';
+
+      const responseData = {
+        uid: userProfile.user_id,
+        email: userProfile.email,
+        name: userProfile.name,
+        surname: userProfile.surname,
+        username: userProfile.username,
+        dni: userProfile.dni,
+        profile_picture: userProfile.client?.profile_picture || null,
+        app_language: userProfile.app_language,
+        address: userProfile.client?.address || null,
+        phone: userProfile.client?.phone || null,
+        birth_date: userProfile.client?.birth_date ? userProfile.client.birth_date.toISOString().split('T')[0] : null,
+        description: userProfile.client?.description || null,
+        role,
+        points: userProfile.client?.points || 0,
+        streak: userProfile.client?.streak || 0,
+      };
+
+      return res.status(200).json({
+        success: true,
+        message: 'Perfil sin cambios',
+        data: responseData,
+      });
+    }
+
+    dbg('Datos a actualizar:', { registeredUserData, clientData });
+
+    // Actualizar en transacción
+    await prisma.$transaction(async (tx) => {
+      // Actualizar registered_user si hay datos
+      if (Object.keys(registeredUserData).length > 0) {
+        await tx.registered_user.update({
+          where: { user_id: uid },
+          data: registeredUserData,
+        });
+        dbg('registered_user actualizado');
+      }
+
+      // Actualizar client si hay datos
+      if (Object.keys(clientData).length > 0) {
+        await tx.client.update({
+          where: { user_id: uid },
+          data: clientData,
+        });
+        dbg('client actualizado');
+      }
+    });
+
+    dbg('Transacción completada con éxito');
+
+    // Obtener el perfil completo actualizado
+    const userProfile = await prisma.registered_user.findUnique({
+      where: { user_id: uid },
+      select: {
+        user_id: true,
+        email: true,
+        name: true,
+        surname: true,
+        username: true,
+        dni: true,
+        app_language: true,
+        client: {
+          select: {
+            profile_picture: true,
+            address: true,
+            phone: true,
+            birth_date: true,
+            description: true,
+            points: true,
+            streak: true,
+          },
+        },
+        admin: true,
+        institution: true,
+      },
+    });
+
+    // Determinar el rol
+    let role = 'client';
+    if (userProfile.admin) role = 'admin';
+    if (userProfile.institution) role = 'institution';
+
+    // Formatear respuesta
+    const responseData = {
+      uid: userProfile.user_id,
+      email: userProfile.email,
+      name: userProfile.name,
+      surname: userProfile.surname,
+      username: userProfile.username,
+      dni: userProfile.dni,
+      profile_picture: userProfile.client?.profile_picture || null,
+      app_language: userProfile.app_language,
+      address: userProfile.client?.address || null,
+      phone: userProfile.client?.phone || null,
+      birth_date: userProfile.client?.birth_date ? userProfile.client.birth_date.toISOString().split('T')[0] : null,
+      description: userProfile.client?.description || null,
+      role,
+      points: userProfile.client?.points || 0,
+      streak: userProfile.client?.streak || 0,
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: 'Perfil actualizado correctamente',
+      data: responseData,
+    });
+  } catch (error) {
+    console.error('[updateUserProfile] Error:', error);
+
+    // Error de username duplicado (si se implementa unique constraint)
+    if (error.code === 'P2002' && error.meta?.target?.includes('username')) {
+      return res.status(409).json({
+        success: false,
+        message: 'El nombre de usuario ya está en uso.',
+        code: 'USERNAME_TAKEN',
+      });
+    }
+
+    // Usuario no encontrado
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: 'Error al actualizar el perfil.',
+      code: 'PROFILE_UPDATE_ERROR',
     });
   }
 };

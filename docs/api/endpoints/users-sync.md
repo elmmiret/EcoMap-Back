@@ -163,13 +163,39 @@ El JWT devuelto contiene el siguiente payload:
 }
 ```
 
-#### 409 Conflict - Usuario duplicado
+#### 409 Conflict - Email duplicado
+
+El email ya está registrado en el sistema.
 
 ```json
 {
   "success": false,
-  "message": "El usuario ya existe en la base de datos.",
-  "code": "USER_EXISTS"
+  "message": "El email ya está registrado.",
+  "code": "EMAIL_ALREADY_EXISTS"
+}
+```
+
+#### 409 Conflict - Username duplicado
+
+El nombre de usuario ya está en uso por otro usuario.
+
+```json
+{
+  "success": false,
+  "message": "El nombre de usuario ya está en uso.",
+  "code": "USERNAME_TAKEN"
+}
+```
+
+#### 409 Conflict - Usuario duplicado (genérico)
+
+Cuando no se puede determinar qué campo específico causó el conflicto.
+
+```json
+{
+  "success": false,
+  "message": "El email o nombre de usuario ya existe.",
+  "code": "USER_ALREADY_EXISTS"
 }
 ```
 
