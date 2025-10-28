@@ -75,8 +75,25 @@ model recycling_point {
   recycling_point_id String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   api_id             Int
   api_location       api_location
+  name               String
+  latitude           Decimal?     @db.Decimal(9, 6)
+  longitude          Decimal?     @db.Decimal(9, 6)
+  equipment_type     String?      // "TipoEquipamiento"
+  schedule           String?      // "Horario"
+  last_updated       DateTime?
+  raw_payload        Json?
+  active             Boolean      @default(true)
+  created_at         DateTime     @default(now())
+  updated_at         DateTime     @updatedAt
   container          container[]
   timetable          timetable[]
+
+  @@index([api_location])
+  @@index([api_location, api_id])
+  @@index([api_location, name])
+  @@index([api_location, latitude, longitude])
+  @@index([api_location, equipment_type])
+  @@unique([api_location, api_id])
 }
 
 model time_interval {
@@ -219,4 +236,23 @@ enum notification_type {
   NewTrade
   NewMessage
   Incidences
+}
+
+// --- Cache system metadata ---
+model cache_metadata {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  source        String        @unique // e.g., 'NAVARRA_POINTS'
+  last_sync     DateTime?
+  next_sync     DateTime?
+  status        cache_status  @default(READY)
+  error_message String?
+  total_records Int           @default(0)
+  created_at    DateTime      @default(now())
+  updated_at    DateTime      @updatedAt
+}
+
+enum cache_status {
+  SYNCING
+  READY
+  ERROR
 }

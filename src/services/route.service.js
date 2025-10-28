@@ -1,4 +1,7 @@
 import fetch from 'node-fetch';
+import { createLogger } from '#lib/logger.js';
+
+const log = createLogger('route-service');
 
 export async function getRoute(start, end, profile = 'driving-car') {
   const apiKey = process.env.ORS_API_KEY;
@@ -60,12 +63,15 @@ export async function getRoute(start, end, profile = 'driving-car') {
     }
   }
 
-  return {
+  const result = {
     distance,
     duration,
     geometry: geometryCoords,
     steps, // 👈 Instrucciones detalladas
   };
+
+  log.debug('Route computed', { profile, distance, duration, steps: steps?.length ?? 0 });
+  return result;
 }
 
 /** Decodificador de polylines */

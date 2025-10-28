@@ -128,3 +128,90 @@ export const authenticateBackendJWT = async (req, res, next) => {
     });
   }
 };
+
+/**
+ * Middleware to verify that the authenticated user is an admin
+ * MUST be used after authenticateBackendJWT middleware
+ * Checks req.user.role from the decoded JWT payload
+ *
+ * Usage:
+ * router.post('/admin-only', authenticateBackendJWT, requireAdmin, controller);
+ */
+export const requireAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required',
+      code: 'NOT_AUTHENTICATED',
+    });
+  }
+
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Admin privileges required',
+      code: 'FORBIDDEN',
+    });
+  }
+
+  // Usuario es admin, continuar
+  next();
+};
+
+/**
+ * Middleware to verify that the authenticated user is an institution
+ * MUST be used after authenticateBackendJWT middleware
+ * Checks req.user.role from the decoded JWT payload
+ *
+ * Usage:
+ * router.post('/institution-only', authenticateBackendJWT, requireInstitution, controller);
+ */
+export const requireInstitution = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required',
+      code: 'NOT_AUTHENTICATED',
+    });
+  }
+
+  if (req.user.role !== 'institution') {
+    return res.status(403).json({
+      success: false,
+      message: 'Institution privileges required',
+      code: 'FORBIDDEN',
+    });
+  }
+
+  // Usuario es institution, continuar
+  next();
+};
+
+/**
+ * Middleware to verify that the authenticated user is either admin or institution
+ * MUST be used after authenticateBackendJWT middleware
+ * Useful for endpoints that should be accessible by both roles
+ *
+ * Usage:
+ * router.get('/stats', authenticateBackendJWT, requireAdminOrInstitution, controller);
+ */
+export const requireAdminOrInstitution = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required',
+      code: 'NOT_AUTHENTICATED',
+    });
+  }
+
+  if (req.user.role !== 'admin' && req.user.role !== 'institution') {
+    return res.status(403).json({
+      success: false,
+      message: 'Admin or institution privileges required',
+      code: 'FORBIDDEN',
+    });
+  }
+
+  // Usuario tiene permisos, continuar
+  next();
+};

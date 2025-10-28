@@ -1,75 +1,26 @@
-import { getNavarraRecyclingPoints } from '#services/navarra.service.js';
-import { getBarcelonaRecyclingPoints } from '#services/barcelona.service.js';
+import { getCachedPoints, getCacheStatus, minutesSince } from '#services/cache.service.js';
+import { getSourceConfig, isLocationSupported } from '#config/recycling-sources.config.js';
+import { runSyncJob } from '#jobs/sync-points.job.js';
+import { createLogger } from '#lib/logger.js';
 
+const log = createLogger('recycling-points');
+
+// GET /api/recycling-points/:region
+// Returns recycling points for the given region (navarra, barcelona, etc.)
 export async function getRecyclingPointsByRegion(req, res) {
   const startTime = Date.now();
-  const requestId = `${req.params.region}-${Date.now()}`;
+  const { region } = req.params;
+  const requestId = `${region}-${Date.now()}`;
 
-  console.log(`[START][${requestId}] Request iniciado:`, {
+  log.info(`[${requestId}] Request iniciado:`, {
     timestamp: new Date().toISOString(),
-    region: req.params.region,
+    region,
     query: req.query,
   });
 
-  try {
-    const { region } = req.params;
-    const queryParams = req.query;
-
-    if (region === 'navarra') {
-      console.log(`[BEFORE FETCH][${requestId}] Llamando a API de Navarra:`, {
-        timestamp: new Date().toISOString(),
-        elapsed: `${Date.now() - startTime}ms`,
-      });
-
-      const navarraPoints = await getNavarraRecyclingPoints(queryParams);
-
-      console.log(`[AFTER FETCH][${requestId}] Respuesta recibida de Navarra:`, {
-        timestamp: new Date().toISOString(),
-        elapsed: `${Date.now() - startTime}ms`,
-        recordsCount: navarraPoints.length,
-      });
-
-      console.log(`[END][${requestId}] Enviando respuesta al cliente:`, {
-        timestamp: new Date().toISOString(),
-        elapsed: `${Date.now() - startTime}ms`,
-        statusCode: 200,
-      });
-
-      return res.status(200).json({
-        success: true,
-        message: 'Puntos de reciclaje encontrados en Navarra',
-        data: navarraPoints,
-      });
-    }
-
-    if (region === 'barcelona') {
-      console.log(`[BEFORE FETCH][${requestId}] Llamando a API de Barcelona:`, {
-        timestamp: new Date().toISOString(),
-        elapsed: `${Date.now() - startTime}ms`,
-      });
-
-      const barcelonaPoints = await getBarcelonaRecyclingPoints(queryParams);
-
-      console.log(`[AFTER FETCH][${requestId}] Respuesta recibida de Barcelona:`, {
-        timestamp: new Date().toISOString(),
-        elapsed: `${Date.now() - startTime}ms`,
-        recordsCount: barcelonaPoints.length,
-      });
-
-      console.log(`[END][${requestId}] Enviando respuesta al cliente:`, {
-        timestamp: new Date().toISOString(),
-        elapsed: `${Date.now() - startTime}ms`,
-        statusCode: 200,
-      });
-
-      return res.status(200).json({
-        success: true,
-        message: 'Puntos de reciclaje encontrados en Barcelona',
-        data: barcelonaPoints,
-      });
-    }
-
-    console.log(`[END][${requestId}] Región no encontrada:`, {
+  // Validate region/location
+  if (!isLocationSupported(region)) {
+    log.warn(`[${requestId}] Región no soportada:`, {
       timestamp: new Date().toISOString(),
       elapsed: `${Date.now() - startTime}ms`,
       statusCode: 404,
@@ -81,8 +32,86 @@ export async function getRecyclingPointsByRegion(req, res) {
       message: `Región no encontrada: ${region}`,
       code: 'REGION_NOT_FOUND',
     });
+  }
+
+  const config = getSourceConfig(region);
+  const { source, apiLocation, syncFn } = config;
+
+  try {
+    log.debug(`[${requestId}] Obteniendo puntos desde cache:`, {
+      timestamp: new Date().toISOString(),
+      elapsed: `${Date.now() - startTime}ms`,
+      source,
+      apiLocation,
+    });
+
+    const result = await getCachedPoints({
+      source,
+      apiLocation,
+      onRefresh: syncFn,
+    });
+
+    // Cold start: no cache available yet
+    if (result.coldStart) {
+      log.info(`[${requestId}] Cache vacía, sincronizando...`, {
+        timestamp: new Date().toISOString(),
+        elapsed: `${Date.now() - startTime}ms`,
+      });
+
+      try {
+        await syncFn();
+        // Re-fetch after sync
+        const afterSync = await getCachedPoints({
+          source,
+          apiLocation,
+          onRefresh: syncFn,
+        });
+
+        log.info(`[${requestId}] Cold start sync completado:`, {
+          timestamp: new Date().toISOString(),
+          elapsed: `${Date.now() - startTime}ms`,
+          recordsCount: afterSync.data.length,
+          statusCode: 200,
+        });
+
+        return res.status(200).json({
+          success: true,
+          message: `Puntos de reciclaje encontrados en ${apiLocation}`,
+          totalRegisters: afterSync.data.length,
+          data: afterSync.data,
+        });
+      } catch (syncErr) {
+        log.error(`[${requestId}] Cold start sync failed:`, {
+          timestamp: new Date().toISOString(),
+          elapsed: `${Date.now() - startTime}ms`,
+          error: syncErr.message,
+        });
+
+        return res.status(503).json({
+          success: false,
+          message: 'Cache vacía y sincronización inicial falló. Intente más tarde.',
+          code: 'SERVICE_UNAVAILABLE',
+        });
+      }
+    }
+
+    // Normal case: serve cached data (even if stale, SWR will refresh in background)
+    log.info(`[${requestId}] Respuesta desde cache:`, {
+      timestamp: new Date().toISOString(),
+      elapsed: `${Date.now() - startTime}ms`,
+      recordsCount: result.data.length,
+      isStale: result.isStale,
+      statusCode: 200,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Puntos de reciclaje encontrados en ${apiLocation}`,
+      totalRegisters: result.data.length,
+      data: result.data,
+    });
   } catch (error) {
-    console.error(`[ERROR][${requestId}] Error al obtener puntos:`, {
+    log.error(`[${requestId}] Error al obtener puntos:`, {
       timestamp: new Date().toISOString(),
       elapsed: `${Date.now() - startTime}ms`,
       errorCode: error.code,
@@ -90,10 +119,109 @@ export async function getRecyclingPointsByRegion(req, res) {
       stack: error.stack,
     });
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Error al consultar los puntos de reciclaje',
       code: 'RECYCLING_POINTS_ERROR',
+    });
+  }
+}
+
+// GET /api/recycling-points/:region/status
+// Returns cache metadata and status for the given region
+export async function getStatusByRegion(req, res) {
+  const { region } = req.params;
+
+  // Validate region
+  if (!isLocationSupported(region)) {
+    return res.status(404).json({
+      success: false,
+      message: `Región no encontrada: ${region}`,
+      code: 'REGION_NOT_FOUND',
+    });
+  }
+
+  const config = getSourceConfig(region);
+  const { source, apiLocation } = config;
+
+  try {
+    const status = await getCacheStatus(source);
+
+    return res.status(200).json({
+      success: true,
+      region,
+      apiLocation,
+      source,
+      status: status.status,
+      last_sync: status.last_sync,
+      next_sync: status.next_sync,
+      total_records: status.total_records,
+      is_stale: status.is_stale,
+      minutes_since_sync: status.last_sync ? minutesSince(status.last_sync) : null,
+      error_message: status.error_message,
+    });
+  } catch (error) {
+    console.error('[controller] error fetching status:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al consultar el estado del cache',
+      code: 'CACHE_STATUS_ERROR',
+    });
+  }
+}
+
+// POST /api/recycling-points/:region/refresh
+// Force immediate sync for the given region (admin endpoint)
+export async function forceRefreshByRegion(req, res) {
+  const { region } = req.params;
+
+  // Validate region
+  if (!isLocationSupported(region)) {
+    return res.status(404).json({
+      success: false,
+      message: `Región no encontrada: ${region}`,
+      code: 'REGION_NOT_FOUND',
+    });
+  }
+
+  const config = getSourceConfig(region);
+  const { source, syncFn, apiLocation } = config;
+
+  try {
+    const result = await runSyncJob({ source, syncFn });
+
+    if (result.skipped) {
+      return res.status(409).json({
+        success: false,
+        message: result.reason,
+        code: 'SYNC_IN_PROGRESS',
+      });
+    }
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        message: result.error || 'Sync job failed',
+        code: 'SYNC_FAILED',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Sincronización de ${apiLocation} completada`,
+      region,
+      inserted: result.inserted,
+      updated: result.updated,
+      deactivated: result.deactivated,
+      total_records: result.totalRecords,
+      sync_duration_ms: result.syncDurationMs,
+    });
+  } catch (error) {
+    console.error('[controller] error forcing refresh:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al forzar sincronización',
+      code: 'REFRESH_ERROR',
     });
   }
 }

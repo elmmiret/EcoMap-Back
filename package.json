@@ -25,7 +25,8 @@
     "#services/*": "./src/services/*",
     "#controllers/*": "./src/api/controllers/*",
     "#middlewares/*": "./src/api/middlewares/*",
-    "#routes/*": "./src/api/routes/*"
+    "#routes/*": "./src/api/routes/*",
+    "#jobs/*": "./src/jobs/*"
   },
   "repository": {
     "type": "git",
@@ -39,6 +40,7 @@
   "homepage": "https://github.com/pes2526q1-1x-gei-upc/PESkaos-back#readme",
   "dependencies": {
     "@prisma/client": "^6.17.1",
+    "node-cron": "^3.0.3",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "firebase-admin": "^13.5.0",
