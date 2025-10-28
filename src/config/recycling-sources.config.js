@@ -2,7 +2,7 @@
 // Centralized config for all recycling point data sources (Navarra, Barcelona, etc.)
 
 import { syncNavarraPoints } from '#services/navarra-sync.service.js';
-// import { syncBarcelonaPoints } from '#services/barcelona-sync.service.js'; // future
+import { syncBarcelonaPoints } from '#services/barcelona-sync.service.js';
 
 /**
  * Source configuration map
@@ -24,14 +24,14 @@ export const RECYCLING_SOURCES = {
     ttl: 90 * 60 * 1000, // 1h 30min
     syncInterval: 60 * 60 * 1000, // 1h
   },
-  // barcelona: {
-  //   source: 'BARCELONA_POINTS',
-  //   apiLocation: 'Barcelona',
-  //   syncFn: syncBarcelonaPoints,
-  //   cron: '15 * * * *', // every hour at :15 (offset to avoid overlap)
-  //   ttl: 120 * 60 * 1000, // 2h
-  //   syncInterval: 90 * 60 * 1000, // 1h 30min
-  // },
+  barcelona: {
+    source: 'BARCELONA_POINTS',
+    apiLocation: 'Barcelona',
+    syncFn: syncBarcelonaPoints,
+    cron: '15 * * * *', // every hour at :15 (offset to avoid overlap)
+    ttl: 90 * 60 * 1000, // 1h 30min
+    syncInterval: 60 * 60 * 1000, // 1h
+  },
 };
 
 /**

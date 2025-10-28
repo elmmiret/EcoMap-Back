@@ -116,7 +116,7 @@ Este endpoint utiliza la estrategia **Stale-While-Revalidate**:
 | Región   | TTL (Stale) | Sync Interval | Cron          |
 | -------- | ----------- | ------------- | ------------- |
 | Navarra  | 90 minutos  | 60 minutos    | `0 * * * *`   |
-| Barcelona | 120 minutos | 90 minutos    | `5 * * * *`   |
+| Barcelona | 90 minutos | 60 minutos    | `0 * * * *`   |
 
 **TTL (Time To Live)**: Tiempo después del cual los datos se consideran obsoletos (stale).  
 **Sync Interval**: Frecuencia de sincronización automática en segundo plano.
