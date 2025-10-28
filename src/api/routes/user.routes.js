@@ -3,7 +3,7 @@ import express from 'express';
 const router = express.Router();
 
 import { authenticateUser, authenticateBackendJWT } from '#middlewares/auth.middleware.js';
-import { syncUserToPostgres, changeAppLanguage, logoutUser, getUserProfile, deleteUser } from '#controllers/user.controller.js';
+import { syncUserToPostgres, changeAppLanguage, logoutUser, getUserProfile, deleteUser, updateUserProfile } from '#controllers/user.controller.js';
 
 /**
  * @route POST /api/users/sync
@@ -20,11 +20,11 @@ router.post('/sync', authenticateUser, syncUserToPostgres);
 router.get('/me', authenticateBackendJWT, getUserProfile);
 
 /**
- * @route POST /api/users/logout
- * @description Elimina la sesión del usuario autenticado de PostgreSQL.
+ * @route PUT /api/users/me
+ * @description Actualiza el perfil del usuario autenticado.
  * @access Protegido (requiere autenticación con JWT del backend)
  */
-router.post('/logout', authenticateBackendJWT, logoutUser);
+router.put('/me', authenticateBackendJWT, updateUserProfile);
 
 /**
  * @route DELETE /api/users/me
@@ -32,6 +32,13 @@ router.post('/logout', authenticateBackendJWT, logoutUser);
  * @access Protegido (requiere autenticación con token de Firebase y sesión reciente)
  */
 router.delete('/me', authenticateBackendJWT, deleteUser);
+
+/**
+ * @route POST /api/users/logout
+ * @description Elimina la sesión del usuario autenticado de PostgreSQL.
+ * @access Protegido (requiere autenticación con JWT del backend)
+ */
+router.post('/logout', authenticateBackendJWT, logoutUser);
 
 /**
  * @route PUT /api/users/language

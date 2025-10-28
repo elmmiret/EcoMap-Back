@@ -34,14 +34,15 @@ Con validaciones claras, manejo de errores consistente y actualización inmediat
      - En paralelo, revalidar con `GET /api/users/me` y sincronizar el formulario con datos canónicos.
 
 2. Edición y validación en cliente
-   - Validar en tiempo real (mínimos de UX):
-     - `name`: requerido, 1–80 chars.
-     - `surname`: opcional, 0–80 chars.
-     - `username`: requerido, 3–30 chars; letras, números, `_` y `.` (validación cliente). Si negocio exige unicidad, comprobar disponibilidad con el backend (ver errores).
-     - `address`: opcional, hasta 120–200 chars.
+   - Validar en tiempo real (UX y experiencia del usuario):
+     - `name`: requerido, mínimo 2 chars, máximo 80.
+     - `surname`: opcional, máximo 80 chars.
+     - `username`: requerido, 3–30 chars; letras, números, `_` y `.`; comprobar disponibilidad con el backend si es necesario.
+     - `address`: opcional, hasta 200 chars.
      - `phone`: opcional, solo dígitos (el backend lo almacena como entero). Sin `+` ni separadores en esta versión del esquema.
      - `birth_date`: opcional, formato ISO `YYYY-MM-DD`.
-     - `description`: opcional, hasta 500–1000 chars.
+     - `description`: opcional, hasta 1000 chars.
+   - **Importante**: El backend solo valida restricciones críticas (longitudes máximas, formato de datos). Las validaciones de mínimos, formato visual y disponibilidad en tiempo real son responsabilidad del frontend.
 
 3. Envío (guardar cambios)
    - Hacer `PUT /api/users/me` con `Authorization: Bearer <BACKEND_JWT>` y body JSON con los campos a actualizar (parcial OK).
@@ -62,17 +63,20 @@ Con validaciones claras, manejo de errores consistente y actualización inmediat
 PUT `/api/users/me`
 
 - Auth: Backend JWT
-- Body (JSON): todos los campos son opcionales para permitir actualizaciones parciales
+- Body (JSON): todos los campos son opcionales para permitir actualizaciones parciales. Solo envía los que el usuario modificó.
 
 | Campo         | Tipo       | Reglas/resumen                                                                             |
 | ------------- | ---------- | ------------------------------------------------------------------------------------------- |
-| `name`        | string     | Requerido si se envía; 1–80 chars                                                           |
-| `surname`     | string     | Opcional; 0–80 chars                                                                        |
-| `username`    | string     | Requerido si se envía; 3–30 chars; `[a-zA-Z0-9_.]`; unicidad si negocio lo exige           |
-| `address`     | string     | Opcional; hasta 120–200 chars                                                               |
-| `phone`       | number/int | Opcional; dígitos solamente; rango de entero seguro                                         |
-| `birth_date`  | string     | Opcional; ISO `YYYY-MM-DD`                                                                  |
-| `description` | string     | Opcional; hasta 500–1000 chars                                                              |
+| `name`        | string     | Máximo 80 chars; no puede estar vacío si se envía                                           |
+| `surname`     | string     | Máximo 80 chars                                                                              |
+| `username`    | string     | Máximo 30 chars; `[a-zA-Z0-9_.]`; unicidad si negocio lo exige                              |
+| `address`     | string     | Máximo 200 chars                                                                             |
+| `phone`       | number/int | Entero positivo                                                                              |
+| `birth_date`  | string     | ISO `YYYY-MM-DD`                                                                             |
+| `description` | string     | Máximo 1000 chars                                                                            |
+
+> **Frontend**: Es responsable de las validaciones de UX (mínimos de chars, formato visual, disponibilidad de username en tiempo real, etc.).  
+> **Backend**: Solo valida restricciones críticas de BD (longitudes máximas, tipos de datos, formato ISO de fechas).
 
 Respuesta 200 OK:
 
@@ -161,13 +165,15 @@ async function updateProfile(fields: Partial<{
 - Actualización transaccional:
   - Campos de `registered_user`: `name`, `surname`, `username`.
   - Campos de `client`: `address`, `phone` (Int), `birth_date` (Date), `description`.
-- Validaciones:
-  - `username` formato `[a-zA-Z0-9_.]` y longitud; si negocio exige unicidad → comprobar en BD y devolver 409 `USERNAME_TAKEN`.
+- Validaciones críticas (solo lo esencial que no puede validar el cliente):
+  - `username` formato `[a-zA-Z0-9_.]` y longitud máxima; si negocio exige unicidad → comprobar en BD y devolver 409 `USERNAME_TAKEN`.
   - `phone` debe ser entero positivo (sin `+`, espacios ni separadores). Nota: el esquema actual lo define como `Int?`; si se requiere `+34...`, considerar migrar a `String` en el futuro.
   - `birth_date` parseable a fecha (sin tiempo) y válida.
+  - Longitudes máximas de todos los campos de texto según restricciones de BD.
 - Respuesta:
   - 200 con el perfil canónico (unificado) tras guardar.
   - Códigos y `code` consistentes con el resto de la API.
+- **Separación de responsabilidades**: El backend NO valida mínimos de caracteres, formatos visuales ni disponibilidad en tiempo real. Eso es responsabilidad del frontend para mejor UX.
 
 ---
 

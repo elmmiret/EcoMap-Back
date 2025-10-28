@@ -30,13 +30,15 @@ Todos los campos son opcionales (actualización parcial). Envía solo los que qu
 
 | Campo         | Tipo       | Reglas/resumen                                                                 |
 | ------------- | ---------- | ------------------------------------------------------------------------------- |
-| `name`        | string     | 1–80 chars                                                                       |
-| `surname`     | string     | 0–80 chars                                                                       |
-| `username`    | string     | 3–30 chars; `[a-zA-Z0-9_.]`; si negocio lo exige, debe ser único                 |
-| `address`     | string     | hasta 120–200 chars                                                              |
-| `phone`       | number/int | solo dígitos; entero positivo                                                    |
+| `name`        | string     | Máximo 80 chars; no puede estar vacío si se envía                               |
+| `surname`     | string     | Máximo 80 chars                                                                  |
+| `username`    | string     | Máximo 30 chars; `[a-zA-Z0-9_.]`; **debe ser único** (no puede repetirse)       |
+| `address`     | string     | Máximo 200 chars                                                                 |
+| `phone`       | number/int | Entero positivo                                                                  |
 | `birth_date`  | string     | ISO `YYYY-MM-DD`                                                                 |
-| `description` | string     | hasta 500–1000 chars                                                             |
+| `description` | string     | Máximo 1000 chars                                                                |
+
+> **Nota**: El frontend debe realizar validaciones de UX en tiempo real (mínimos de caracteres, formatos específicos, etc.). El backend solo valida restricciones críticas de BD y formato básico.
 
 **Ejemplo**:
 
@@ -85,8 +87,17 @@ Todos los campos son opcionales (actualización parcial). Envía solo los que qu
 
 #### 400 Bad Request
 
+Errores de validación de campos (formato incorrecto, longitud excedida, etc.)
+
 ```json
-{ "success": false, "message": "El campo 'username' no es válido.", "code": "INVALID_FIELD:username" }
+{
+  "success": false,
+  "message": "Errores de validación en los campos enviados.",
+  "code": "VALIDATION_ERROR",
+  "errors": [
+    { "field": "username", "message": "El campo 'username' solo puede contener letras, números, puntos y guiones bajos." }
+  ]
+}
 ```
 
 #### 401 Unauthorized
@@ -95,7 +106,15 @@ Todos los campos son opcionales (actualización parcial). Envía solo los que qu
 { "success": false, "message": "Token expirado.", "code": "TOKEN_EXPIRED" }
 ```
 
-#### 409 Conflict (si se valida unicidad de username)
+#### 404 Not Found
+
+```json
+{ "success": false, "message": "Usuario no encontrado.", "code": "USER_NOT_FOUND" }
+```
+
+#### 409 Conflict
+
+El nombre de usuario ya está siendo utilizado por otro usuario.
 
 ```json
 { "success": false, "message": "El nombre de usuario ya está en uso.", "code": "USERNAME_TAKEN" }
