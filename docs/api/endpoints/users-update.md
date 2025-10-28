@@ -95,7 +95,8 @@ Errores de validación de campos (formato incorrecto, longitud excedida, etc.)
   "message": "Errores de validación en los campos enviados.",
   "code": "VALIDATION_ERROR",
   "errors": [
-    { "field": "username", "message": "El campo 'username' solo puede contener letras, números, puntos y guiones bajos." }
+    { "field": "username", "message": "El campo 'username' solo puede contener letras, números, puntos y guiones bajos." },
+    { "field": "birth_date", "message": "El campo 'birth_date' no puede ser una fecha futura." }
   ]
 }
 ```
