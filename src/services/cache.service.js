@@ -7,6 +7,20 @@ import { createLogger } from '#lib/logger.js';
 
 const log = createLogger('cache');
 
+// Haversine formula to calculate distance between two lat/lng points in km
+function haversineDistance(lat1, lng1, lat2, lng2) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const R = 6371; // Earth radius in km
+
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 // Export cache source constants (generated from config)
 export const CACHE_SOURCES = Object.fromEntries(Object.values(RECYCLING_SOURCES).map((cfg) => [cfg.source, cfg.source]));
 
@@ -115,8 +129,9 @@ async function triggerBackgroundRefresh({ source, refreshFn }) {
 // - source: cache source key (e.g. 'NAVARRA_POINTS', 'BARCELONA_POINTS')
 // - apiLocation: api_location value in DB (e.g. 'Navarra', 'Barcelona')
 // - onRefresh: async function to perform the sync (required to refresh)
+// - filters: optional filters { name?, equipment_type?, lat?, lng?, radius? }
 // Returns: { data, metadata, isStale, coldStart }
-export async function getCachedPoints({ source, apiLocation, onRefresh } = {}) {
+export async function getCachedPoints({ source, apiLocation, onRefresh, filters = {} } = {}) {
   if (!source || !apiLocation) {
     throw new Error('[cache] getCachedPoints requires source and apiLocation');
   }
@@ -125,12 +140,59 @@ export async function getCachedPoints({ source, apiLocation, onRefresh } = {}) {
   const meta = await ensureMetadata(source);
   const stale = isStale(meta.last_sync, source);
 
-  // 2) Load cached data from DB
+  // 2) Build WHERE clause with filters
+  const where = {
+    api_location: apiLocation,
+    active: true,
+  };
+
+  // Text search on name (case-insensitive partial match)
+  if (filters.name) {
+    where.name = {
+      contains: filters.name,
+      mode: 'insensitive',
+    };
+  }
+
+  // Filter by equipment type
+  if (filters.equipment_type) {
+    where.equipment_type = {
+      contains: filters.equipment_type,
+      mode: 'insensitive',
+    };
+  }
+
+  // Geographic filtering (proximity search)
+  // If lat, lng, and radius are provided, filter by bounding box first (faster than distance calculation)
+  let geoFilterApplied = false;
+  if (filters.lat != null && filters.lng != null && filters.radius != null) {
+    const lat = parseFloat(filters.lat);
+    const lng = parseFloat(filters.lng);
+    const radiusKm = parseFloat(filters.radius);
+
+    if (!isNaN(lat) && !isNaN(lng) && !isNaN(radiusKm)) {
+      // Approximate bounding box (1 degree ~111km at equator)
+      const latDelta = radiusKm / 111;
+      const lngDelta = radiusKm / (111 * Math.cos((lat * Math.PI) / 180));
+
+      where.latitude = {
+        gte: lat - latDelta,
+        lte: lat + latDelta,
+      };
+      where.longitude = {
+        gte: lng - lngDelta,
+        lte: lng + lngDelta,
+      };
+      geoFilterApplied = true;
+    }
+  }
+
+  // 3) Load cached data from DB
   if (!prisma?.recycling_point) {
     throw new Error("[cache] Prisma client desactualizado: falta el modelo 'recycling_point'. Ejecuta `npx prisma generate` y reinicia el servidor.");
   }
-  const points = await prisma.recycling_point.findMany({
-    where: { api_location: apiLocation, active: true },
+  let points = await prisma.recycling_point.findMany({
+    where,
     select: {
       recycling_point_id: true,
       api_id: true,
@@ -144,6 +206,19 @@ export async function getCachedPoints({ source, apiLocation, onRefresh } = {}) {
     },
     orderBy: { api_id: 'asc' },
   });
+
+  // 4) Post-filter by exact distance if geo filter was requested
+  if (geoFilterApplied && filters.lat != null && filters.lng != null && filters.radius != null) {
+    const userLat = parseFloat(filters.lat);
+    const userLng = parseFloat(filters.lng);
+    const radiusKm = parseFloat(filters.radius);
+
+    points = points.filter((p) => {
+      if (p.latitude == null || p.longitude == null) return false;
+      const distance = haversineDistance(userLat, userLng, Number(p.latitude), Number(p.longitude));
+      return distance <= radiusKm;
+    });
+  }
 
   const coldStart = !meta.last_sync || points.length === 0;
 
@@ -177,9 +252,9 @@ export async function getCachedPoints({ source, apiLocation, onRefresh } = {}) {
           error_message: null,
         });
 
-        // Releer puntos tras el refresh
-        const refreshed = await prisma.recycling_point.findMany({
-          where: { api_location: apiLocation, active: true },
+        // Releer puntos tras el refresh con los mismos filtros aplicados
+        let refreshed = await prisma.recycling_point.findMany({
+          where,
           select: {
             recycling_point_id: true,
             api_id: true,
@@ -192,6 +267,19 @@ export async function getCachedPoints({ source, apiLocation, onRefresh } = {}) {
           },
           orderBy: { api_id: 'asc' },
         });
+
+        // Aplicar post-filtro de distancia si es necesario
+        if (geoFilterApplied && filters.lat != null && filters.lng != null && filters.radius != null) {
+          const userLat = parseFloat(filters.lat);
+          const userLng = parseFloat(filters.lng);
+          const radiusKm = parseFloat(filters.radius);
+
+          refreshed = refreshed.filter((p) => {
+            if (p.latitude == null || p.longitude == null) return false;
+            const distance = haversineDistance(userLat, userLng, Number(p.latitude), Number(p.longitude));
+            return distance <= radiusKm;
+          });
+        }
 
         return {
           data: refreshed,

@@ -37,18 +37,30 @@ export async function getRecyclingPointsByRegion(req, res) {
   const config = getSourceConfig(region);
   const { source, apiLocation, syncFn } = config;
 
+  // Parse filters from query params
+  const filters = {};
+  if (req.query.name) filters.name = req.query.name;
+  if (req.query.equipment_type) filters.equipment_type = req.query.equipment_type;
+  if (req.query.lat && req.query.lng && req.query.radius) {
+    filters.lat = req.query.lat;
+    filters.lng = req.query.lng;
+    filters.radius = req.query.radius;
+  }
+
   try {
     log.debug(`[${requestId}] Obteniendo puntos desde cache:`, {
       timestamp: new Date().toISOString(),
       elapsed: `${Date.now() - startTime}ms`,
       source,
       apiLocation,
+      filters,
     });
 
     const result = await getCachedPoints({
       source,
       apiLocation,
       onRefresh: syncFn,
+      filters,
     });
 
     // Cold start: no cache available yet
@@ -60,11 +72,12 @@ export async function getRecyclingPointsByRegion(req, res) {
 
       try {
         await syncFn();
-        // Re-fetch after sync
+        // Re-fetch after sync with filters applied
         const afterSync = await getCachedPoints({
           source,
           apiLocation,
           onRefresh: syncFn,
+          filters,
         });
 
         log.info(`[${requestId}] Cold start sync completado:`, {
