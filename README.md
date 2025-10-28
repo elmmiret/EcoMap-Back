@@ -110,11 +110,59 @@ Per realitzar queries a la base de dades, utilitza **Prisma Client**. Per evitar
 
 Importa-la i utilitza-la així:
 
-```js
+````js
 import { prisma } from '#lib/prisma.js';
 
 // Exemple de query
 const users = await prisma.user.findMany();
+
+## Logging configurable (nivell i namespaces)
+
+El projecte incorpora un logger amb nivells i filtres per namespace controlats per variables d'entorn. Per defecte, el nivell és `info` i mostra només els missatges rellevants.
+
+- Variables d'entorn:
+  - `LOG_LEVEL`: `error` | `warn` | `info` | `debug` | `trace` (per defecte: `info`)
+  - `LOG_NAMESPACES`: llista separada per comes amb patrons amb `*` (comodí). Si es deixa buit, es mostren tots els namespaces per nivells ≤ `info`.
+
+- Namespaces principals disponibles:
+  - `startup` (arrencada del servidor)
+  - `scheduler` (cron i warmup)
+  - `navarra-sync` (descàrrega i sincronització de Navarra)
+  - `cache` (SWR i actualitzacions de cache)
+  - `sync-job` (job genèric de sincronització)
+  - `recycling-points` (controlador d’endpoint)
+  - `route-service` (càlcul de rutes ORS)
+  - `auth` (verificació de tokens, claims, etc.)
+
+- Exemples d’ús al `.env`:
+
+```bash
+# Veure només informació rellevant (per defecte)
+LOG_LEVEL=info
+
+# Depurar només la sincronització de Navarra
+LOG_LEVEL=debug
+LOG_NAMESPACES=navarra-sync
+
+# Depurar cache i scheduler a la vegada
+LOG_LEVEL=debug
+LOG_NAMESPACES=cache,scheduler
+
+# Veure TOT (només recomanat puntualment en local)
+LOG_LEVEL=trace
+LOG_NAMESPACES=*
+````
+
+Vegeu `.env.example` per a més exemples comentats.
+
+---
+
+## Warmup i Schedulers segons l'entorn
+
+- El servidor executa un "warmup" (precàrrega de la cache de punts) només en producció (`NODE_ENV=production`).
+- Les tasques programades (cron) també s’inicien només en producció.
+- En desenvolupament, amb `NODE_ENV=development`, ambdós mecanismes es salten automàticament per evitar trànsit innecessari a APIs externes.
+
 ```
 
 Prisma facilita les operacions amb la base de dades de forma segura i tipada, sense necessitat d'escriure SQL manualment en la majoria de casos.
@@ -165,6 +213,8 @@ npx prisma migrate dev --name <numero*migracio>*<nom_canvi>
 ```
 
 ---
+
+```
 
 ```
 
