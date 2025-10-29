@@ -1,7 +1,7 @@
 version: '3.7'
 services:
   db:
-    image: postgres:15
+    image: postgres:17
     container_name: ecomapdb
     environment:
       POSTGRES_USER: ${PGUSER}
