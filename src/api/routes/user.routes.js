@@ -3,6 +3,7 @@ import express from 'express';
 const router = express.Router();
 
 import { authenticateUser, authenticateBackendJWT } from '#middlewares/auth.middleware.js';
+import { validatePhone } from '#middlewares/validation.middleware.js';
 import { syncUserToPostgres, changeAppLanguage, logoutUser, getUserProfile, deleteUser, updateUserProfile } from '#controllers/user.controller.js';
 
 /**
@@ -24,7 +25,7 @@ router.get('/me', authenticateBackendJWT, getUserProfile);
  * @description Actualiza el perfil del usuario autenticado.
  * @access Protegido (requiere autenticación con JWT del backend)
  */
-router.put('/me', authenticateBackendJWT, updateUserProfile);
+router.put('/me', authenticateBackendJWT, validatePhone, updateUserProfile);
 
 /**
  * @route DELETE /api/users/me

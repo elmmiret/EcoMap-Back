@@ -7,6 +7,7 @@
 
 import { prisma } from '#lib/prisma.js';
 import { createLogger } from '#lib/logger.js';
+import { mapEquipmentType } from '#lib/equipment-type-mapper.js';
 
 const log = createLogger('barcelona-sync');
 
@@ -69,7 +70,7 @@ function parseBarcelonaPoint(raw) {
     name: String(name),
     latitude: Number.isFinite(latitude) ? latitude : null,
     longitude: Number.isFinite(longitude) ? longitude : null,
-    equipment_type: equipmentType ? String(equipmentType) : null,
+    equipment_type: mapEquipmentType(equipmentType),
     schedule: schedule ? String(schedule) : null,
     last_updated: lastUpdated,
     raw_payload: {
