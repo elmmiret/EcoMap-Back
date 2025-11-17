@@ -567,14 +567,8 @@ export const updateUserProfile = async (req, res) => {
     }
   }
 
-  // phone: si se envía, validar que sea entero positivo
-  if (phone !== undefined && phone !== null) {
-    if (!Number.isInteger(phone) || phone <= 0) {
-      errors.push({ field: 'phone', message: 'El campo "phone" debe ser un número entero positivo.' });
-    } else {
-      clientData.phone = phone;
-    }
-  }
+  // phone: ya ha sido validado y normalizado por el middleware
+  if (phone !== undefined && phone !== null) clientData.phone = phone;
 
   // birth_date: si se envía, validar formato ISO y que sea fecha válida
   if (birth_date !== undefined && birth_date !== null) {

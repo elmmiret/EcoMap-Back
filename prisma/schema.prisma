@@ -15,18 +15,24 @@ model admin {
 model client {
   user_id                             String          @id
   address                             String?
-  phone                               Int?
-  points                              Int?
+  phone                               String?
+  points                              Int
   birth_date                          DateTime?       @db.Date
   description                         String?
   profile_picture                     String?
-  streak                              Int?
+  streak                              Int
   registered_user                     registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
   message_message_receiver_idToclient message[]       @relation("message_receiver_idToclient")
   message_message_sender_idToclient   message[]       @relation("message_sender_idToclient")
+  saved_recycling_points              saved_recycling_point[]
 }
 
 model institution {
+  user_id         String          @id
+  registered_user registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model partner {
   user_id         String          @id
   registered_user registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
 }
@@ -42,6 +48,7 @@ model registered_user {
   admin        admin?
   client       client?
   institution  institution?
+  partner      partner?
   notification notification[]
   user         user              @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
   sessions     session[]
@@ -76,9 +83,9 @@ model recycling_point {
   api_id             Int
   api_location       api_location
   name               String
-  latitude           Decimal?     @db.Decimal(9, 6)
-  longitude          Decimal?     @db.Decimal(9, 6)
-  equipment_type     String?      // "TipoEquipamiento"
+  latitude           Decimal     @db.Decimal(9, 6)
+  longitude          Decimal     @db.Decimal(9, 6)
+  equipment_type     equipment_type      // "TipoEquipamiento"
   schedule           String?      // "Horario"
   last_updated       DateTime?
   raw_payload        Json?
@@ -87,6 +94,7 @@ model recycling_point {
   updated_at         DateTime     @updatedAt
   container          container[]
   timetable          timetable[]
+  saved_by_clients   saved_recycling_point[]
 
   @@index([api_location])
   @@index([api_location, api_id])
@@ -181,6 +189,16 @@ model notification {
   registered_user   registered_user   @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
 }
 
+model saved_recycling_point {
+  user_id            String          @db.Uuid
+  recycling_point_id String          @db.Uuid
+  client             client          @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  recycling_point    recycling_point @relation(fields: [recycling_point_id], references: [recycling_point_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, recycling_point_id])
+  @@index([user_id])
+}
+
 enum app_language_type {
   ca
   es
@@ -203,6 +221,20 @@ enum product_type {
   Batteries
   Oil
   Hazardous
+}
+
+enum equipment_type {
+  Recycling_center              @map("Recycling Center")
+  Batteries
+  Medicines_and_packaging       @map("Medicines and Packaging")
+  Garden_Waste                  @map("Garden Waste")
+  Clothing_and_footwear         @map("Clothing and Footwear")
+  Bulky_waste                   @map("Bulky Waste")
+  Glass_containers              @map("Glass Containers")
+  Coffee_capsules               @map("Coffee Capsules")
+  Used_cooking_oil              @map("Used Cooking Oil")
+  Household_construction_waste  @map("Household Construction Waste")
+  Community_composting          @map("Community Composting")
 }
 
 enum week_day {
@@ -229,12 +261,12 @@ enum state_type {
 }
 
 enum notification_type {
-  CollectionServices
-  ContainerStates
-  RecyclingEvents
-  NewRewards
-  NewTrade
-  NewMessage
+  Collection_services  @map("Collection Services")
+  Container_states     @map("Container States")
+  Recycling_events     @map("Recycling Events")
+  New_rewards          @map("New Rewards")
+  New_trade            @map("New Trade")
+  New_message          @map("New Message")
   Incidences
 }
 
