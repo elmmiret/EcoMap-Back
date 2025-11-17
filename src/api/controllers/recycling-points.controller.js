@@ -12,10 +12,38 @@ export async function getRecyclingPointsByRegion(req, res) {
   const { region } = req.params;
   const requestId = `${region}-${Date.now()}`;
 
+  // --- INICIO MODIFICACIÓN FILTROS ---
+  // Extraemos los filtros de la query string
+  const { api_id, equipment_type, name } = req.query;
+  const filters = {};
+
+  // 1. Filtro por ID (Entero exacto)
+  if (api_id) {
+    const parsedId = parseInt(api_id, 10);
+    if (!isNaN(parsedId)) {
+      filters.api_id = parsedId;
+    }
+  }
+
+  // 2. Filtro por Tipo de Equipamiento (Enum exacto)
+  if (equipment_type) {
+    filters.equipment_type = equipment_type;
+  }
+
+  // 3. Filtro por Nombre (Búsqueda parcial de texto, case-insensitive)
+  if (name) {
+    filters.name = {
+      contains: name,
+      mode: 'insensitive', // Específico de Postgres para ignorar mayúsculas/minúsculas
+    };
+  }
+  // --- FIN MODIFICACIÓN FILTROS ---
+
   log.info(`[${requestId}] Request iniciado:`, {
     timestamp: new Date().toISOString(),
     region,
     query: req.query,
+    appliedFilters: filters, // Logueamos los filtros aplicados
   });
 
   // Validate region/location
@@ -37,30 +65,19 @@ export async function getRecyclingPointsByRegion(req, res) {
   const config = getSourceConfig(region);
   const { source, apiLocation, syncFn } = config;
 
-  // Parse filters from query params
-  const filters = {};
-  if (req.query.name) filters.name = req.query.name;
-  if (req.query.equipment_type) filters.equipment_type = req.query.equipment_type;
-  if (req.query.lat && req.query.lng && req.query.radius) {
-    filters.lat = req.query.lat;
-    filters.lng = req.query.lng;
-    filters.radius = req.query.radius;
-  }
-
   try {
     log.debug(`[${requestId}] Obteniendo puntos desde cache:`, {
       timestamp: new Date().toISOString(),
       elapsed: `${Date.now() - startTime}ms`,
       source,
       apiLocation,
-      filters,
     });
 
     const result = await getCachedPoints({
       source,
       apiLocation,
       onRefresh: syncFn,
-      filters,
+      filters, // <--- Pasamos los filtros al servicio
     });
 
     // Cold start: no cache available yet
@@ -72,12 +89,12 @@ export async function getRecyclingPointsByRegion(req, res) {
 
       try {
         await syncFn();
-        // Re-fetch after sync with filters applied
+        // Re-fetch after sync (usando los mismos filtros)
         const afterSync = await getCachedPoints({
           source,
           apiLocation,
           onRefresh: syncFn,
-          filters,
+          filters, // <--- Pasamos los filtros también aquí
         });
 
         log.info(`[${requestId}] Cold start sync completado:`, {
