@@ -115,8 +115,9 @@ async function triggerBackgroundRefresh({ source, refreshFn }) {
 // - source: cache source key (e.g. 'NAVARRA_POINTS', 'BARCELONA_POINTS')
 // - apiLocation: api_location value in DB (e.g. 'Navarra', 'Barcelona')
 // - onRefresh: async function to perform the sync (required to refresh)
+// - filters: object with extra where clauses (e.g. { api_id: 123, name: { contains: '...' } })
 // Returns: { data, metadata, isStale, coldStart }
-export async function getCachedPoints({ source, apiLocation, onRefresh } = {}) {
+export async function getCachedPoints({ source, apiLocation, onRefresh, filters = {} } = {}) {
   if (!source || !apiLocation) {
     throw new Error('[cache] getCachedPoints requires source and apiLocation');
   }
@@ -125,12 +126,20 @@ export async function getCachedPoints({ source, apiLocation, onRefresh } = {}) {
   const meta = await ensureMetadata(source);
   const stale = isStale(meta.last_sync, source);
 
+  // --- CONSTRUCCIÓN DINÁMICA DEL WHERE ---
+  // Combina la ubicación, el estado activo y los filtros que vienen del controlador
+  const whereClause = {
+    api_location: apiLocation,
+    active: true,
+    ...filters,
+  };
+
   // 2) Load cached data from DB
   if (!prisma?.recycling_point) {
     throw new Error("[cache] Prisma client desactualizado: falta el modelo 'recycling_point'. Ejecuta `npx prisma generate` y reinicia el servidor.");
   }
   const points = await prisma.recycling_point.findMany({
-    where: { api_location: apiLocation, active: true },
+    where: whereClause, // <--- USAMOS LA CLÁUSULA DINÁMICA
     select: {
       recycling_point_id: true,
       api_id: true,
@@ -145,7 +154,10 @@ export async function getCachedPoints({ source, apiLocation, onRefresh } = {}) {
     orderBy: { api_id: 'asc' },
   });
 
-  const coldStart = !meta.last_sync || points.length === 0;
+  // Nota: coldStart ahora depende de si NUNCA se ha sincronizado.
+  // Si hay filtros, points.length puede ser 0 aunque haya datos en cache.
+  // Con !meta.last_sync nos aseguramos de que sea un verdadero cold start.
+  const coldStart = !meta.last_sync;
 
   // 3) Decide whether to trigger a background refresh (SWR)
   if (stale && typeof onRefresh === 'function' && meta.status !== 'SYNCING') {
@@ -177,9 +189,9 @@ export async function getCachedPoints({ source, apiLocation, onRefresh } = {}) {
           error_message: null,
         });
 
-        // Releer puntos tras el refresh
+        // Releer puntos tras el refresh (USANDO LOS MISMOS FILTROS)
         const refreshed = await prisma.recycling_point.findMany({
-          where: { api_location: apiLocation, active: true },
+          where: whereClause, // <--- IMPORTANTE: MANTENER FILTROS
           select: {
             recycling_point_id: true,
             api_id: true,

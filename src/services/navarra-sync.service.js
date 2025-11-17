@@ -7,7 +7,6 @@
 
 import { prisma } from '#lib/prisma.js';
 import { createLogger } from '#lib/logger.js';
-import { mapEquipmentType } from '#lib/equipment-type-mapper.js';
 
 const log = createLogger('navarra-sync');
 
@@ -76,7 +75,7 @@ function parseNavarraPoint(rawPoint) {
     name: rawPoint.Localidad || rawPoint.Direccion || 'Sin nombre',
     latitude: rawPoint.x ? parseFloat(rawPoint.x) : null,
     longitude: rawPoint.y ? parseFloat(rawPoint.y) : null,
-    equipment_type: mapEquipmentType(rawPoint.TipoEquipamiento),
+    equipment_type: rawPoint.TipoEquipamiento || null,
     schedule: rawPoint.Horario || null,
     last_updated: lastUpdated,
     raw_payload: rawPoint, // Guardamos el JSON completo
