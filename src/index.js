@@ -4,6 +4,7 @@ import { startSchedulers, warmupCaches } from '#services/scheduler.service.js';
 import authRoutes from './api/routes/user.routes.js';
 import recyclingPoints from './api/routes/recycling-points.routes.js';
 import routeRoutes from './api/routes/route.routes.js';
+import publicationRoutes from './api/routes/publication.routes.js';
 import dotenv from 'dotenv';
 import { createLogger } from '#lib/logger.js';
 
@@ -22,10 +23,11 @@ initializeFirebaseAdmin();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// montar las rutas de autentificación bajo el prefijo /api/users
+// montar las rutas de autentificación bajo el prefijo /api/
 app.use('/api/users', authRoutes);
 app.use('/api/recycling-points', recyclingPoints);
 app.use('/api/routes', routeRoutes);
+app.use('/api/publications', publicationRoutes);
 
 // ruta base para verificar que la API está corriendo
 app.get('/', (req, res) => {

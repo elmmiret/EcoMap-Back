@@ -24,6 +24,7 @@ model client {
   registered_user                     registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
   message_message_receiver_idToclient message[]       @relation("message_receiver_idToclient")
   message_message_sender_idToclient   message[]       @relation("message_sender_idToclient")
+  publications                        publication[]
   saved_recycling_points              saved_recycling_point[]
 }
 
@@ -141,6 +142,8 @@ model publication {
   description       String?
   date              DateTime            @db.Date
   publication_state state_type
+  client_id         String
+  client            client              @relation(fields: [client_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
   object_trade      object_trade?
   publication_media publication_media[]
   reward            reward?
@@ -190,7 +193,7 @@ model notification {
 }
 
 model saved_recycling_point {
-  user_id            String          @db.Uuid
+  user_id            String
   recycling_point_id String          @db.Uuid
   client             client          @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
   recycling_point    recycling_point @relation(fields: [recycling_point_id], references: [recycling_point_id], onDelete: Cascade, onUpdate: NoAction)
