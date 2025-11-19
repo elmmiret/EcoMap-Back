@@ -1,7 +1,7 @@
 // src/api/routes/publication.routes.js
 import express from 'express';
 import { authenticateBackendJWT } from '#middlewares/auth.middleware.js';
-import { createPublication, getUserPublications } from '#controllers/publication.controller.js';
+import { createPublication, getAllPublications, getUserPublications } from '#controllers/publication.controller.js';
 
 const router = express.Router();
 
@@ -11,6 +11,14 @@ const router = express.Router();
  * @access Protegido (Backend JWT)
  */
 router.post('/new', authenticateBackendJWT, createPublication);
+
+/**
+ * @route GET /api/publications/all
+ * @description Obtiene todas las publicaciones activas (Trades) de la plataforma.
+ * @access Protegido (Backend JWT)
+ * IMPORTANTE: Esta ruta debe ir ANTES de /:id/show para evitar conflictos.
+ */
+router.get('/all', authenticateBackendJWT, getAllPublications);
 
 /**
  * @route GET /api/publications/:id/show

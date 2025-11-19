@@ -147,6 +147,14 @@ model publication {
   object_trade      object_trade?
   publication_media publication_media[]
   reward            reward?
+  trade             trade?
+}
+
+model trade {
+  trade_id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publication_id    String              @db.Uuid @unique
+  publication       publication         @relation(fields: [publication_id], references: [publication_id], onDelete: Cascade, onUpdate: NoAction)
+  created_at        DateTime            @default(now())
 }
 
 model publication_media {
