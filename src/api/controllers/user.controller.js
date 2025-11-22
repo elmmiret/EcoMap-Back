@@ -782,3 +782,74 @@ export const updateUserProfile = async (req, res) => {
     });
   }
 };
+
+/**
+ * Obtiene la información pública de un usuario por su ID.
+ * Endpoint: GET /api/users/:id
+ */
+export const getUserById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const user = await prisma.registered_user.findUnique({
+      where: { user_id: id },
+      select: {
+        user_id: true,
+        username: true,
+        name: true,
+        surname: true,
+        // Seleccionamos datos del perfil de cliente si existen
+        client: {
+          select: {
+            profile_picture: true,
+            description: true,
+            points: true,
+            streak: true,
+          },
+        },
+        // Incluimos tablas de roles para determinar el tipo de usuario
+        admin: true,
+        institution: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    // Determinar el rol (lógica similar a getUserProfile)
+    let role = 'client';
+    if (user.admin) role = 'admin';
+    if (user.institution) role = 'institution';
+
+    // Construir respuesta con datos públicos
+    const userData = {
+      uid: user.user_id,
+      username: user.username,
+      name: user.name,
+      surname: user.surname,
+      profile_picture: user.client?.profile_picture || null,
+      description: user.client?.description || null,
+      points: user.client?.points || 0,
+      streak: user.client?.streak || 0,
+      role,
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: 'Información de usuario obtenida correctamente.',
+      data: userData,
+    });
+  } catch (error) {
+    console.error('Error en getUserById:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al obtener el usuario.',
+      code: 'GET_USER_ERROR',
+    });
+  }
+};
