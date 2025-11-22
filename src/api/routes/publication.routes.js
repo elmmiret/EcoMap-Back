@@ -1,7 +1,17 @@
 // src/api/routes/publication.routes.js
 import express from 'express';
 import { authenticateBackendJWT } from '#middlewares/auth.middleware.js';
-import { createPublication, getAllPublications, getUserPublications, getPublicationById } from '#controllers/publication.controller.js';
+import { createPublication, 
+    getAllPublications, 
+    getUserPublications, 
+    getPublicationById,
+    getAllCompletedPublications,
+    getAllCancelledPublications,
+    getAllPendingPublications,
+    getUserCompletedPublications,
+    getUserCancelledPublications,
+    getUserPendingPublications
+} from '#controllers/publication.controller.js';
 
 const router = express.Router();
 
@@ -20,9 +30,28 @@ router.post('/new', authenticateBackendJWT, createPublication);
  */
 router.get('/all', authenticateBackendJWT, getAllPublications);
 
-router.get('/all/completed',);
-router.get('/all/cancelled',);
-router.get('/all/pending',);
+// ----------------------- Rutas para filtrar publicaciones por estado -----------------------
+
+/**
+ * @route GET /api/publications/all/completed
+ * @description Obtiene todas las publicaciones con estado 'Completed'.
+ * @access Protegido (Backend JWT)
+ */
+router.get('/all/completed', authenticateBackendJWT, getAllCompletedPublications);
+
+/**
+ * @route GET /api/publications/all/cancelled
+ * @description Obtiene todas las publicaciones con estado 'Cancelled'.
+ * @access Protegido (Backend JWT)
+ */
+router.get('/all/cancelled', authenticateBackendJWT, getAllCancelledPublications);
+
+/**
+ * @route GET /api/publications/all/pending
+ * @description Obtiene todas las publicaciones con estado 'Pending'.
+ * @access Protegido (Backend JWT)
+ */
+router.get('/all/pending', authenticateBackendJWT, getAllPendingPublications);
 
 /**
  * @route GET /api/publications/:id/show
@@ -31,9 +60,28 @@ router.get('/all/pending',);
  */
 router.get('/:id/show', authenticateBackendJWT, getUserPublications);
 
-router.get('/:id/completed',);
-router.get('/:id/cancelled',);
-router.get('/:id/pending',);
+// ----------------------- Rutas para filtrar publicaciones de un usuario por estado -----------------------
+
+/**
+ * @route GET /api/publications/:id/completed
+ * @description Obtiene las publicaciones completadas de un usuario específico.
+ * @access Protegido (Backend JWT)
+ */
+router.get('/:id/completed',  authenticateBackendJWT, getUserCompletedPublications);
+
+/**
+ * @route GET /api/publications/:id/cancelled
+ * @description Obtiene las publicaciones canceladas de un usuario específico.
+ * @access Protegido (Backend JWT)
+ */
+router.get('/:id/cancelled', authenticateBackendJWT, getUserCancelledPublications);
+
+/**
+ * @route GET /api/publications/:id/pending
+ * @description Obtiene las publicaciones pendientes de un usuario específico.
+ * @access Protegido (Backend JWT)
+ */
+router.get('/:id/pending', authenticateBackendJWT, getUserPendingPublications);
 
 /**
  * @route GET /api/publications/:id

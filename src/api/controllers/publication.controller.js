@@ -257,3 +257,167 @@ export const getPublicationById = async (req, res) => {
     });
   }
 };
+
+/**
+ * Obtiene todas las publicaciones con estado 'Completed'.
+ * Endpoint: /api/publications/all/completed
+ */
+export const getAllCompletedPublications = async (req, res) => {
+  try {
+    const publications = await prisma.publication.findMany({
+      where: { publication_state: 'Completed' },
+      include: {
+        object_trade: true,
+        publication_media: true,
+      },
+      orderBy: { date: 'desc' },
+    });
+    return res.status(200).json({
+      success: true,
+      message: `Se encontraron ${publications.length} publicaciones completadas.`,
+      data: publications,
+    });
+  } catch (error) {
+    console.error('Error al obtener publicaciones completadas:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.', code: 'SERVER_ERROR' });
+  }
+};
+
+/**
+ * Obtiene todas las publicaciones con estado 'Cancelled'.
+ * Endpoint: /api/publications/all/cancelled
+ */
+export const getAllCancelledPublications = async (req, res) => {
+  try {
+    const publications = await prisma.publication.findMany({
+      where: { publication_state: 'Cancelled' },
+      include: {
+        object_trade: true,
+        publication_media: true,
+      },
+      orderBy: { date: 'desc' },
+    });
+    return res.status(200).json({
+      success: true,
+      message: `Se encontraron ${publications.length} publicaciones canceladas.`,
+      data: publications,
+    });
+  } catch (error) {
+    console.error('Error al obtener publicaciones canceladas:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.', code: 'SERVER_ERROR' });
+  }
+};
+
+/**
+ * Obtiene todas las publicaciones con estado 'Pending'.
+ * Endpoint: /api/publications/all/pending
+ */
+export const getAllPendingPublications = async (req, res) => {
+  try {
+    const publications = await prisma.publication.findMany({
+      where: { publication_state: 'Pending' },
+      include: {
+        object_trade: true,
+        publication_media: true,
+      },
+      orderBy: { date: 'desc' },
+    });
+    return res.status(200).json({
+      success: true,
+      message: `Se encontraron ${publications.length} publicaciones pendientes.`,
+      data: publications,
+    });
+  } catch (error) {
+    console.error('Error al obtener publicaciones pendientes:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.', code: 'SERVER_ERROR' });
+  }
+};
+
+// --- FUNCIONES PARA OBTENER PUBLICACIONES POR ESTADO (DE UN USUARIO) ---
+
+/**
+ * Obtiene las publicaciones completadas de un usuario específico.
+ * Endpoint: /api/publications/:id/completed
+ */
+export const getUserCompletedPublications = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const publications = await prisma.publication.findMany({
+      where: {
+        client_id: id,
+        publication_state: 'Completed',
+      },
+      include: {
+        object_trade: true,
+        publication_media: true,
+      },
+      orderBy: { date: 'desc' },
+    });
+    return res.status(200).json({
+      success: true,
+      message: `El usuario tiene ${publications.length} publicaciones completadas.`,
+      data: publications,
+    });
+  } catch (error) {
+    console.error('Error al obtener publicaciones completadas del usuario:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.', code: 'SERVER_ERROR' });
+  }
+};
+
+/**
+ * Obtiene las publicaciones canceladas de un usuario específico.
+ * Endpoint: /api/publications/:id/cancelled
+ */
+export const getUserCancelledPublications = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const publications = await prisma.publication.findMany({
+      where: {
+        client_id: id,
+        publication_state: 'Cancelled',
+      },
+      include: {
+        object_trade: true,
+        publication_media: true,
+      },
+      orderBy: { date: 'desc' },
+    });
+    return res.status(200).json({
+      success: true,
+      message: `El usuario tiene ${publications.length} publicaciones canceladas.`,
+      data: publications,
+    });
+  } catch (error) {
+    console.error('Error al obtener publicaciones canceladas del usuario:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.', code: 'SERVER_ERROR' });
+  }
+};
+
+/**
+ * Obtiene las publicaciones pendientes de un usuario específico.
+ * Endpoint: /api/publications/:id/pending
+ */
+export const getUserPendingPublications = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const publications = await prisma.publication.findMany({
+      where: {
+        client_id: id,
+        publication_state: 'Pending',
+      },
+      include: {
+        object_trade: true,
+        publication_media: true,
+      },
+      orderBy: { date: 'desc' },
+    });
+    return res.status(200).json({
+      success: true,
+      message: `El usuario tiene ${publications.length} publicaciones pendientes.`,
+      data: publications,
+    });
+  } catch (error) {
+    console.error('Error al obtener publicaciones pendientes del usuario:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.', code: 'SERVER_ERROR' });
+  }
+};
