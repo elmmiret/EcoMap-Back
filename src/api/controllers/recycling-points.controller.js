@@ -14,7 +14,7 @@ export async function getRecyclingPointsByRegion(req, res) {
 
   // --- INICIO MODIFICACIÓN FILTROS ---
   // Extraemos los filtros de la query string
-  const { api_id, equipment_type, name } = req.query;
+  const { api_id, equipment_type, wasteType, name, isOpenNow, openAt, lat, lng, radius } = req.query;
   const filters = {};
 
   // 1. Filtro por ID (Entero exacto)
@@ -25,17 +25,42 @@ export async function getRecyclingPointsByRegion(req, res) {
     }
   }
 
-  // 2. Filtro por Tipo de Equipamiento (Enum exacto)
+  // 2. Filtro por Tipo de Punto (equipment_type: Deixalleria, Punt Verd, etc.)
   if (equipment_type) {
     filters.equipment_type = equipment_type;
   }
 
-  // 3. Filtro por Nombre (Búsqueda parcial de texto, case-insensitive)
+  // 3. Filtro por Tipo de Residuo (wasteType: Glass, Paper, Plastic, etc.)
+  // Este filtro busca en la relación container -> product_type
+  if (wasteType) {
+    filters.wasteType = wasteType; // product_type enum value
+  }
+
+  // 4. Filtro por Nombre (accent-insensitive en memoria más adelante)
   if (name) {
-    filters.name = {
-      contains: name,
-      mode: 'insensitive', // Específico de Postgres para ignorar mayúsculas/minúsculas
-    };
+    filters.name = name; // pasamos el término bruto; se normaliza en cache.service
+  }
+
+  // 5. Filtro por Proximidad (lat, lng, radius en km)
+  if (lat && lng && radius) {
+    const parsedLat = parseFloat(lat);
+    const parsedLng = parseFloat(lng);
+    const parsedRadius = parseFloat(radius);
+    if (!isNaN(parsedLat) && !isNaN(parsedLng) && !isNaN(parsedRadius) && parsedRadius > 0) {
+      filters.lat = parsedLat;
+      filters.lng = parsedLng;
+      filters.radius = parsedRadius;
+    }
+  }
+
+  // 6. Filtro por Horario: "¿Está abierto ahora?"
+  if (isOpenNow === 'true' || isOpenNow === '1') {
+    filters.isOpenNow = true;
+  }
+
+  // 7. Filtro por Horario: "¿Está abierto en fecha/hora específica?"
+  if (openAt) {
+    filters.openAt = openAt; // ISO 8601 datetime string
   }
   // --- FIN MODIFICACIÓN FILTROS ---
 
@@ -43,7 +68,7 @@ export async function getRecyclingPointsByRegion(req, res) {
     timestamp: new Date().toISOString(),
     region,
     query: req.query,
-    appliedFilters: filters, // Logueamos los filtros aplicados
+    appliedFilters: filters, // Logueamos todos los filtros aplicados
   });
 
   // Validate region/location
@@ -77,7 +102,7 @@ export async function getRecyclingPointsByRegion(req, res) {
       source,
       apiLocation,
       onRefresh: syncFn,
-      filters, // <--- Pasamos los filtros al servicio
+      filters, // <--- Pasamos todos los filtros al servicio
     });
 
     // Cold start: no cache available yet
@@ -94,7 +119,7 @@ export async function getRecyclingPointsByRegion(req, res) {
           source,
           apiLocation,
           onRefresh: syncFn,
-          filters, // <--- Pasamos los filtros también aquí
+          filters, // <--- Pasamos todos los filtros también aquí
         });
 
         log.info(`[${requestId}] Cold start sync completado:`, {
