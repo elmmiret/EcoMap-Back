@@ -10,7 +10,8 @@ import { createPublication,
     getAllPendingPublications,
     getUserCompletedPublications,
     getUserCancelledPublications,
-    getUserPendingPublications
+    getUserPendingPublications,
+    updatePublicationState
 } from '#controllers/publication.controller.js';
 
 const router = express.Router();
@@ -82,6 +83,13 @@ router.get('/:id/cancelled', authenticateBackendJWT, getUserCancelledPublication
  * @access Protegido (Backend JWT)
  */
 router.get('/:id/pending', authenticateBackendJWT, getUserPendingPublications);
+
+/**
+ * @route PATCH /api/publications/:id/state
+ * @description Actualiza el estado de una publicación (Completed, Cancelled, Pending).
+ * @access Protegido (Backend JWT - Solo el creador)
+ */
+router.patch('/:id/state', authenticateBackendJWT, updatePublicationState);
 
 /**
  * @route GET /api/publications/:id

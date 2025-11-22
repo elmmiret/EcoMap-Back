@@ -25,9 +25,6 @@ export const createPublication = async (req, res) => {
     });
   }
 
-  // Validar que itemState sea válido según el enum de Prisma
-  const validItemStates = ['New', 'Little used', 'Widely used', 'Bad condition'];
-
   try {
     // Usamos una transacción para asegurar que se cree todo o nada
     const newPublication = await prisma.$transaction(async (tx) => {
@@ -419,5 +416,78 @@ export const getUserPendingPublications = async (req, res) => {
   } catch (error) {
     console.error('Error al obtener publicaciones pendientes del usuario:', error);
     return res.status(500).json({ success: false, message: 'Error interno.', code: 'SERVER_ERROR' });
+  }
+};
+
+/**
+ * Actualiza el estado de una publicación y comprueba que el nuevo estado sea válido y diferente al actual.
+ * Endpoint: PATCH /api/publications/:id/state
+ */
+export const updatePublicationState = async (req, res) => {
+  const { id } = req.params;
+  const { state } = req.body; // El nuevo estado, ej: "Cancelled"
+  const { uid } = req.user;   // ID del usuario autenticado
+
+  // validar que el estado enviado sea parte del Enum state_type
+  const validStates = ['Completed', 'Cancelled', 'Pending'];
+  if (!state || !validStates.includes(state)) {
+    return res.status(400).json({
+      success: false,
+      message: `Estado inválido. Valores permitidos: ${validStates.join(', ')}.`,
+      code: 'INVALID_STATE_VALUE',
+    });
+  }
+
+  try {
+    // buscar la publicación para verificar propiedad y estado actual
+    const publication = await prisma.publication.findUnique({
+      where: { publication_id: id },
+    });
+
+    if (!publication) {
+      return res.status(404).json({
+        success: false,
+        message: 'Publicación no encontrada.',
+        code: 'PUBLICATION_NOT_FOUND',
+      });
+    }
+
+    // verificar que el usuario sea el dueño
+    if (publication.client_id !== uid) {
+      return res.status(403).json({
+        success: false,
+        message: 'No tienes permiso para modificar esta publicación.',
+        code: 'FORBIDDEN_ACTION',
+      });
+    }
+
+    // validar que el nuevo estado sea diferente al actual
+    if (publication.publication_state === state) {
+      return res.status(409).json({
+        success: false,
+        message: 'El nuevo estado debe ser diferente al estado actual.',
+        code: 'SAME_STATE_ERROR',
+      });
+    }
+
+    // actualizar el estado
+    const updatedPublication = await prisma.publication.update({
+      where: { publication_id: id },
+      data: { publication_state: state },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Estado actualizado correctamente a ${state}.`,
+      data: updatedPublication,
+    });
+
+  } catch (error) {
+    console.error(`Error al actualizar el estado de la publicación ${id}:`, error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al actualizar el estado.',
+      code: 'UPDATE_STATE_ERROR',
+    });
   }
 };
