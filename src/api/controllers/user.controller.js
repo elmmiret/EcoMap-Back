@@ -853,3 +853,68 @@ export const getUserById = async (req, res) => {
     });
   }
 };
+
+/**
+ * Obtiene los IDs de TODOS los usuarios registrados.
+ */
+export const getAllUserIds = async (req, res) => {
+  try {
+    const users = await prisma.registered_user.findMany({
+      select: { user_id: true },
+    });
+    // Mapeamos para devolver un array simple de strings: ["id1", "id2", ...]
+    const ids = users.map((u) => u.user_id);
+    return res.status(200).json({ success: true, count: ids.length, ids });
+  } catch (error) {
+    console.error('Error getting all user IDs:', error);
+    return res.status(500).json({ success: false, message: 'Error al obtener IDs de usuarios' });
+  }
+};
+
+/**
+ * Obtiene los IDs solo de los CLIENTES.
+ */
+export const getAllClientIds = async (req, res) => {
+  try {
+    const clients = await prisma.client.findMany({
+      select: { user_id: true },
+    });
+    const ids = clients.map((c) => c.user_id);
+    return res.status(200).json({ success: true, count: ids.length, ids });
+  } catch (error) {
+    console.error('Error getting client IDs:', error);
+    return res.status(500).json({ success: false, message: 'Error al obtener IDs de clientes' });
+  }
+};
+
+/**
+ * Obtiene los IDs solo de las INSTITUCIONES.
+ */
+export const getAllInstitutionIds = async (req, res) => {
+  try {
+    const institutions = await prisma.institution.findMany({
+      select: { user_id: true },
+    });
+    const ids = institutions.map((i) => i.user_id);
+    return res.status(200).json({ success: true, count: ids.length, ids });
+  } catch (error) {
+    console.error('Error getting institution IDs:', error);
+    return res.status(500).json({ success: false, message: 'Error al obtener IDs de instituciones' });
+  }
+};
+
+/**
+ * Obtiene los IDs solo de los ADMINISTRADORES.
+ */
+export const getAllAdminIds = async (req, res) => {
+  try {
+    const admins = await prisma.admin.findMany({
+      select: { user_id: true },
+    });
+    const ids = admins.map((a) => a.user_id);
+    return res.status(200).json({ success: true, count: ids.length, ids });
+  } catch (error) {
+    console.error('Error getting admin IDs:', error);
+    return res.status(500).json({ success: false, message: 'Error al obtener IDs de administradores' });
+  }
+};

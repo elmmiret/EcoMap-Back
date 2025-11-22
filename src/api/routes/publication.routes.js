@@ -20,12 +20,20 @@ router.post('/new', authenticateBackendJWT, createPublication);
  */
 router.get('/all', authenticateBackendJWT, getAllPublications);
 
+router.get('/all/completed',);
+router.get('/all/cancelled',);
+router.get('/all/pending',);
+
 /**
  * @route GET /api/publications/:id/show
  * @description Obtiene todas las publicaciones (creadas) de un usuario específico.
  * @access Protegido (Backend JWT)
  */
 router.get('/:id/show', authenticateBackendJWT, getUserPublications);
+
+router.get('/:id/completed',);
+router.get('/:id/cancelled',);
+router.get('/:id/pending',);
 
 /**
  * @route GET /api/publications/:id

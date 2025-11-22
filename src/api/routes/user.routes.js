@@ -11,6 +11,10 @@ import {
     getUserProfile, 
     deleteUser, 
     updateUserProfile,
+    getAllUserIds,
+    getAllClientIds,
+    getAllInstitutionIds,
+    getAllAdminIds,
     getUserById
 } from '#controllers/user.controller.js';
 
@@ -57,9 +61,34 @@ router.post('/logout', authenticateBackendJWT, logoutUser);
 router.put('/language', authenticateBackendJWT, changeAppLanguage);
 
 /**
+ * @route GET /api/users/ids/all
+ * @description Obtiene IDs de todos los usuarios registrados
+ */
+router.get('/ids/all', authenticateBackendJWT, getAllUserIds);
+
+/**
+ * @route GET /api/users/ids/clients
+ * @description Obtiene IDs de todos los clientes
+ */
+router.get('/ids/clients', authenticateBackendJWT, getAllClientIds);
+
+/**
+ * @route GET /api/users/ids/institutions
+ * @description Obtiene IDs de todas las instituciones
+ */
+router.get('/ids/institutions', authenticateBackendJWT, getAllInstitutionIds);
+
+/**
+ * @route GET /api/users/ids/admins
+ * @description Obtiene IDs de todos los administradores
+ */
+router.get('/ids/admins', authenticateBackendJWT, getAllAdminIds);
+
+
+// --- RUTA DINÁMICA ---
+/**
  * @route GET /api/users/:id
- * @description Obtiene la información pública de un usuario específico por su ID.
- * @access Protegido (Backend JWT)
+ * @description Obtiene la información pública de un usuario específico.
  */
 router.get('/:id', authenticateBackendJWT, getUserById);
 
