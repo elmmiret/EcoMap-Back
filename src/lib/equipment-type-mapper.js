@@ -1,134 +1,164 @@
 /**
- * Equipment Type Mapping
+ * Equipment Type Mapper
  *
- * Maps raw equipment type strings from APIs to Prisma enum values
+ * Maps raw equipment type strings from external APIs to the standardized
+ * equipment_type enum values in the database.
+ *
+ * Supported sources:
+ * - Navarra API (TipoEquipamiento)
+ * - Barcelona API (secondary_filters_name)
  */
 
+import { createLogger } from '#lib/logger.js';
+
+const log = createLogger('equipment-mapper');
+
 /**
- * Maps equipment type string to Prisma equipment_type enum
- * @param {string} rawType - Raw equipment type from API
- * @returns {string} Prisma enum value or null if no match
+ * Mapping patterns for equipment types
+ * Keys are normalized (lowercase, no accents) patterns to match
+ * Values are the enum values from Prisma schema
+ */
+const EQUIPMENT_TYPE_PATTERNS = {
+  // Recycling Center / Punto Limpio / Deixalleria / Punt Verd
+  'punto limpio fijo': 'Recycling_center',
+  'punto limpio movil': 'Recycling_center',
+  'punto limpio móvil': 'Recycling_center',
+  'punt verd': 'Recycling_center',
+  'punts verds': 'Recycling_center',
+  'punts verds de zona': 'Recycling_center',
+  deixalleria: 'Recycling_center',
+  deixalleries: 'Recycling_center',
+  'recycling center': 'Recycling_center',
+  'caseta de reciclaje': 'Recycling_center',
+  'caseta punto limpio': 'Recycling_center',
+  ecopunto: 'Recycling_center',
+
+  // Batteries / Pilas
+  pilas: 'Batteries',
+  piles: 'Batteries',
+  batteries: 'Batteries',
+  bateria: 'Batteries',
+
+  // Medicines And Packaging / Medicamentos y Envases
+  medicamentos: 'Medicines_and_packaging',
+  medicines: 'Medicines_and_packaging',
+  medicaments: 'Medicines_and_packaging',
+
+  // Garden Waste / Restos de poda
+  'restos de poda': 'Garden_waste',
+  poda: 'Garden_waste',
+  'garden waste': 'Garden_waste',
+  jardineria: 'Garden_waste',
+
+  // Clothing And Footwear / Ropa y calzado
+  'ropa y calzado': 'Clothing_and_footwear',
+  ropa: 'Clothing_and_footwear',
+  calzado: 'Clothing_and_footwear',
+  textil: 'Clothing_and_footwear',
+  textile: 'Clothing_and_footwear',
+  clothing: 'Clothing_and_footwear',
+
+  // Bulky Waste / Muebles / Enseres
+  muebles: 'Bulky_waste',
+  enseres: 'Bulky_waste',
+  bulky: 'Bulky_waste',
+  voluminosos: 'Bulky_waste',
+
+  // Glass Containers / Envases de vidrio
+  'envases de vidrio': 'Glass_containers',
+  vidrio: 'Glass_containers',
+  vidre: 'Glass_containers',
+  glass: 'Glass_containers',
+
+  // Coffee Capsules / Cápsulas de café
+  'capsulas de cafe': 'Coffee_capsules',
+  'cápsulas de café': 'Coffee_capsules',
+  capsulas: 'Coffee_capsules',
+  'coffee capsules': 'Coffee_capsules',
+
+  // Used Cooking Oil / Aceite de cocina usado
+  'aceite de cocina usado': 'Used_cooking_oil',
+  'aceite usado': 'Used_cooking_oil',
+  aceite: 'Used_cooking_oil',
+  'cooking oil': 'Used_cooking_oil',
+  oli: 'Used_cooking_oil',
+
+  // Household Construction Waste / Escombros
+  escombros: 'Household_construction_waste',
+  'construction waste': 'Household_construction_waste',
+  obra: 'Household_construction_waste',
+
+  // Community Composting / Compostaje comunitario
+  'compostaje comunitario': 'Community_composting',
+  compostaje: 'Community_composting',
+  composting: 'Community_composting',
+  compost: 'Community_composting',
+};
+
+/**
+ * Normalizes a string for comparison (lowercase, remove accents)
+ * @param {string} str - String to normalize
+ * @returns {string} Normalized string
+ */
+function normalizeString(str) {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Remove accents
+    .trim();
+}
+
+/**
+ * Maps a raw equipment type string to the standardized enum value
+ *
+ * @param {string} rawType - Raw equipment type from external API
+ * @returns {string|null} Enum value (e.g., 'Recycling_center') or null if no match
  */
 export function mapEquipmentType(rawType) {
-  if (!rawType || typeof rawType !== 'string') {
+  if (!rawType) {
+    log.debug('Empty equipment type received');
     return null;
   }
 
-  const normalized = rawType.toLowerCase().trim();
+  const normalized = normalizeString(rawType);
 
-  // Recycling centers (puntos limpios, deixalleries, etc.)
-  const recyclingCenterPatterns = [
-    'punto limpio',
-    'mini punto limpio',
-    'punt limpi',
-    'mini punt limpi',
-    'punto limpio móvil',
-    'punt limpi mòbil',
-    'caseta de reciclaje',
-    'caseta punto limpio',
-    'caseta punt limpi',
-    'ecopunto',
-    'ecopunt',
-    'punts verds',
-    'punt verd',
-    'punto verde',
-    'deixalleria',
-    'recycling center',
-    'centre de reciclatge',
-  ];
-
-  if (recyclingCenterPatterns.some((pattern) => normalized.includes(pattern))) {
-    return 'Recycling_center';
+  // Try exact match first
+  if (EQUIPMENT_TYPE_PATTERNS[normalized]) {
+    return EQUIPMENT_TYPE_PATTERNS[normalized];
   }
 
-  // Batteries
-  if (normalized.includes('pila') || normalized.includes('batteri') || normalized.includes('battery')) {
-    return 'Batteries';
+  // Try partial match (contains)
+  for (const [pattern, enumValue] of Object.entries(EQUIPMENT_TYPE_PATTERNS)) {
+    if (normalized.includes(pattern) || pattern.includes(normalized)) {
+      log.debug(`Matched '${rawType}' to '${enumValue}' via pattern '${pattern}'`);
+      return enumValue;
+    }
   }
 
-  // Medicines and packaging
-  if (normalized.includes('medicament') || normalized.includes('medicine') || normalized.includes('farmaci') || normalized.includes('envase')) {
-    return 'Medicines_and_packaging';
-  }
-
-  // Garden waste
-  if (normalized.includes('jard') || normalized.includes('garden') || normalized.includes('poda') || normalized.includes('vegetal')) {
-    return 'Garden_Waste';
-  }
-
-  // Clothing and footwear
-  if (
-    normalized.includes('ropa') ||
-    normalized.includes('roba') ||
-    normalized.includes('clothing') ||
-    normalized.includes('textil') ||
-    normalized.includes('calzado') ||
-    normalized.includes('footwear')
-  ) {
-    return 'Clothing_and_footwear';
-  }
-
-  // Bulky waste
-  if (
-    normalized.includes('voluminoso') ||
-    normalized.includes('voluminós') ||
-    normalized.includes('bulky') ||
-    normalized.includes('moble') ||
-    normalized.includes('mueble')
-  ) {
-    return 'Bulky_waste';
-  }
-
-  // Glass containers
-  if (normalized.includes('vidri') || normalized.includes('glass') || normalized.includes('cristal')) {
-    return 'Glass_containers';
-  }
-
-  // Coffee capsules
-  if (
-    normalized.includes('càpsula') ||
-    normalized.includes('cápsula') ||
-    normalized.includes('capsule') ||
-    normalized.includes('cafè') ||
-    normalized.includes('café')
-  ) {
-    return 'Coffee_capsules';
-  }
-
-  // Used cooking oil
-  if (
-    normalized.includes('oli') ||
-    normalized.includes('aceite') ||
-    normalized.includes('oil') ||
-    normalized.includes('cuina') ||
-    normalized.includes('cocina') ||
-    normalized.includes('cooking')
-  ) {
-    return 'Used_cooking_oil';
-  }
-
-  // Household construction waste
-  if (
-    normalized.includes('construcció') ||
-    normalized.includes('construcción') ||
-    normalized.includes('construction') ||
-    normalized.includes('obra') ||
-    normalized.includes('runa')
-  ) {
-    return 'Household_construction_waste';
-  }
-
-  // Community composting
-  if (
-    normalized.includes('compost') ||
-    normalized.includes('comunitari') ||
-    normalized.includes('comunitario') ||
-    normalized.includes('orgànic') ||
-    normalized.includes('orgánico')
-  ) {
-    return 'Community_composting';
-  }
-
-  // If no match, return null (will be handled by caller)
+  // No match found
+  log.warn(`No mapping found for equipment type: '${rawType}' (normalized: '${normalized}')`);
   return null;
+}
+
+/**
+ * Validates if a value is a valid equipment_type enum
+ * @param {string} value - Value to validate
+ * @returns {boolean} True if valid enum value
+ */
+export function isValidEquipmentType(value) {
+  const validValues = [
+    'Recycling_center',
+    'Batteries',
+    'Medicines_and_packaging',
+    'Garden_waste',
+    'Clothing_and_footwear',
+    'Bulky_waste',
+    'Glass_containers',
+    'Coffee_capsules',
+    'Used_cooking_oil',
+    'Household_construction_waste',
+    'Community_composting',
+  ];
+  return validValues.includes(value);
 }

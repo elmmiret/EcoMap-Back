@@ -7,6 +7,8 @@
 
 import { prisma } from '#lib/prisma.js';
 import { createLogger } from '#lib/logger.js';
+import { mapEquipmentType } from '#lib/equipment-type-mapper.js';
+import { saveTimetable } from '#services/timetable.service.js';
 
 const log = createLogger('barcelona-sync');
 
@@ -48,7 +50,7 @@ function parseBarcelonaPoint(raw) {
   // Tipo de equipamiento desde secondary_filters_name
   const equipmentType = raw?.secondary_filters_name || null;
 
-  // Horario
+  // Horario (guardamos temporalmente para saveTimetable, no va a BD)
   const schedule = raw?.timetable || null;
 
   // Última actualización desde campo "modified"
@@ -69,9 +71,9 @@ function parseBarcelonaPoint(raw) {
     name: String(name),
     latitude: Number.isFinite(latitude) ? latitude : null,
     longitude: Number.isFinite(longitude) ? longitude : null,
-    equipment_type: equipmentType ? String(equipmentType) : null,
-    schedule: schedule ? String(schedule) : null,
+    equipment_type: mapEquipmentType(equipmentType),
     last_updated: lastUpdated,
+    _schedule: schedule || null,
     raw_payload: {
       ...raw,
       // Incluir dirección completa construida para facilitar búsquedas
@@ -144,22 +146,32 @@ export async function syncBarcelonaPoints() {
     for (const point of apiPoints) {
       apiIds.add(point.api_id);
       try {
+        // Extraer _schedule antes del upsert (no es campo de BD)
+        const scheduleData = point._schedule;
+        // eslint-disable-next-line no-unused-vars
+        const { _schedule, ...pointData } = point;
+
         const existed = existingIds.has(point.api_id);
-        await prisma.recycling_point.upsert({
+        const upsertedPoint = await prisma.recycling_point.upsert({
           where: { api_location_api_id: { api_location: 'Barcelona', api_id: point.api_id } },
           update: {
-            name: point.name,
-            latitude: point.latitude,
-            longitude: point.longitude,
-            equipment_type: point.equipment_type,
-            schedule: point.schedule,
-            last_updated: point.last_updated,
-            raw_payload: point.raw_payload,
+            name: pointData.name,
+            latitude: pointData.latitude,
+            longitude: pointData.longitude,
+            equipment_type: pointData.equipment_type,
+            last_updated: pointData.last_updated,
+            raw_payload: pointData.raw_payload,
             active: true,
             updated_at: new Date(),
           },
-          create: point,
+          create: pointData,
         });
+
+        // Guardar horarios en timetable
+        if (scheduleData) {
+          await saveTimetable(upsertedPoint.recycling_point_id, scheduleData);
+        }
+
         if (existed) stats.updated++;
         else {
           stats.inserted++;
@@ -168,6 +180,13 @@ export async function syncBarcelonaPoints() {
       } catch (e) {
         log.warn(`Error upserting Barcelona point ${point.api_id}: ${e?.message || e}`);
         stats.errors++;
+
+        // Si es un error de validación de Prisma (enum, constraints, etc.), es crítico
+        if (e.code === 'P2023' || e.code === 'P2000' || e.message?.includes('Invalid value') || e.message?.includes('Argument')) {
+          log.error(`Critical Prisma validation error detected for Barcelona point ${point.api_id}:`, e.message);
+          // Lanzar error crítico con contexto
+          throw new Error(`Critical validation error during Barcelona sync: ${e.message} (point ${point.api_id}: ${point.name})`);
+        }
       }
     }
 

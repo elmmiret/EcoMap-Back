@@ -7,6 +7,8 @@
 
 import { prisma } from '#lib/prisma.js';
 import { createLogger } from '#lib/logger.js';
+import { mapEquipmentType } from '#lib/equipment-type-mapper.js';
+import { saveTimetable } from '#services/timetable.service.js';
 
 const log = createLogger('navarra-sync');
 
@@ -75,9 +77,9 @@ function parseNavarraPoint(rawPoint) {
     name: rawPoint.Localidad || rawPoint.Direccion || 'Sin nombre',
     latitude: rawPoint.x ? parseFloat(rawPoint.x) : null,
     longitude: rawPoint.y ? parseFloat(rawPoint.y) : null,
-    equipment_type: rawPoint.TipoEquipamiento || null,
-    schedule: rawPoint.Horario || null,
+    equipment_type: mapEquipmentType(rawPoint.TipoEquipamiento),
     last_updated: lastUpdated,
+    _schedule: rawPoint.Horario || null,
     raw_payload: rawPoint, // Guardamos el JSON completo
     active: true,
   };
@@ -107,6 +109,7 @@ export async function fetchNavarraPoints() {
     const limit = 1000;
     let offset = 0;
     let allRecords = [];
+
     let hasMore = true;
 
     // Paginación: obtener todos los registros
@@ -130,14 +133,17 @@ export async function fetchNavarraPoints() {
       const data = await response.json();
 
       // Soportar múltiples formatos de respuesta (CKAN estándar y variantes):
-      // - CKAN típico: { success: true, result: { records: [...] } }
+      // - CKAN típico: { success: true, result: { records: [...], total: N } }
       // - Variante previa: { success: true, data: [...] }
       // - Fallbacks: { records: [...] } o array directo
       let records = null;
+      let total = null;
+
       if (Array.isArray(data?.data)) {
         records = data.data;
       } else if (Array.isArray(data?.result?.records)) {
         records = data.result.records;
+        total = data.result.total; // CKAN proporciona el total de registros
       } else if (Array.isArray(data?.records)) {
         records = data.records;
       } else if (Array.isArray(data)) {
@@ -148,12 +154,20 @@ export async function fetchNavarraPoints() {
         const keys = data && typeof data === 'object' ? Object.keys(data).slice(0, 6).join(', ') : typeof data;
         throw new Error(`Invalid API response format (top-level keys: ${keys || 'n/a'})`);
       }
+
       allRecords = allRecords.concat(records);
 
-      log.debug(`Fetched ${records.length} records (offset ${offset}, total so far: ${allRecords.length})`);
+      log.debug(`Fetched ${records.length} records (offset ${offset}, total so far: ${allRecords.length}${total ? `, API total: ${total}` : ''})`);
 
-      // Verificar si hay más registros
-      hasMore = records.length === limit;
+      // Verificar si hay más registros:
+      // 1. Si tenemos el total de la API, comparar con lo que llevamos
+      // 2. Si no, verificar que la página actual esté llena Y no sea vacía
+      if (total !== null) {
+        hasMore = allRecords.length < total;
+      } else {
+        hasMore = records.length === limit && records.length > 0;
+      }
+
       offset += limit;
     }
 
@@ -196,9 +210,26 @@ export async function syncNavarraPoints() {
     const apiPoints = await fetchNavarraPoints();
     log.info(`Processing ${apiPoints.length} points from API`);
 
+    // Filtrar puntos con coordenadas inválidas (lat=0 o lng=0)
+    const validPoints = apiPoints.filter((p) => {
+      const hasValidCoords = p.latitude && p.longitude && p.latitude !== 0 && p.longitude !== 0;
+      if (!hasValidCoords) {
+        log.warn(`Skipping point ${p.api_id} (${p.name}) due to invalid coordinates: lat=${p.latitude}, lng=${p.longitude}`);
+        return false;
+      }
+      return true;
+    });
+
+    const skippedCount = apiPoints.length - validPoints.length;
+    if (skippedCount > 0) {
+      log.warn(`Skipped ${skippedCount} points with invalid coordinates (lat=0 or lng=0)`);
+    }
+
+    log.info(`Processing ${validPoints.length} valid points (${skippedCount} skipped)`);
+
     // Verificar duplicados de api_id en los datos de la API
     const apiIdCounts = new Map();
-    apiPoints.forEach((p) => {
+    validPoints.forEach((p) => {
       apiIdCounts.set(p.api_id, (apiIdCounts.get(p.api_id) || 0) + 1);
     });
     const duplicates = Array.from(apiIdCounts.entries()).filter(([_, count]) => count > 1);
@@ -209,6 +240,23 @@ export async function syncNavarraPoints() {
       );
     }
 
+    // DEDUPLICAR: quedarnos solo con la última aparición de cada api_id
+    const deduped = [];
+    const seen = new Set();
+    for (let i = validPoints.length - 1; i >= 0; i--) {
+      const p = validPoints[i];
+      if (!seen.has(p.api_id)) {
+        seen.add(p.api_id);
+        deduped.unshift(p);
+      }
+    }
+
+    if (deduped.length < validPoints.length) {
+      log.warn(`Removed ${validPoints.length - deduped.length} duplicate points from API data`);
+    }
+
+    log.info(`Processing ${deduped.length} unique points after deduplication`);
+
     // Cargar IDs existentes ANTES del upsert para distinguir insert vs update
     const existingRows = await prisma.recycling_point.findMany({
       where: { api_location: 'Navarra' },
@@ -217,16 +265,35 @@ export async function syncNavarraPoints() {
     const existingIds = new Set(existingRows.map((r) => r.api_id));
 
     // Crear un Set de IDs reportados por la API para detectar puntos eliminados
-    const apiIds = new Set(apiPoints.map((p) => p.api_id));
-    log.debug(`Unique api_id values in API response: ${apiIds.size} (total points: ${apiPoints.length})`);
+    const apiIds = new Set(deduped.map((p) => p.api_id));
+    log.debug(`Unique api_id values in API response: ${apiIds.size} (total points: ${deduped.length})`);
 
     // 2. Upsert de cada punto
     const errorDetails = [];
-    for (const point of apiPoints) {
+    const attemptedIds = new Set();
+    let duplicateAttempts = 0;
+    for (const point of deduped) {
+      // Instrumentación para detectar reintentos dentro de la misma ejecución
+      if (attemptedIds.has(point.api_id)) {
+        duplicateAttempts++;
+        log.error('Duplicate in-loop upsert attempt detected', {
+          api_id: point.api_id,
+          name: point.name,
+          duplicateAttempts,
+        });
+      } else {
+        attemptedIds.add(point.api_id);
+        log.debug('Upsert attempt start', { api_id: point.api_id, name: point.name });
+      }
       try {
+        // Extraer _schedule antes del upsert (no es campo de BD)
+        const scheduleData = point._schedule;
+        // eslint-disable-next-line no-unused-vars
+        const { _schedule, ...pointData } = point;
+
         // Upsert: si existe (por unique constraint), actualiza; si no, inserta
         const existed = existingIds.has(point.api_id);
-        await prisma.recycling_point.upsert({
+        const upsertedPoint = await prisma.recycling_point.upsert({
           where: {
             api_location_api_id: {
               api_location: 'Navarra',
@@ -234,18 +301,22 @@ export async function syncNavarraPoints() {
             },
           },
           update: {
-            name: point.name,
-            latitude: point.latitude,
-            longitude: point.longitude,
-            equipment_type: point.equipment_type,
-            schedule: point.schedule,
-            last_updated: point.last_updated,
-            raw_payload: point.raw_payload,
+            name: pointData.name,
+            latitude: pointData.latitude,
+            longitude: pointData.longitude,
+            equipment_type: pointData.equipment_type,
+            last_updated: pointData.last_updated,
+            raw_payload: pointData.raw_payload,
             active: true, // Reactivar si estaba inactivo
             updated_at: new Date(),
           },
-          create: point,
+          create: pointData,
         });
+
+        // Guardar horarios en timetable
+        if (scheduleData) {
+          await saveTimetable(upsertedPoint.recycling_point_id, scheduleData);
+        }
 
         // Actualizar métricas según existencia previa
         if (existed) {
@@ -257,6 +328,21 @@ export async function syncNavarraPoints() {
       } catch (error) {
         log.warn(`Error upserting point ${point.api_id}:`, error.message);
         stats.errors++;
+
+        // Si es un error de validación de Prisma (enum, constraints, etc.), es crítico
+        if (error.code === 'P2023' || error.code === 'P2000' || error.message?.includes('Invalid value') || error.message?.includes('Argument')) {
+          log.error(`Critical Prisma validation error detected for point ${point.api_id}:`, error.message);
+          // Guardar detalle y lanzar error para que el sync falle
+          errorDetails.push({
+            api_id: point.api_id,
+            name: point.name,
+            error: error.message,
+            code: error.code,
+          });
+          // Lanzar error crítico con contexto
+          throw new Error(`Critical validation error during sync: ${error.message} (point ${point.api_id}: ${point.name})`);
+        }
+
         // Guardar los primeros 10 errores para logging detallado
         if (errorDetails.length < 10) {
           errorDetails.push({
@@ -267,6 +353,11 @@ export async function syncNavarraPoints() {
           });
         }
       }
+    }
+
+    // Log duplicados internos si hubo
+    if (duplicateAttempts > 0) {
+      log.warn(`In-loop duplicate upsert attempts: ${duplicateAttempts}`);
     }
 
     // Log detallado de errores si hubo
@@ -307,7 +398,7 @@ export async function syncNavarraPoints() {
 
     log.info(
       `Sync completed: ` +
-        `${apiPoints.length} from API → ` +
+        `${apiPoints.length} from API (${skippedCount} invalid coords) → ` +
         `+${stats.inserted} inserted, ` +
         `${stats.updated} updated, ` +
         `-${stats.deactivated} deactivated, ` +
@@ -317,11 +408,11 @@ export async function syncNavarraPoints() {
     );
 
     // Advertencia si hay discrepancia
-    const expectedActive = apiPoints.length - stats.errors;
+    const expectedActive = validPoints.length - stats.errors;
     if (stats.totalRecords !== expectedActive && stats.errors === 0) {
       log.warn(
         `Discrepancy detected! ` +
-          `Expected ${expectedActive} active points (${apiPoints.length} from API - ${stats.errors} errors), ` +
+          `Expected ${expectedActive} active points (${validPoints.length} valid from API - ${stats.errors} errors), ` +
           `but DB reports ${stats.totalRecords} active. Possible duplicate api_id values in API data.`
       );
     }
