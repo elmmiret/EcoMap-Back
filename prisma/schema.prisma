@@ -129,13 +129,6 @@ model timetable_intervals {
   @@id([timetable_id, time_interval_id])
 }
 
-model object_trade {
-  publication_id String          @id @db.Uuid
-  item_state     item_state_type
-  points_price   Int?
-  publication    publication     @relation(fields: [publication_id], references: [publication_id], onDelete: Cascade, onUpdate: NoAction)
-}
-
 model publication {
   publication_id    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title             String
@@ -144,7 +137,6 @@ model publication {
   publication_state state_type
   client_id         String
   client            client              @relation(fields: [client_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
-  object_trade      object_trade?
   publication_media publication_media[]
   reward            reward?
   trade             trade?
@@ -153,8 +145,10 @@ model publication {
 model trade {
   trade_id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   publication_id    String              @db.Uuid @unique
-  publication       publication         @relation(fields: [publication_id], references: [publication_id], onDelete: Cascade, onUpdate: NoAction)
+  item_state        item_state_type
+  points_price      Int
   created_at        DateTime            @default(now())
+  publication       publication         @relation(fields: [publication_id], references: [publication_id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 model publication_media {

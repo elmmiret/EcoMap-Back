@@ -3,7 +3,7 @@ import { prisma } from '#lib/prisma.js';
 
 /**
  * Crea una nueva publicación para un usuario (cliente).
- * Crea en una transacción: Publication -> ObjectTrade -> PublicationMedia (opcional)
+ * Crea en una transacción: Publication -> Trade -> PublicationMedia (opcional)
  */
 export const createPublication = async (req, res) => {
   // El UID del usuario autenticado viene del middleware (req.user.uid)
@@ -20,8 +20,20 @@ export const createPublication = async (req, res) => {
   if (!title || !itemState || pointsPrice === undefined) {
     return res.status(400).json({
       success: false,
-      message: 'Faltan datos obligatorios (titulo, estado del objeto o precio).',
+      message: 'Faltan datos obligatorios: titulo, estado del objeto o precio.',
       code: 'MISSING_DATA',
+    });
+  }
+
+  // Validar item state
+  const validItemStates = ['New', 'Little_used', 'Widely_used', 'Bad_condition'];
+
+
+  if (!validItemStates.includes(itemState)) {
+    return res.status(400).json({
+      success: false,
+      message: `Estado del objeto inválido. Valores permitidos: ${validItemStates.join(', ')}`,
+      code: 'INVALID_ITEM_STATE',
     });
   }
 
@@ -39,9 +51,8 @@ export const createPublication = async (req, res) => {
         },
       });
 
-      // 2. Crear los detalles del objeto a tradear (Object Trade)
-      // La ID es la misma que la publication_id (relación 1 a 1 por ID compartida)
-      await tx.object_trade.create({
+      // 2. Crear el 'trade' asociado 
+      await tx.trade.create({
         data: {
           publication_id: publication.publication_id,
           item_state: itemState,
@@ -59,14 +70,6 @@ export const createPublication = async (req, res) => {
         });
       }
 
-      // 4. Añadir a la tabla 'trade' para listado global
-      await tx.trade.create({
-        data: {
-          publication_id: publication.publication_id,
-        },
-      });
-
-      // Devolvemos la publicación creada (para luego hacer un fetch limpio si queremos)
       return publication;
     });
 
@@ -74,9 +77,8 @@ export const createPublication = async (req, res) => {
     const fullPublication = await prisma.publication.findUnique({
       where: { publication_id: newPublication.publication_id },
       include: {
-        object_trade: true,
-        publication_media: true,
         trade: true,
+        publication_media: true,
       },
     });
 
@@ -95,16 +97,7 @@ export const createPublication = async (req, res) => {
         code: 'INVALID_CLIENT',
       });
     }
-
-    // Manejo de error si el enum itemState es inválido
-    if (error.code === 'P2002' || (error.message && error.message.includes('item_state'))) {
-      return res.status(400).json({
-        success: false,
-        message: 'Estado del objeto inválido.',
-        code: 'INVALID_ITEM_STATE',
-      });
-    }
-
+    
     return res.status(500).json({
       success: false,
       message: 'Error interno al crear la publicación.',
@@ -126,7 +119,7 @@ export const getUserPublications = async (req, res) => {
         client_id: userIdToFetch,
       },
       include: {
-        object_trade: true, // Incluir detalles del objeto (precio, estado)
+        trade: true, // Incluir detalles del objeto (precio, estado)
         publication_media: true, // Incluir fotos
       },
       orderBy: {
@@ -160,7 +153,7 @@ export const getAllPublications = async (req, res) => {
       include: {
         publication: {
           include: {
-            object_trade: true, // Datos del precio y estado
+            trade: true, // Datos del precio y estado
             publication_media: true, // Imágenes
             client: {
               // Datos del autor (opcional)
@@ -215,7 +208,7 @@ export const getPublicationById = async (req, res) => {
     const publication = await prisma.publication.findUnique({
       where: { publication_id: id },
       include: {
-        object_trade: true, // Detalles del intercambio (estado, precio)
+        trade: true, // Detalles del intercambio (estado, precio)
         publication_media: true, // Imágenes
         // Incluimos datos del autor para mostrar quién la creó
         client: {
@@ -264,7 +257,7 @@ export const getAllCompletedPublications = async (req, res) => {
     const publications = await prisma.publication.findMany({
       where: { publication_state: 'Completed' },
       include: {
-        object_trade: true,
+        trade: true,
         publication_media: true,
       },
       orderBy: { date: 'desc' },
@@ -289,7 +282,7 @@ export const getAllCancelledPublications = async (req, res) => {
     const publications = await prisma.publication.findMany({
       where: { publication_state: 'Cancelled' },
       include: {
-        object_trade: true,
+        trade: true,
         publication_media: true,
       },
       orderBy: { date: 'desc' },
@@ -314,7 +307,7 @@ export const getAllPendingPublications = async (req, res) => {
     const publications = await prisma.publication.findMany({
       where: { publication_state: 'Pending' },
       include: {
-        object_trade: true,
+        trade: true,
         publication_media: true,
       },
       orderBy: { date: 'desc' },
@@ -345,7 +338,7 @@ export const getUserCompletedPublications = async (req, res) => {
         publication_state: 'Completed',
       },
       include: {
-        object_trade: true,
+        trade: true,
         publication_media: true,
       },
       orderBy: { date: 'desc' },
@@ -374,7 +367,7 @@ export const getUserCancelledPublications = async (req, res) => {
         publication_state: 'Cancelled',
       },
       include: {
-        object_trade: true,
+        trade: true,
         publication_media: true,
       },
       orderBy: { date: 'desc' },
@@ -403,7 +396,7 @@ export const getUserPendingPublications = async (req, res) => {
         publication_state: 'Pending',
       },
       include: {
-        object_trade: true,
+        trade: true,
         publication_media: true,
       },
       orderBy: { date: 'desc' },
