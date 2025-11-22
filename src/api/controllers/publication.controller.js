@@ -206,3 +206,54 @@ export const getAllPublications = async (req, res) => {
     });
   }
 };
+
+/**
+ * Obtiene el detalle de una publicación específica por su ID.
+ * Endpoint: /api/publications/:id
+ */
+export const getPublicationById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const publication = await prisma.publication.findUnique({
+      where: { publication_id: id },
+      include: {
+        object_trade: true,      // Detalles del intercambio (estado, precio)
+        publication_media: true, // Imágenes
+        // Incluimos datos del autor para mostrar quién la creó
+        client: {
+          include: {
+            registered_user: {
+              select: {
+                username: true,
+                name: true,
+                // Puedes añadir profile_picture si tu esquema lo permite acceder desde aquí
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!publication) {
+      return res.status(404).json({
+        success: false,
+        message: 'Publicación no encontrada.',
+        code: 'PUBLICATION_NOT_FOUND',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Publicación obtenida correctamente.',
+      data: publication,
+    });
+  } catch (error) {
+    console.error(`Error al obtener la publicación ${id}:`, error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al obtener el detalle de la publicación.',
+      code: 'GET_PUBLICATION_ERROR',
+    });
+  }
+};

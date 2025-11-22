@@ -1,7 +1,7 @@
 // src/api/routes/publication.routes.js
 import express from 'express';
 import { authenticateBackendJWT } from '#middlewares/auth.middleware.js';
-import { createPublication, getAllPublications, getUserPublications } from '#controllers/publication.controller.js';
+import { createPublication, getAllPublications, getUserPublications, getPublicationById } from '#controllers/publication.controller.js';
 
 const router = express.Router();
 
@@ -26,5 +26,12 @@ router.get('/all', authenticateBackendJWT, getAllPublications);
  * @access Protegido (Backend JWT)
  */
 router.get('/:id/show', authenticateBackendJWT, getUserPublications);
+
+/**
+ * @route GET /api/publications/:id
+ * @description Obtiene una publicación específica por su ID.
+ * @access Protegido (Backend JWT)
+ */
+router.get('/:id', authenticateBackendJWT, getPublicationById);
 
 export default router;
