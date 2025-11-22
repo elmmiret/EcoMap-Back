@@ -4,18 +4,18 @@ const router = express.Router();
 
 import { authenticateUser, authenticateBackendJWT } from '#middlewares/auth.middleware.js';
 import { validatePhone } from '#middlewares/validation.middleware.js';
-import { 
-    syncUserToPostgres, 
-    changeAppLanguage, 
-    logoutUser, 
-    getUserProfile, 
-    deleteUser, 
-    updateUserProfile,
-    getAllUserIds,
-    getAllClientIds,
-    getAllInstitutionIds,
-    getAllAdminIds,
-    getUserById
+import {
+  syncUserToPostgres,
+  changeAppLanguage,
+  logoutUser,
+  getUserProfile,
+  deleteUser,
+  updateUserProfile,
+  getAllUserIds,
+  getAllClientIds,
+  getAllInstitutionIds,
+  getAllAdminIds,
+  getUserById,
 } from '#controllers/user.controller.js';
 
 /**
@@ -83,7 +83,6 @@ router.get('/ids/institutions', authenticateBackendJWT, getAllInstitutionIds);
  * @description Obtiene IDs de todos los administradores
  */
 router.get('/ids/admins', authenticateBackendJWT, getAllAdminIds);
-
 
 // --- RUTA DINÁMICA ---
 /**

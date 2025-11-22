@@ -215,7 +215,7 @@ export const getPublicationById = async (req, res) => {
     const publication = await prisma.publication.findUnique({
       where: { publication_id: id },
       include: {
-        object_trade: true,      // Detalles del intercambio (estado, precio)
+        object_trade: true, // Detalles del intercambio (estado, precio)
         publication_media: true, // Imágenes
         // Incluimos datos del autor para mostrar quién la creó
         client: {
@@ -426,7 +426,7 @@ export const getUserPendingPublications = async (req, res) => {
 export const updatePublicationState = async (req, res) => {
   const { id } = req.params;
   const { state } = req.body; // El nuevo estado, ej: "Cancelled"
-  const { uid } = req.user;   // ID del usuario autenticado
+  const { uid } = req.user; // ID del usuario autenticado
 
   // validar que el estado enviado sea parte del Enum state_type
   const validStates = ['Completed', 'Cancelled', 'Pending'];
@@ -481,7 +481,6 @@ export const updatePublicationState = async (req, res) => {
       message: `Estado actualizado correctamente a ${state}.`,
       data: updatedPublication,
     });
-
   } catch (error) {
     console.error(`Error al actualizar el estado de la publicación ${id}:`, error);
     return res.status(500).json({

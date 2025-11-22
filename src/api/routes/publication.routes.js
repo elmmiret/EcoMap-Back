@@ -1,17 +1,18 @@
 // src/api/routes/publication.routes.js
 import express from 'express';
 import { authenticateBackendJWT } from '#middlewares/auth.middleware.js';
-import { createPublication, 
-    getAllPublications, 
-    getUserPublications, 
-    getPublicationById,
-    getAllCompletedPublications,
-    getAllCancelledPublications,
-    getAllPendingPublications,
-    getUserCompletedPublications,
-    getUserCancelledPublications,
-    getUserPendingPublications,
-    updatePublicationState
+import {
+  createPublication,
+  getAllPublications,
+  getUserPublications,
+  getPublicationById,
+  getAllCompletedPublications,
+  getAllCancelledPublications,
+  getAllPendingPublications,
+  getUserCompletedPublications,
+  getUserCancelledPublications,
+  getUserPendingPublications,
+  updatePublicationState,
 } from '#controllers/publication.controller.js';
 
 const router = express.Router();
@@ -68,7 +69,7 @@ router.get('/:id/show', authenticateBackendJWT, getUserPublications);
  * @description Obtiene las publicaciones completadas de un usuario específico.
  * @access Protegido (Backend JWT)
  */
-router.get('/:id/completed',  authenticateBackendJWT, getUserCompletedPublications);
+router.get('/:id/completed', authenticateBackendJWT, getUserCompletedPublications);
 
 /**
  * @route GET /api/publications/:id/cancelled
