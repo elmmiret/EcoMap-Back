@@ -240,20 +240,6 @@ enum product_type {
   Hazardous
 }
 
-enum equipment_type {
-  Recycling_center              @map("Recycling Center")
-  Batteries
-  Medicines_and_packaging       @map("Medicines and Packaging")
-  Garden_Waste                  @map("Garden Waste")
-  Clothing_and_footwear         @map("Clothing and Footwear")
-  Bulky_waste                   @map("Bulky Waste")
-  Glass_containers              @map("Glass Containers")
-  Coffee_capsules               @map("Coffee Capsules")
-  Used_cooking_oil              @map("Used Cooking Oil")
-  Household_construction_waste  @map("Household Construction Waste")
-  Community_composting          @map("Community Composting")
-}
-
 enum week_day {
   Monday
   Tuesday
