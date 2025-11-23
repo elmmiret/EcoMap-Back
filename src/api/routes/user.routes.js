@@ -16,6 +16,7 @@ import {
   getAllInstitutionIds,
   getAllAdminIds,
   getUserById,
+  getUserTypeById,
 } from '#controllers/user.controller.js';
 
 /**
@@ -84,7 +85,13 @@ router.get('/ids/institutions', authenticateBackendJWT, getAllInstitutionIds);
  */
 router.get('/ids/admins', authenticateBackendJWT, getAllAdminIds);
 
-// --- RUTA DINÁMICA ---
+/**
+ * @route GET /api/users/:id/type
+ * @description Obtiene el tipo (rol) de un usuario específico.
+ * @access Protegido (Backend JWT)
+ */
+router.get('/:id/type', authenticateBackendJWT, getUserTypeById);
+
 /**
  * @route GET /api/users/:id
  * @description Obtiene la información pública de un usuario específico.

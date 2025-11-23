@@ -918,3 +918,49 @@ export const getAllAdminIds = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Error al obtener IDs de administradores' });
   }
 };
+
+/**
+ * Obtiene el tipo de usuario (rol) por su ID.
+ * Endpoint: GET /api/users/:id/type
+ */
+export const getUserTypeById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const user = await prisma.registered_user.findUnique({
+      where: { user_id: id },
+      select: {
+        client: { select: { user_id: true } },
+        institution: { select: { user_id: true } },
+        admin: { select: { user_id: true } },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    let role = 'unknown';
+    if (user.admin) role = 'admin';
+    else if (user.institution) role = 'institution';
+    else if (user.client) role = 'client';
+
+    return res.status(200).json({
+      success: true,
+      message: 'Tipo de usuario obtenido correctamente.',
+      role: role, // "client", "institution", "admin"
+    });
+
+  } catch (error) {
+    console.error('Error al obtener el tipo de usuario:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor.',
+      code: 'SERVER_ERROR',
+    });
+  }
+};
