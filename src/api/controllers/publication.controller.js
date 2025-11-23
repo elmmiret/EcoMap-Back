@@ -5,7 +5,7 @@ import { prisma } from '#lib/prisma.js';
  * Crea una nueva publicación para un usuario (cliente).
  * Crea en una transacción: Publication -> Trade -> PublicationMedia (opcional)
  */
-export const createPublication = async (req, res) => {
+export const createTrade = async (req, res) => {
   // El UID del usuario autenticado viene del middleware (req.user.uid)
   const { uid } = req.user;
   const {
@@ -28,7 +28,6 @@ export const createPublication = async (req, res) => {
   // Validar item state
   const validItemStates = ['New', 'Little_used', 'Widely_used', 'Bad_condition'];
 
-
   if (!validItemStates.includes(itemState)) {
     return res.status(400).json({
       success: false,
@@ -40,7 +39,7 @@ export const createPublication = async (req, res) => {
   try {
     // Usamos una transacción para asegurar que se cree todo o nada
     const newPublication = await prisma.$transaction(async (tx) => {
-      // 1. Crear la publicación principal
+      // crear la publicación principal
       const publication = await tx.publication.create({
         data: {
           title,
@@ -51,7 +50,7 @@ export const createPublication = async (req, res) => {
         },
       });
 
-      // 2. Crear el 'trade' asociado 
+      // crear el 'trade' asociado 
       await tx.trade.create({
         data: {
           publication_id: publication.publication_id,
@@ -60,7 +59,7 @@ export const createPublication = async (req, res) => {
         },
       });
 
-      // 3. Si hay imagen, crear registro en publication_media
+      // si hay imagen, crear registro en publication_media
       if (mediaUrl) {
         await tx.publication_media.create({
           data: {
@@ -106,11 +105,104 @@ export const createPublication = async (req, res) => {
   }
 };
 
+/** Crea una nueva publicación de tipo Recompensa para una Institución.
+ * Crea en una transacción: Publication -> Reward -> PublicationMedia (opcional)
+ */
+export const createReward = async (req, res) => {
+  const { uid } = req.user;
+  const { title, description, content, pointsPrice, mediaUrl } = req.body;
+
+  if (!title || !content || pointsPrice === undefined) {
+    return res.status(400).json({ success: false, message: 'Faltan datos: título, contenido o precio.' });
+  }
+
+  try {
+    // verificar que el usuario sea institution
+    const isInstitution = await prisma.institution.findUnique({ where: { user_id: uid } });
+    if (!isInstitution) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Permiso denegado. Solo las instituciones pueden crear recompensas.',
+        code: 'FORBIDDEN_INSTITUTION_ONLY'
+      });
+    }
+
+    const newReward = await prisma.$transaction(async (tx) => {
+      // crear publicación vinculada a la Institución
+      const publication = await tx.publication.create({
+        data: {
+          title,
+          description,
+          date: new Date(),
+          publication_state: 'Pending', // O 'Completed' si se publican directamente
+          institution_id: uid, // Vinculamos a INSTITUCIÓN
+          client_id: null,     // No hay cliente
+        },
+      });
+
+      // 3. Crear entrada en tabla 'reward'
+      await tx.reward.create({
+        data: {
+          publication_id: publication.publication_id,
+          content: content,
+          points_price: Number(pointsPrice),
+        },
+      });
+
+      if (mediaUrl) {
+        await tx.publication_media.create({
+          data: { media_url: mediaUrl, publication_id: publication.publication_id },
+        });
+      }
+      return publication;
+    });
+
+    // devolvemos con los detalles de reward incluidos
+    const fullReward = await prisma.publication.findUnique({
+        where: { publication_id: newReward.publication_id },
+        include: { reward: true, publication_media: true }
+    });
+
+    return res.status(201).json({ success: true, message: 'Recompensa creada.', data: fullReward });
+
+  } catch (error) {
+    console.error('Error creando recompensa:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
+
+export const deletePublication = async (req, res) => {
+  const { id } = req.params;
+  const { uid } = req.user;
+
+  try {
+    const publication = await prisma.publication.findUnique({
+      where: { publication_id: id },
+    });
+
+    if (!publication) return res.status(404).json({ success: false, message: 'No encontrada' });
+
+    // Verificar si es dueño (cliente o institución)
+    const isOwner = publication.client_id === uid || publication.institution_id === uid;
+
+    if (!isOwner) {
+      return res.status(403).json({ success: false, message: 'No autorizado para eliminar.' });
+    }
+
+    await prisma.publication.delete({ where: { publication_id: id } });
+
+    return res.status(200).json({ success: true, message: 'Publicación eliminada.' });
+  } catch (error) {
+    console.error('Error eliminando publicación:', error);
+    return res.status(500).json({ success: false, message: 'Error eliminando.' });
+  }
+};
+
 /**
  * Obtiene todas las publicaciones de un usuario específico.
  * Endpoint: /api/publications/:id/show
  */
-export const getUserPublications = async (req, res) => {
+export const getUserTrades = async (req, res) => {
   const { id: userIdToFetch } = req.params;
 
   try {
@@ -146,7 +238,7 @@ export const getUserPublications = async (req, res) => {
  * Obtiene TODAS las publicaciones de tipo 'trade' a través de la tabla 'trade'.
  * Endpoint: /api/publications/all
  */
-export const getAllPublications = async (req, res) => {
+export const getAllTrades = async (req, res) => {
   try {
     // Consultamos la tabla 'trade' e incluimos la publicación anidada
     const trades = await prisma.trade.findMany({
@@ -201,7 +293,7 @@ export const getAllPublications = async (req, res) => {
  * Obtiene el detalle de una publicación específica por su ID.
  * Endpoint: /api/publications/:id
  */
-export const getPublicationById = async (req, res) => {
+export const getTradeById = async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -252,7 +344,7 @@ export const getPublicationById = async (req, res) => {
  * Obtiene todas las publicaciones con estado 'Completed'.
  * Endpoint: /api/publications/all/completed
  */
-export const getAllCompletedPublications = async (req, res) => {
+export const getAllCompletedTrades = async (req, res) => {
   try {
     const publications = await prisma.publication.findMany({
       where: { publication_state: 'Completed' },
@@ -277,7 +369,7 @@ export const getAllCompletedPublications = async (req, res) => {
  * Obtiene todas las publicaciones con estado 'Cancelled'.
  * Endpoint: /api/publications/all/cancelled
  */
-export const getAllCancelledPublications = async (req, res) => {
+export const getAllCancelledTrades = async (req, res) => {
   try {
     const publications = await prisma.publication.findMany({
       where: { publication_state: 'Cancelled' },
@@ -302,7 +394,7 @@ export const getAllCancelledPublications = async (req, res) => {
  * Obtiene todas las publicaciones con estado 'Pending'.
  * Endpoint: /api/publications/all/pending
  */
-export const getAllPendingPublications = async (req, res) => {
+export const getAllPendingTrades = async (req, res) => {
   try {
     const publications = await prisma.publication.findMany({
       where: { publication_state: 'Pending' },
@@ -329,7 +421,7 @@ export const getAllPendingPublications = async (req, res) => {
  * Obtiene las publicaciones completadas de un usuario específico.
  * Endpoint: /api/publications/:id/completed
  */
-export const getUserCompletedPublications = async (req, res) => {
+export const getUserCompletedTrades = async (req, res) => {
   const { id } = req.params;
   try {
     const publications = await prisma.publication.findMany({
@@ -358,7 +450,7 @@ export const getUserCompletedPublications = async (req, res) => {
  * Obtiene las publicaciones canceladas de un usuario específico.
  * Endpoint: /api/publications/:id/cancelled
  */
-export const getUserCancelledPublications = async (req, res) => {
+export const getUserCancelledTrades = async (req, res) => {
   const { id } = req.params;
   try {
     const publications = await prisma.publication.findMany({
@@ -387,7 +479,7 @@ export const getUserCancelledPublications = async (req, res) => {
  * Obtiene las publicaciones pendientes de un usuario específico.
  * Endpoint: /api/publications/:id/pending
  */
-export const getUserPendingPublications = async (req, res) => {
+export const getUserPendingTrades = async (req, res) => {
   const { id } = req.params;
   try {
     const publications = await prisma.publication.findMany({
@@ -416,7 +508,7 @@ export const getUserPendingPublications = async (req, res) => {
  * Actualiza el estado de una publicación y comprueba que el nuevo estado sea válido y diferente al actual.
  * Endpoint: PATCH /api/publications/:id/state
  */
-export const updatePublicationState = async (req, res) => {
+export const updateTradeState = async (req, res) => {
   const { id } = req.params;
   const { state } = req.body; // El nuevo estado, ej: "Cancelled"
   const { uid } = req.user; // ID del usuario autenticado

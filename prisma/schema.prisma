@@ -31,6 +31,7 @@ model client {
 model institution {
   user_id         String          @id
   registered_user registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  publications    publication[]
 }
 
 model partner {
@@ -135,11 +136,13 @@ model publication {
   description       String?
   date              DateTime            @db.Date
   publication_state state_type
-  client_id         String
-  client            client              @relation(fields: [client_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  client_id         String?
+  client            client?             @relation(fields: [client_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  institution_id    String?
+  institution       institution?        @relation(fields: [institution_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  trade             trade?
   publication_media publication_media[]
   reward            reward?
-  trade             trade?
 }
 
 model trade {
