@@ -50,7 +50,7 @@ export const createTrade = async (req, res) => {
         },
       });
 
-      // crear el 'trade' asociado 
+      // crear el 'trade' asociado
       await tx.trade.create({
         data: {
           publication_id: publication.publication_id,
@@ -96,7 +96,7 @@ export const createTrade = async (req, res) => {
         code: 'INVALID_CLIENT',
       });
     }
-    
+
     return res.status(500).json({
       success: false,
       message: 'Error interno al crear la publicación.',
@@ -120,10 +120,10 @@ export const createReward = async (req, res) => {
     // verificar que el usuario sea institution
     const isInstitution = await prisma.institution.findUnique({ where: { user_id: uid } });
     if (!isInstitution) {
-      return res.status(403).json({ 
-        success: false, 
+      return res.status(403).json({
+        success: false,
         message: 'Permiso denegado. Solo las instituciones pueden crear recompensas.',
-        code: 'FORBIDDEN_INSTITUTION_ONLY'
+        code: 'FORBIDDEN_INSTITUTION_ONLY',
       });
     }
 
@@ -136,7 +136,7 @@ export const createReward = async (req, res) => {
           date: new Date(),
           publication_state: 'Pending', // O 'Completed' si se publican directamente
           institution_id: uid, // Vinculamos a INSTITUCIÓN
-          client_id: null,     // No hay cliente
+          client_id: null, // No hay cliente
         },
       });
 
@@ -159,18 +159,135 @@ export const createReward = async (req, res) => {
 
     // devolvemos con los detalles de reward incluidos
     const fullReward = await prisma.publication.findUnique({
-        where: { publication_id: newReward.publication_id },
-        include: { reward: true, publication_media: true }
+      where: { publication_id: newReward.publication_id },
+      include: { reward: true, publication_media: true },
     });
 
     return res.status(201).json({ success: true, message: 'Recompensa creada.', data: fullReward });
-
   } catch (error) {
     console.error('Error creando recompensa:', error);
     return res.status(500).json({ success: false, message: 'Error interno.' });
   }
 };
 
+/**
+ * Obtiene TODAS las publicaciones de tipo 'reward'.
+ * Endpoint: GET /api/publications/rewards/all
+ */
+export const getAllRewards = async (req, res) => {
+  try {
+    const rewards = await prisma.publication.findMany({
+      where: { reward: { isNot: null } },
+      include: {
+        reward: true,
+        publication_media: true,
+        institution: {
+          select: { registered_user: { select: { name: true, username: true } } },
+        },
+      },
+      orderBy: { date: 'desc' },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Se encontraron ${rewards.length} rewards.`,
+      data: rewards,
+    });
+  } catch (error) {
+    console.error('Error obteniendo rewards:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
+
+/**
+ * Obtiene TODAS las publicaciones de tipo 'reward' de una institución específica.
+ * Endpoint: GET /api/publications/rewards/:id
+ */
+export const getInstitutionRewards = async (req, res) => {
+  const { id } = req.params; // ID de la institución
+
+  try {
+    const rewards = await prisma.publication.findMany({
+      where: {
+        institution_id: id,
+        reward: { isNot: null },
+      },
+      include: {
+        reward: true,
+        publication_media: true,
+      },
+      orderBy: { date: 'desc' },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Se encontraron ${rewards.length} rewards para la institución ${id}.`,
+      data: rewards,
+    });
+  } catch (error) {
+    console.error('Error obteniendo rewards de institución:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
+
+/**
+ * Actualiza la disponibilidad de un reward (available: true/false).
+ * Solo la institución creadora puede hacerlo.
+ * Endpoint: PATCH /api/publications/rewards/:id/availability
+ */
+export const updateRewardAvailability = async (req, res) => {
+  const { id } = req.params;
+  const { available } = req.body;
+  const { uid } = req.user;
+
+  if (typeof available !== 'boolean') {
+    return res.status(400).json({
+      success: false,
+      message: 'Debes enviar el parámetro "available" como booleano (true/false).',
+      code: 'INVALID_DATA_TYPE',
+    });
+  }
+
+  try {
+    // buscar publicación y verificar que es un reward
+    const publication = await prisma.publication.findUnique({
+      where: { publication_id: id },
+      include: { reward: true },
+    });
+
+    if (!publication || !publication.reward) {
+      return res.status(404).json({ success: false, message: 'Reward no encontrado.' });
+    }
+
+    // verificar propiedad (solo la institución dueña)
+    if (publication.institution_id !== uid) {
+      return res.status(403).json({
+        success: false,
+        message: 'No tienes permiso para modificar este reward.',
+        code: 'FORBIDDEN_ACTION',
+      });
+    }
+
+    // actualizar disponibilidad
+    await prisma.reward.update({
+      where: { publication_id: id },
+      data: { available: available },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Disponibilidad actualizada a ${available}.`,
+      data: { ...publication, reward: { ...publication.reward, available } },
+    });
+  } catch (error) {
+    console.error('Error actualizando disponibilidad:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
+
+/** Elimina una publicación de tipo trade o reward verificando permisos.
+ *  Endpoint: DELETE /api/publications/:id
+ */
 export const deletePublication = async (req, res) => {
   const { id } = req.params;
   const { uid } = req.user;

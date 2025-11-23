@@ -165,6 +165,7 @@ model reward {
   publication_id String      @id @db.Uuid
   content        String
   points_price   Int
+  available      Boolean     @default(true)
   publication    publication @relation(fields: [publication_id], references: [publication_id], onDelete: Cascade, onUpdate: NoAction)
 }
 

@@ -4,7 +4,11 @@ import { authenticateBackendJWT } from '#middlewares/auth.middleware.js';
 import {
   createTrade,
   createReward,
-  deletePublication,  // detecta el tipo de publicación (Trade o Reward)
+  updateRewardAvailability,
+  getAllRewards,
+  getInstitutionRewards,
+  //getRewardById,    por implementar !!!!!!!!
+  deletePublication, // detecta el tipo de publicación (Trade o Reward)
   getAllTrades,
   getUserTrades,
   getTradeById,
@@ -32,6 +36,26 @@ router.post('/trades/new', authenticateBackendJWT, createTrade);
  * @access Protegido (Backend JWT)
  */
 router.post('/rewards/new', authenticateBackendJWT, createReward);
+
+/**
+ * @route GET /api/publications/rewards/all
+ * @description Obtiene todas las publicaciones de tipo reward
+ * @access Protegido (Backend JWT)
+ */
+router.get('/rewards/all', authenticateBackendJWT, getAllRewards);
+
+/**
+ * @route GET /api/publications/rewards/:id
+ * @description Obtiene todos los reward de una institución específica (usando su id).
+ * NOTA: Esta ruta es para filtrar por INSTITUCIÓN, no para ver un reward individual.
+ */
+router.get('/rewards/:id', authenticateBackendJWT, getInstitutionRewards);
+
+/**
+ * @route PATCH /api/publications/rewards/:id/availability
+ * @description Actualiza la disponibilidad (available) de un reward.
+ */
+router.patch('/rewards/:id/availability', authenticateBackendJWT, updateRewardAvailability);
 
 /**
  * @route DELETE /api/publications/:id
