@@ -193,7 +193,7 @@ model notification {
 }
 
 model saved_recycling_point {
-  user_id            String          @db.Uuid
+  user_id            String
   recycling_point_id String          @db.Uuid
   client             client          @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
   recycling_point    recycling_point @relation(fields: [recycling_point_id], references: [recycling_point_id], onDelete: Cascade, onUpdate: NoAction)
@@ -216,9 +216,9 @@ enum api_location {
 enum equipment_type {
   Recycling_center               @map("Recycling Center")
   Batteries
-  Medicines_and_packaging        @map("Medicines And Packaging")
+  Medicines_and_packaging        @map("Medicines and Packaging")
   Garden_waste                   @map("Garden Waste")
-  Clothing_and_footwear          @map("Clothing And Footwear")
+  Clothing_and_footwear          @map("Clothing and Footwear")
   Bulky_waste                    @map("Bulky Waste")
   Glass_containers               @map("Glass Containers")
   Coffee_capsules                @map("Coffee Capsules")
