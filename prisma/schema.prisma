@@ -52,6 +52,7 @@ model registered_user {
   institution  institution?
   partner      partner?
   notification notification[]
+  device_tokens device_token[]
   user         user              @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
   sessions     session[]
 }
@@ -221,6 +222,15 @@ model notification {
   content           String
   delivered         Boolean           @default(false)
   registered_user   registered_user   @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model device_token {
+  token           String          @id
+  user_id         String
+  updated_at      DateTime        @updatedAt
+  registered_user registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id])
 }
 
 model saved_recycling_point {
