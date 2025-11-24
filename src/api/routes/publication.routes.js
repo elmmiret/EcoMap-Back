@@ -1,4 +1,3 @@
-// src/api/routes/publication.routes.js
 import express from 'express';
 import { authenticateBackendJWT } from '#middlewares/auth.middleware.js';
 import {
@@ -7,8 +6,7 @@ import {
   updateRewardAvailability,
   getAllRewards,
   getInstitutionRewards,
-  //getRewardById,    por implementar !!!!!!!!
-  deletePublication, // detecta el tipo de publicación (Trade o Reward)
+  deletePublication,
   getAllTrades,
   getUserTrades,
   getTradeById,
@@ -23,120 +21,125 @@ import {
 
 const router = express.Router();
 
-/**
- * @route POST /api/publications/trades/new
- * @description Crea una nueva publicación (Trade) para el usuario autenticado de tipo client.
- * @access Protegido (Backend JWT)
- */
-router.post('/trades/new', authenticateBackendJWT, createTrade);
+// ==========================================
+//                 REWARDS
+// ==========================================
 
 /**
- * @route POST /api/publications/rewards/new
- * @description Crea una nueva publicación (Reward) para el usuario autenticado de tipo institution.
- * @access Protegido (Backend JWT)
+ * @route POST /api/publications/rewards
+ * @description Crea una nueva publicación (Reward) - Solo Instituciones.
  */
-router.post('/rewards/new', authenticateBackendJWT, createReward);
+router.post('/rewards', authenticateBackendJWT, createReward);
 
 /**
- * @route GET /api/publications/rewards/all
- * @description Obtiene todas las publicaciones de tipo reward
- * @access Protegido (Backend JWT)
+ * @route GET /api/publications/rewards
+ * @description Obtiene todas las publicaciones de tipo reward.
  */
-router.get('/rewards/all', authenticateBackendJWT, getAllRewards);
+router.get('/rewards', authenticateBackendJWT, getAllRewards);
 
 /**
- * @route GET /api/publications/rewards/:id
- * @description Obtiene todos los reward de una institución específica (usando su id).
- * NOTA: Esta ruta es para filtrar por INSTITUCIÓN, no para ver un reward individual.
+ * @route GET /api/publications/rewards/institution/:institutionId
+ * @description Obtiene todos los rewards de una institución específica.
+ * CAMBIO: Añadido prefix '/institution' para no confundir con ID de publicación.
  */
-router.get('/rewards/:id', authenticateBackendJWT, getInstitutionRewards);
+router.get('/rewards/institution/:institutionId', authenticateBackendJWT, getInstitutionRewards);
 
 /**
  * @route PATCH /api/publications/rewards/:id/availability
- * @description Actualiza la disponibilidad (available) de un reward.
+ * @description Actualiza la disponibilidad de un reward.
  */
 router.patch('/rewards/:id/availability', authenticateBackendJWT, updateRewardAvailability);
 
-/**
- * @route DELETE /api/publications/:id
- * @description Elimina una publicación. Valida permisos según si es Trade o Reward.
- * @access Protegido (Backend JWT - Solo el creador o admin)
- */
-router.delete('/:id', authenticateBackendJWT, deletePublication);
+
+// ==========================================
+//                  TRADES
+// ==========================================
 
 /**
- * @route GET /api/publications/trades/all
- * @description Obtiene todas las publicaciones activas (Trades) de la plataforma.
- * @access Protegido (Backend JWT)
- * IMPORTANTE: Esta ruta debe ir ANTES de /:id/show para evitar conflictos.
+ * @route POST /api/publications/trades
+ * @description Crea una nueva publicación (Trade) - Solo Clientes.
  */
-router.get('/trades/all', authenticateBackendJWT, getAllTrades);
-
-// ----------------------- Rutas para filtrar publicaciones por estado -----------------------
+router.post('/trades', authenticateBackendJWT, createTrade);
 
 /**
- * @route GET /api/publications/all/trades/completed
- * @description Obtiene todas las publicaciones con estado 'Completed'.
- * @access Protegido (Backend JWT)
+ * @route GET /api/publications/trades
+ * @description Obtiene todas las publicaciones activas (Trades).
  */
-router.get('/trades/all/completed', authenticateBackendJWT, getAllCompletedTrades);
+router.get('/trades', authenticateBackendJWT, getAllTrades);
+
+// --- Filtros Globales por Estado ---
 
 /**
- * @route GET /api/publications/all/cancelled
- * @description Obtiene todas las publicaciones con estado 'Cancelled'.
- * @access Protegido (Backend JWT)
+ * @route GET /api/publications/trades/status/completed
+ * @description Obtiene todos los trades con estado 'Completed'.
+ * CAMBIO: Agrupado bajo '/status' para claridad.
  */
-router.get('/trades/all/cancelled', authenticateBackendJWT, getAllCancelledTrades);
+router.get('/trades/status/completed', authenticateBackendJWT, getAllCompletedTrades);
 
 /**
- * @route GET /api/publications/trades/all/pending
- * @description Obtiene todas las publicaciones con estado 'Pending'.
- * @access Protegido (Backend JWT)
+ * @route GET /api/publications/trades/status/cancelled
+ * @description Obtiene todos los trades con estado 'Cancelled'.
  */
-router.get('/trades/all/pending', authenticateBackendJWT, getAllPendingTrades);
+router.get('/trades/status/cancelled', authenticateBackendJWT, getAllCancelledTrades);
 
 /**
- * @route GET /api/publications/trades/:id/show
- * @description Obtiene todas las publicaciones (creadas) de un usuario específico.
- * @access Protegido (Backend JWT)
+ * @route GET /api/publications/trades/status/pending
+ * @description Obtiene todos los trades con estado 'Pending'.
  */
-router.get('/trades/:id/show', authenticateBackendJWT, getUserTrades);
+router.get('/trades/status/pending', authenticateBackendJWT, getAllPendingTrades);
 
-// ----------------------- Rutas para filtrar publicaciones de un usuario por estado -----------------------
 
-/**
- * @route GET /api/publications/trades/:id/completed
- * @description Obtiene las publicaciones completadas de un usuario específico.
- * @access Protegido (Backend JWT)
- */
-router.get('/trades/:id/completed', authenticateBackendJWT, getUserCompletedTrades);
+// --- Filtros por Usuario (User Trades) ---
 
 /**
- * @route GET /api/publications/trades/:id/cancelled
- * @description Obtiene las publicaciones canceladas de un usuario específico.
- * @access Protegido (Backend JWT)
+ * @route GET /api/publications/trades/user/:userId
+ * @description Obtiene todos los trades de un usuario específico.
+ * CAMBIO: '/user/:userId' elimina la ambigüedad de si es ID de trade o de usuario.
  */
-router.get('/trades/:id/cancelled', authenticateBackendJWT, getUserCancelledTrades);
+router.get('/trades/user/:userId', authenticateBackendJWT, getUserTrades);
 
 /**
- * @route GET /api/publications/trades/:id/pending
- * @description Obtiene las publicaciones pendientes de un usuario específico.
- * @access Protegido (Backend JWT)
+ * @route GET /api/publications/trades/user/:userId/completed
+ * @description Obtiene trades completados de un usuario.
  */
-router.get('/trades/:id/pending', authenticateBackendJWT, getUserPendingTrades);
+router.get('/trades/user/:userId/completed', authenticateBackendJWT, getUserCompletedTrades);
+
+/**
+ * @route GET /api/publications/trades/user/:userId/cancelled
+ * @description Obtiene trades cancelados de un usuario.
+ */
+router.get('/trades/user/:userId/cancelled', authenticateBackendJWT, getUserCancelledTrades);
+
+/**
+ * @route GET /api/publications/trades/user/:userId/pending
+ * @description Obtiene trades pendientes de un usuario.
+ */
+router.get('/trades/user/:userId/pending', authenticateBackendJWT, getUserPendingTrades);
+
+
+// --- Gestión Individual de Trades ---
 
 /**
  * @route PATCH /api/publications/trades/:id/state
- * @description Actualiza el estado de una publicación (Completed, Cancelled, Pending).
- * @access Protegido (Backend JWT - Solo el creador)
+ * @description Actualiza el estado de un Trade.
  */
 router.patch('/trades/:id/state', authenticateBackendJWT, updateTradeState);
 
 /**
  * @route GET /api/publications/trades/:id
- * @description Obtiene una publicación específica por su ID.
- * @access Protegido (Backend JWT)
+ * @description Obtiene el detalle de un Trade por su ID.
  */
 router.get('/trades/:id', authenticateBackendJWT, getTradeById);
+
+
+// ==========================================
+//                 GENÉRICOS
+// ==========================================
+
+/**
+ * @route DELETE /api/publications/:id
+ * @description Elimina una publicación (Trade o Reward).
+ */
+router.delete('/:id', authenticateBackendJWT, deletePublication);
 
 export default router;

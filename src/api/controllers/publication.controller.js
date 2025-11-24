@@ -201,15 +201,16 @@ export const getAllRewards = async (req, res) => {
 
 /**
  * Obtiene TODAS las publicaciones de tipo 'reward' de una institución específica.
- * Endpoint: GET /api/publications/rewards/:id
+ * Endpoint: GET /api/publications/rewards/institution/:institutionId
  */
 export const getInstitutionRewards = async (req, res) => {
-  const { id } = req.params; // ID de la institución
+  // CAMBIO: Extraemos 'institutionId' en lugar de 'id'
+  const { institutionId } = req.params;
 
   try {
     const rewards = await prisma.publication.findMany({
       where: {
-        institution_id: id,
+        institution_id: institutionId,
         reward: { isNot: null },
       },
       include: {
@@ -221,7 +222,7 @@ export const getInstitutionRewards = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `Se encontraron ${rewards.length} rewards para la institución ${id}.`,
+      message: `Se encontraron ${rewards.length} rewards para la institución ${institutionId}.`,
       data: rewards,
     });
   } catch (error) {
@@ -317,22 +318,23 @@ export const deletePublication = async (req, res) => {
 
 /**
  * Obtiene todas las publicaciones de un usuario específico.
- * Endpoint: /api/publications/:id/show
+ * Endpoint: /api/publications/trades/user/:userId
  */
 export const getUserTrades = async (req, res) => {
-  const { id: userIdToFetch } = req.params;
+  // CAMBIO: Extraemos 'userId' en lugar de 'id'
+  const { userId } = req.params;
 
   try {
     const publications = await prisma.publication.findMany({
       where: {
-        client_id: userIdToFetch,
+        client_id: userId,
       },
       include: {
-        trade: true, // Incluir detalles del objeto (precio, estado)
-        publication_media: true, // Incluir fotos
+        trade: true,
+        publication_media: true,
       },
       orderBy: {
-        date: 'desc', // Las más recientes primero
+        date: 'desc',
       },
     });
 
@@ -384,10 +386,11 @@ export const getAllTrades = async (req, res) => {
     });
 
     // Aplanamos la respuesta para devolver directamente un array de publicaciones
-    // Si prefieres devolver la estructura del trade, quita el .map()
     const publications = trades.map((trade) => ({
       ...trade.publication,
       trade_id: trade.trade_id, // Añadimos el ID del trade por si es útil
+      item_state: trade.item_state,
+      points_price: trade.points_price,
       trade_created_at: trade.created_at,
     }));
 
@@ -464,7 +467,10 @@ export const getTradeById = async (req, res) => {
 export const getAllCompletedTrades = async (req, res) => {
   try {
     const publications = await prisma.publication.findMany({
-      where: { publication_state: 'Completed' },
+      where: { 
+        publication_state: 'Completed',
+        trade: { isNot: null }
+      },
       include: {
         trade: true,
         publication_media: true,
@@ -489,7 +495,10 @@ export const getAllCompletedTrades = async (req, res) => {
 export const getAllCancelledTrades = async (req, res) => {
   try {
     const publications = await prisma.publication.findMany({
-      where: { publication_state: 'Cancelled' },
+      where: { 
+        publication_state: 'Cancelled',
+        trade: { isNot: null }
+      },
       include: {
         trade: true,
         publication_media: true,
@@ -514,7 +523,10 @@ export const getAllCancelledTrades = async (req, res) => {
 export const getAllPendingTrades = async (req, res) => {
   try {
     const publications = await prisma.publication.findMany({
-      where: { publication_state: 'Pending' },
+      where: { 
+        publication_state: 'Pending',
+        trade: { isNot: null }
+      },
       include: {
         trade: true,
         publication_media: true,
@@ -536,15 +548,17 @@ export const getAllPendingTrades = async (req, res) => {
 
 /**
  * Obtiene las publicaciones completadas de un usuario específico.
- * Endpoint: /api/publications/:id/completed
+ * Endpoint: /api/publications/trades/user/:userId/completed
  */
 export const getUserCompletedTrades = async (req, res) => {
-  const { id } = req.params;
+  // CAMBIO: Extraemos 'userId'
+  const { userId } = req.params;
   try {
     const publications = await prisma.publication.findMany({
       where: {
-        client_id: id,
+        client_id: userId,
         publication_state: 'Completed',
+        trade: { isNot: null } // Importante: filtro de trade
       },
       include: {
         trade: true,
@@ -565,15 +579,17 @@ export const getUserCompletedTrades = async (req, res) => {
 
 /**
  * Obtiene las publicaciones canceladas de un usuario específico.
- * Endpoint: /api/publications/:id/cancelled
+ * Endpoint: /api/publications/trades/user/:userId/cancelled
  */
 export const getUserCancelledTrades = async (req, res) => {
-  const { id } = req.params;
+  // CAMBIO: Extraemos 'userId'
+  const { userId } = req.params;
   try {
     const publications = await prisma.publication.findMany({
       where: {
-        client_id: id,
+        client_id: userId,
         publication_state: 'Cancelled',
+        trade: { isNot: null }
       },
       include: {
         trade: true,
@@ -594,15 +610,17 @@ export const getUserCancelledTrades = async (req, res) => {
 
 /**
  * Obtiene las publicaciones pendientes de un usuario específico.
- * Endpoint: /api/publications/:id/pending
+ * Endpoint: /api/publications/trades/user/:userId/pending
  */
 export const getUserPendingTrades = async (req, res) => {
-  const { id } = req.params;
+  // CAMBIO: Extraemos 'userId'
+  const { userId } = req.params;
   try {
     const publications = await prisma.publication.findMany({
       where: {
-        client_id: id,
+        client_id: userId,
         publication_state: 'Pending',
+        trade: { isNot: null }
       },
       include: {
         trade: true,
