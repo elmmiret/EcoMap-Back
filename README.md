@@ -90,6 +90,27 @@ npm run dev
 
 ---
 
+## 7. Documentació de l'API (Swagger)
+
+El projecte inclou una interfície interactiva (Swagger UI) per explorar i provar els endpoints de l'API sense necessitat d'escriure codi.
+
+Per accedir-hi:
+
+1. Assegura't que el servidor està en marxa (`npm run dev`).
+2. Obre el teu navegador i visita:
+
+   👉 **http://localhost:3001/api-docs**
+
+Allà trobaràs:
+
+- Tots els endpoints disponibles (Usuaris, Punts de Reciclatge, Rutes, etc.).
+- Els esquemes de dades (JSON) que s'han d'enviar i rebre.
+- Botó **"Try it out"** per fer peticions reals directament contra el teu backend local.
+
+## **Nota:** Per als endpoints protegits (cadenat 🔒), recorda autenticar-te primer amb el botó "Authorize" utilitzant el token corresponent (Firebase o Backend JWT).
+
+---
+
 ## Comandes útils
 
 | Comanda           | Descripció                                                           |
