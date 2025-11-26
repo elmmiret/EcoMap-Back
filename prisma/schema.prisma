@@ -24,12 +24,14 @@ model client {
   registered_user                     registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
   message_message_receiver_idToclient message[]       @relation("message_receiver_idToclient")
   message_message_sender_idToclient   message[]       @relation("message_sender_idToclient")
+  publications                        publication[]
   saved_recycling_points              saved_recycling_point[]
 }
 
 model institution {
   user_id         String          @id
   registered_user registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  publications    publication[]
 }
 
 model partner {
@@ -131,22 +133,28 @@ model timetable_intervals {
   @@id([timetable_id, time_interval_id])
 }
 
-model object_trade {
-  publication_id String          @id @db.Uuid
-  item_state     item_state_type
-  points_price   Int?
-  publication    publication     @relation(fields: [publication_id], references: [publication_id], onDelete: Cascade, onUpdate: NoAction)
-}
-
 model publication {
   publication_id    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title             String
   description       String?
   date              DateTime            @db.Date
   publication_state state_type
-  object_trade      object_trade?
+  client_id         String?
+  client            client?             @relation(fields: [client_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  institution_id    String?
+  institution       institution?        @relation(fields: [institution_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  trade             trade?
   publication_media publication_media[]
   reward            reward?
+}
+
+model trade {
+  trade_id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publication_id    String              @db.Uuid @unique
+  item_state        item_state_type
+  points_price      Int
+  created_at        DateTime            @default(now())
+  publication       publication         @relation(fields: [publication_id], references: [publication_id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 model publication_media {
@@ -160,6 +168,7 @@ model reward {
   publication_id String      @id @db.Uuid
   content        String
   points_price   Int
+  available      Boolean     @default(true)
   publication    publication @relation(fields: [publication_id], references: [publication_id], onDelete: Cascade, onUpdate: NoAction)
 }
 

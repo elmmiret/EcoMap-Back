@@ -782,3 +782,326 @@ export const updateUserProfile = async (req, res) => {
     });
   }
 };
+
+/**
+ * Obtiene la información pública de un usuario por su ID.
+ * Endpoint: GET /api/users/:id
+ */
+export const getUserById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const user = await prisma.registered_user.findUnique({
+      where: { user_id: id },
+      select: {
+        user_id: true,
+        username: true,
+        name: true,
+        surname: true,
+        // Seleccionamos datos del perfil de cliente si existen
+        client: {
+          select: {
+            profile_picture: true,
+            description: true,
+            points: true,
+            streak: true,
+          },
+        },
+        // Incluimos tablas de roles para determinar el tipo de usuario
+        admin: true,
+        institution: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    // Determinar el rol (lógica similar a getUserProfile)
+    let role = 'client';
+    if (user.admin) role = 'admin';
+    if (user.institution) role = 'institution';
+
+    // Construir respuesta con datos públicos
+    const userData = {
+      uid: user.user_id,
+      username: user.username,
+      name: user.name,
+      surname: user.surname,
+      profile_picture: user.client?.profile_picture || null,
+      description: user.client?.description || null,
+      points: user.client?.points || 0,
+      streak: user.client?.streak || 0,
+      role,
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: 'Información de usuario obtenida correctamente.',
+      data: userData,
+    });
+  } catch (error) {
+    console.error('Error en getUserById:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al obtener el usuario.',
+      code: 'GET_USER_ERROR',
+    });
+  }
+};
+
+/**
+ * Obtiene los IDs de TODOS los usuarios registrados.
+ */
+export const getAllUserIds = async (req, res) => {
+  try {
+    const users = await prisma.registered_user.findMany({
+      select: { user_id: true },
+    });
+    // Mapeamos para devolver un array simple de strings: ["id1", "id2", ...]
+    const ids = users.map((u) => u.user_id);
+    return res.status(200).json({ success: true, count: ids.length, ids });
+  } catch (error) {
+    console.error('Error getting all user IDs:', error);
+    return res.status(500).json({ success: false, message: 'Error al obtener IDs de usuarios' });
+  }
+};
+
+/**
+ * Obtiene los IDs solo de los CLIENTES.
+ */
+export const getAllClientIds = async (req, res) => {
+  try {
+    const clients = await prisma.client.findMany({
+      select: { user_id: true },
+    });
+    const ids = clients.map((c) => c.user_id);
+    return res.status(200).json({ success: true, count: ids.length, ids });
+  } catch (error) {
+    console.error('Error getting client IDs:', error);
+    return res.status(500).json({ success: false, message: 'Error al obtener IDs de clientes' });
+  }
+};
+
+/**
+ * Obtiene los IDs solo de las INSTITUCIONES.
+ */
+export const getAllInstitutionIds = async (req, res) => {
+  try {
+    const institutions = await prisma.institution.findMany({
+      select: { user_id: true },
+    });
+    const ids = institutions.map((i) => i.user_id);
+    return res.status(200).json({ success: true, count: ids.length, ids });
+  } catch (error) {
+    console.error('Error getting institution IDs:', error);
+    return res.status(500).json({ success: false, message: 'Error al obtener IDs de instituciones' });
+  }
+};
+
+/**
+ * Obtiene los IDs solo de los ADMINISTRADORES.
+ */
+export const getAllAdminIds = async (req, res) => {
+  try {
+    const admins = await prisma.admin.findMany({
+      select: { user_id: true },
+    });
+    const ids = admins.map((a) => a.user_id);
+    return res.status(200).json({ success: true, count: ids.length, ids });
+  } catch (error) {
+    console.error('Error getting admin IDs:', error);
+    return res.status(500).json({ success: false, message: 'Error al obtener IDs de administradores' });
+  }
+};
+
+/**
+ * Obtiene el tipo de usuario (rol) por su ID.
+ * Endpoint: GET /api/users/:id/type
+ */
+export const getUserTypeById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const user = await prisma.registered_user.findUnique({
+      where: { user_id: id },
+      select: {
+        client: { select: { user_id: true } },
+        institution: { select: { user_id: true } },
+        admin: { select: { user_id: true } },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    let role = 'unknown';
+    if (user.admin) role = 'admin';
+    else if (user.institution) role = 'institution';
+    else if (user.client) role = 'client';
+
+    return res.status(200).json({
+      success: true,
+      message: 'Tipo de usuario obtenido correctamente.',
+      role: role, // "client", "institution", "admin"
+    });
+  } catch (error) {
+    console.error('Error al obtener el tipo de usuario:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor.',
+      code: 'SERVER_ERROR',
+    });
+  }
+};
+
+/**
+ * Obtiene datos públicos de un usuario.
+ * Excluye: email, dni, telefono, dirección, fecha nacimiento.
+ * Endpoint: GET /api/users/:id/public
+ */
+export const getUserPublicData = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const user = await prisma.registered_user.findUnique({
+      where: { user_id: id },
+      select: {
+        // Solo seleccionamos campos NO sensibles
+        user_id: true,
+        username: true,
+        name: true,
+        surname: true,
+        app_language: true,
+        // Datos públicos del cliente
+        client: {
+          select: {
+            profile_picture: true,
+            description: true,
+            points: true,
+            streak: true,
+          },
+        },
+        // Solo verificamos existencia para el rol, no sacamos datos internos
+        admin: { select: { user_id: true } },
+        institution: { select: { user_id: true } },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    // Determinar rol
+    let role = 'client';
+    if (user.admin) role = 'admin';
+    else if (user.institution) role = 'institution';
+
+    // Construir objeto de respuesta limpia
+    const publicData = {
+      uid: user.user_id,
+      username: user.username,
+      name: user.name,
+      surname: user.surname,
+      role: role,
+      profile_picture: user.client?.profile_picture || null,
+      description: user.client?.description || null,
+      points: user.client?.points || 0,
+      streak: user.client?.streak || 0,
+      app_language: user.app_language,
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: 'Datos públicos obtenidos correctamente.',
+      data: publicData,
+    });
+  } catch (error) {
+    console.error('[getUserPublicData] Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al obtener datos públicos.',
+      code: 'SERVER_ERROR',
+    });
+  }
+};
+
+/**
+ * Obtiene solo datos confidenciales un usuario.
+ * Devuelve exclusivamente: email, dni, telefono, dirección, fecha nacimiento.
+ * Endpoint: GET /api/users/:id/private
+ */
+export const getUserPrivateData = async (req, res) => {
+  const { id } = req.params;
+
+  // Verificación de seguridad recomendada:
+  // Solo permitir si el usuario es Admin o si es el mismo usuario que consulta sus datos.
+  if (req.user.uid !== id) {
+    // Aquí podrías añadir lógica para verificar si req.user.uid es admin si deseas permitir admins
+    return res.status(403).json({
+      success: false,
+      message: 'No tienes permiso para ver los datos confidenciales de este usuario.',
+      code: 'FORBIDDEN_ACCESS',
+    });
+  }
+
+  try {
+    const user = await prisma.registered_user.findUnique({
+      where: { user_id: id },
+      select: {
+        email: true,
+        dni: true,
+        client: {
+          select: {
+            phone: true,
+            address: true,
+            birth_date: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    // Construir respuesta solo con datos sensibles
+    const sensitiveData = {
+      email: user.email,
+      dni: user.dni,
+      phone: user.client?.phone || null,
+      address: user.client?.address || null,
+      birth_date: user.client?.birth_date ? user.client.birth_date.toISOString().split('T')[0] : null,
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: 'Datos confidenciales obtenidos correctamente.',
+      data: sensitiveData,
+    });
+  } catch (error) {
+    console.error('[getUserPrivateData] Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al obtener datos privados.',
+      code: 'SERVER_ERROR',
+    });
+  }
+};
