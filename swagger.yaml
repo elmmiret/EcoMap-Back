@@ -118,6 +118,83 @@ components:
           type: string
           description: Código de error interno (ej. USER_NOT_FOUND)
 
+    PublicationMedia:
+      type: object
+      properties:
+        media_id:
+          type: string
+          format: uuid
+        media_url:
+          type: string
+        publication_id:
+          type: string
+          format: uuid
+
+    TradeDetails:
+      type: object
+      properties:
+        trade_id:
+          type: string
+          format: uuid
+        publication_id:
+          type: string
+          format: uuid
+        item_state:
+          type: string
+          enum: [New, Little_used, Widely_used, Bad_condition]
+        points_price:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    RewardDetails:
+      type: object
+      properties:
+        publication_id:
+          type: string
+          format: uuid
+        content:
+          type: string
+        points_price:
+          type: integer
+        available:
+          type: boolean
+
+    Publication:
+      type: object
+      properties:
+        publication_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        date:
+          type: string
+          format: date-time
+        publication_state:
+          type: string
+          enum: [Pending, Completed, Cancelled]
+        client_id:
+          type: string
+          nullable: true
+        institution_id:
+          type: string
+          nullable: true
+        trade:
+          $ref: '#/components/schemas/TradeDetails'
+          nullable: true
+        reward:
+          $ref: '#/components/schemas/RewardDetails'
+          nullable: true
+        publication_media:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicationMedia'
+
 paths:
   # --- Health Check ---
   /:
@@ -456,3 +533,428 @@ paths:
                         type: array
                         items:
                           type: object
+
+  # --- Publicaciones (Rewards) ---
+  /api/publications/rewards:
+    post:
+      summary: Crear nueva recompensa (Solo Instituciones)
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                content:
+                  type: string
+                pointsPrice:
+                  type: integer
+                mediaUrl:
+                  type: string
+      responses:
+        '201':
+          description: Recompensa creada.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Publication'
+    get:
+      summary: Obtener todas las recompensas
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de recompensas.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Publication'
+
+  /api/publications/rewards/institution/{institutionId}:
+    get:
+      summary: Obtener recompensas de una institución
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: institutionId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de recompensas de la institución.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Publication'
+
+  /api/publications/rewards/{id}/availability:
+    patch:
+      summary: Actualizar disponibilidad de recompensa
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                available:
+                  type: boolean
+      responses:
+        '200':
+          description: Disponibilidad actualizada.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Publication'
+
+  # --- Publicaciones (Trades) ---
+  /api/publications/trades:
+    post:
+      summary: Crear nuevo intercambio (Solo Clientes)
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                itemState:
+                  type: string
+                  enum: [New, Little_used, Widely_used, Bad_condition]
+                pointsPrice:
+                  type: integer
+                mediaUrl:
+                  type: string
+      responses:
+        '201':
+          description: Intercambio creado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Publication'
+    get:
+      summary: Obtener todos los intercambios activos
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de intercambios.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Publication'
+
+  /api/publications/trades/status/completed:
+    get:
+      summary: Obtener intercambios completados
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de intercambios completados.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Publication'
+
+  /api/publications/trades/status/cancelled:
+    get:
+      summary: Obtener intercambios cancelados
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de intercambios cancelados.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Publication'
+
+  /api/publications/trades/status/pending:
+    get:
+      summary: Obtener intercambios pendientes
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de intercambios pendientes.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Publication'
+
+  /api/publications/trades/user/{userId}:
+    get:
+      summary: Obtener intercambios de un usuario
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de intercambios del usuario.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Publication'
+
+  /api/publications/trades/user/{userId}/completed:
+    get:
+      summary: Obtener intercambios completados de un usuario
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de intercambios completados del usuario.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Publication'
+
+  /api/publications/trades/user/{userId}/cancelled:
+    get:
+      summary: Obtener intercambios cancelados de un usuario
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de intercambios cancelados del usuario.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Publication'
+
+  /api/publications/trades/user/{userId}/pending:
+    get:
+      summary: Obtener intercambios pendientes de un usuario
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de intercambios pendientes del usuario.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Publication'
+
+  /api/publications/trades/{id}/state:
+    patch:
+      summary: Actualizar estado de un intercambio
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                state:
+                  type: string
+                  enum: [Completed, Cancelled, Pending]
+      responses:
+        '200':
+          description: Estado actualizado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Publication'
+
+  /api/publications/trades/{id}:
+    get:
+      summary: Obtener detalle de un intercambio
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detalle del intercambio.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Publication'
+
+  /api/publications/{id}:
+    delete:
+      summary: Eliminar publicación (Trade o Reward)
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Publicación eliminada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
