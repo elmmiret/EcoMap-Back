@@ -467,9 +467,9 @@ export const getTradeById = async (req, res) => {
 export const getAllCompletedTrades = async (req, res) => {
   try {
     const publications = await prisma.publication.findMany({
-      where: { 
+      where: {
         publication_state: 'Completed',
-        trade: { isNot: null }
+        trade: { isNot: null },
       },
       include: {
         trade: true,
@@ -495,9 +495,9 @@ export const getAllCompletedTrades = async (req, res) => {
 export const getAllCancelledTrades = async (req, res) => {
   try {
     const publications = await prisma.publication.findMany({
-      where: { 
+      where: {
         publication_state: 'Cancelled',
-        trade: { isNot: null }
+        trade: { isNot: null },
       },
       include: {
         trade: true,
@@ -523,9 +523,9 @@ export const getAllCancelledTrades = async (req, res) => {
 export const getAllPendingTrades = async (req, res) => {
   try {
     const publications = await prisma.publication.findMany({
-      where: { 
+      where: {
         publication_state: 'Pending',
-        trade: { isNot: null }
+        trade: { isNot: null },
       },
       include: {
         trade: true,
@@ -558,7 +558,7 @@ export const getUserCompletedTrades = async (req, res) => {
       where: {
         client_id: userId,
         publication_state: 'Completed',
-        trade: { isNot: null } // Importante: filtro de trade
+        trade: { isNot: null }, // Importante: filtro de trade
       },
       include: {
         trade: true,
@@ -589,7 +589,7 @@ export const getUserCancelledTrades = async (req, res) => {
       where: {
         client_id: userId,
         publication_state: 'Cancelled',
-        trade: { isNot: null }
+        trade: { isNot: null },
       },
       include: {
         trade: true,
@@ -620,7 +620,7 @@ export const getUserPendingTrades = async (req, res) => {
       where: {
         client_id: userId,
         publication_state: 'Pending',
-        trade: { isNot: null }
+        trade: { isNot: null },
       },
       include: {
         trade: true,

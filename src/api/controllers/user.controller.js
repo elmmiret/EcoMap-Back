@@ -954,7 +954,6 @@ export const getUserTypeById = async (req, res) => {
       message: 'Tipo de usuario obtenido correctamente.',
       role: role, // "client", "institution", "admin"
     });
-
   } catch (error) {
     console.error('Error al obtener el tipo de usuario:', error);
     return res.status(500).json({

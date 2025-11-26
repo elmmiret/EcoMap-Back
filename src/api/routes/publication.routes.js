@@ -50,7 +50,6 @@ router.get('/rewards/institution/:institutionId', authenticateBackendJWT, getIns
  */
 router.patch('/rewards/:id/availability', authenticateBackendJWT, updateRewardAvailability);
 
-
 // ==========================================
 //                  TRADES
 // ==========================================
@@ -88,7 +87,6 @@ router.get('/trades/status/cancelled', authenticateBackendJWT, getAllCancelledTr
  */
 router.get('/trades/status/pending', authenticateBackendJWT, getAllPendingTrades);
 
-
 // --- Filtros por Usuario (User Trades) ---
 
 /**
@@ -116,7 +114,6 @@ router.get('/trades/user/:userId/cancelled', authenticateBackendJWT, getUserCanc
  */
 router.get('/trades/user/:userId/pending', authenticateBackendJWT, getUserPendingTrades);
 
-
 // --- Gestión Individual de Trades ---
 
 /**
@@ -130,7 +127,6 @@ router.patch('/trades/:id/state', authenticateBackendJWT, updateTradeState);
  * @description Obtiene el detalle de un Trade por su ID.
  */
 router.get('/trades/:id', authenticateBackendJWT, getTradeById);
-
 
 // ==========================================
 //                 GENÉRICOS
