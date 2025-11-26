@@ -17,6 +17,8 @@ import {
   getAllAdminIds,
   getUserById,
   getUserTypeById,
+  getUserPublicData,
+  getUserPrivateData,
 } from '#controllers/user.controller.js';
 
 /**
@@ -32,6 +34,20 @@ router.post('/sync', authenticateUser, syncUserToPostgres);
  * @access Protegido (requiere autenticación con JWT del backend)
  */
 router.get('/me', authenticateBackendJWT, getUserProfile);
+
+/**
+ * @route GET /api/users/:userId/public
+ * @description Obtiene datos públicos de un usuario específico.
+ * @access Protegido (requiere autenticación con JWT del backend)
+ */
+router.get('/:id/public', authenticateBackendJWT, getUserPublicData);
+
+/**
+ * @route GET /api/users/:userId/private
+ * @description Obtiene datos privados de un usuario específico.
+ * @access Protegido (requiere autenticación con JWT del backend)
+ */
+router.get('/:id/private', authenticateBackendJWT, getUserPrivateData);
 
 /**
  * @route PUT /api/users/me

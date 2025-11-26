@@ -963,3 +963,145 @@ export const getUserTypeById = async (req, res) => {
     });
   }
 };
+
+/**
+ * Obtiene datos públicos de un usuario.
+ * Excluye: email, dni, telefono, dirección, fecha nacimiento.
+ * Endpoint: GET /api/users/:id/public
+ */
+export const getUserPublicData = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const user = await prisma.registered_user.findUnique({
+      where: { user_id: id },
+      select: {
+        // Solo seleccionamos campos NO sensibles
+        user_id: true,
+        username: true,
+        name: true,
+        surname: true,
+        app_language: true,
+        // Datos públicos del cliente
+        client: {
+          select: {
+            profile_picture: true,
+            description: true,
+            points: true,
+            streak: true,
+          },
+        },
+        // Solo verificamos existencia para el rol, no sacamos datos internos
+        admin: { select: { user_id: true } },
+        institution: { select: { user_id: true } },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    // Determinar rol
+    let role = 'client';
+    if (user.admin) role = 'admin';
+    else if (user.institution) role = 'institution';
+
+    // Construir objeto de respuesta limpia
+    const publicData = {
+      uid: user.user_id,
+      username: user.username,
+      name: user.name,
+      surname: user.surname,
+      role: role,
+      profile_picture: user.client?.profile_picture || null,
+      description: user.client?.description || null,
+      points: user.client?.points || 0,
+      streak: user.client?.streak || 0,
+      app_language: user.app_language,
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: 'Datos públicos obtenidos correctamente.',
+      data: publicData,
+    });
+  } catch (error) {
+    console.error('[getUserPublicData] Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al obtener datos públicos.',
+      code: 'SERVER_ERROR',
+    });
+  }
+};
+
+/**
+ * Obtiene solo datos confidenciales un usuario.
+ * Devuelve exclusivamente: email, dni, telefono, dirección, fecha nacimiento.
+ * Endpoint: GET /api/users/:id/private
+ */
+export const getUserPrivateData = async (req, res) => {
+  const { id } = req.params;
+
+  // Verificación de seguridad recomendada:
+  // Solo permitir si el usuario es Admin o si es el mismo usuario que consulta sus datos.
+  if (req.user.uid !== id) {
+     // Aquí podrías añadir lógica para verificar si req.user.uid es admin si deseas permitir admins
+     return res.status(403).json({
+       success: false,
+       message: 'No tienes permiso para ver los datos confidenciales de este usuario.',
+       code: 'FORBIDDEN_ACCESS',
+     });
+  }
+
+  try {
+    const user = await prisma.registered_user.findUnique({
+      where: { user_id: id },
+      select: {
+        email: true,
+        dni: true,  
+        client: {
+          select: {
+            phone: true,     
+            address: true,   
+            birth_date: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    // Construir respuesta solo con datos sensibles
+    const sensitiveData = {
+      email: user.email,
+      dni: user.dni,
+      phone: user.client?.phone || null,
+      address: user.client?.address || null,
+      birth_date: user.client?.birth_date ? user.client.birth_date.toISOString().split('T')[0] : null,
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: 'Datos confidenciales obtenidos correctamente.',
+      data: sensitiveData,
+    });
+  } catch (error) {
+    console.error('[getUserPrivateData] Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al obtener datos privados.',
+      code: 'SERVER_ERROR',
+    });
+  }
+};
