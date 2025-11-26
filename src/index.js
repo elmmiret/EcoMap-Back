@@ -7,6 +7,14 @@ import routeRoutes from './api/routes/route.routes.js';
 import publicationRoutes from './api/routes/publication.routes.js';
 import dotenv from 'dotenv';
 import { createLogger } from '#lib/logger.js';
+import swaggerUi from 'swagger-ui-express';
+import yaml from 'yamljs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const swaggerDocument = yaml.load(path.join(__dirname, '../swagger.yaml'));
 
 const log = createLogger('startup');
 
@@ -23,7 +31,10 @@ initializeFirebaseAdmin();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// montar las rutas de autentificación bajo el prefijo /api/
+// ruta para la documentación de la API
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
+// montar las rutas de autentificación bajo el prefijo /api/users
 app.use('/api/users', authRoutes);
 app.use('/api/recycling-points', recyclingPoints);
 app.use('/api/routes', routeRoutes);

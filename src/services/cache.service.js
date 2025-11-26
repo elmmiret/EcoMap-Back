@@ -4,6 +4,7 @@
 import { prisma } from '#lib/prisma.js';
 import { RECYCLING_SOURCES } from '#config/recycling-sources.config.js';
 import { createLogger } from '#lib/logger.js';
+import { filterByScheduleInMemory, getTimetablesForDay } from '#services/schedule-check.service.js';
 
 const log = createLogger('cache');
 
@@ -115,7 +116,7 @@ async function triggerBackgroundRefresh({ source, refreshFn }) {
 // - source: cache source key (e.g. 'NAVARRA_POINTS', 'BARCELONA_POINTS')
 // - apiLocation: api_location value in DB (e.g. 'Navarra', 'Barcelona')
 // - onRefresh: async function to perform the sync (required to refresh)
-// - filters: object with extra where clauses (e.g. { api_id: 123, name: { contains: '...' } })
+// - filters: object with all filter options (DB filters like name/equipment_type + schedule filters like isOpenNow/openAt)
 // Returns: { data, metadata, isStale, coldStart }
 export async function getCachedPoints({ source, apiLocation, onRefresh, filters = {} } = {}) {
   if (!source || !apiLocation) {
@@ -126,13 +127,40 @@ export async function getCachedPoints({ source, apiLocation, onRefresh, filters 
   const meta = await ensureMetadata(source);
   const stale = isStale(meta.last_sync, source);
 
+  // --- SEPARAR FILTROS DE DB vs FILTROS POST-PROCESAMIENTO ---
+  // Extraemos los filtros de horario (memoria), wasteType (relación), name (memoria) y proximidad (bounding box + Haversine)
+  const { isOpenNow, openAt, wasteType, name, lat, lng, radius, ...dbFilters } = filters;
+
   // --- CONSTRUCCIÓN DINÁMICA DEL WHERE ---
-  // Combina la ubicación, el estado activo y los filtros que vienen del controlador
+  // Combina la ubicación, el estado activo y los filtros de DB
   const whereClause = {
     api_location: apiLocation,
     active: true,
-    ...filters,
+    ...dbFilters,
   };
+
+  // Si hay filtro por tipo de residuo, agregar filtro de relación container
+  if (wasteType) {
+    whereClause.container = {
+      some: {
+        type: wasteType, // Filtra puntos que tienen al menos un contenedor de este tipo
+      },
+    };
+  }
+
+  // Si hay filtro de proximidad, aplicar bounding box para optimizar query
+  if (lat !== undefined && lng !== undefined && radius !== undefined) {
+    const latDelta = radius / 111.32; // 1 grado lat ≈ 111.32 km
+    const lngDelta = radius / (111.32 * Math.cos((lat * Math.PI) / 180)); // ajustado por latitud
+    whereClause.latitude = {
+      gte: lat - latDelta,
+      lte: lat + latDelta,
+    };
+    whereClause.longitude = {
+      gte: lng - lngDelta,
+      lte: lng + lngDelta,
+    };
+  }
 
   // 2) Load cached data from DB
   if (!prisma?.recycling_point) {
@@ -147,12 +175,95 @@ export async function getCachedPoints({ source, apiLocation, onRefresh, filters 
       latitude: true,
       longitude: true,
       equipment_type: true,
-      schedule: true,
       last_updated: true,
+      container: {
+        select: {
+          container_id: true,
+          type: true,
+          is_full: true,
+          is_damaged: true,
+        },
+      },
       // raw_payload could be large; omit by default for list views.
     },
     orderBy: { api_id: 'asc' },
   });
+
+  // --- APLICAR FILTRO DE PROXIMIDAD (Haversine exacto) ---
+  let filteredPoints = points;
+  if (lat !== undefined && lng !== undefined && radius !== undefined) {
+    const R = 6371; // Radio de la Tierra en km
+    filteredPoints = filteredPoints
+      .map((p) => {
+        if (!p.latitude || !p.longitude) return null;
+        const dLat = ((p.latitude - lat) * Math.PI) / 180;
+        const dLng = ((p.longitude - lng) * Math.PI) / 180;
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat * Math.PI) / 180) * Math.cos((p.latitude * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distance = R * c;
+        return distance <= radius ? { ...p, distance_km: Math.round(distance * 100) / 100 } : null;
+      })
+      .filter((p) => p !== null)
+      .sort((a, b) => a.distance_km - b.distance_km); // ordenar por distancia
+    log.debug('Applied proximity filter (Haversine)', {
+      lat,
+      lng,
+      radius,
+      before: points.length,
+      after: filteredPoints.length,
+    });
+  }
+
+  // --- ENRIQUECER CON HORARIOS DEL DÍA ---
+  // Determinar qué día usar: openAt si está presente, o día actual
+  const targetDate = openAt ? new Date(openAt) : new Date();
+  const pointIds = filteredPoints.map((p) => p.recycling_point_id).filter(Boolean);
+  const timetablesMap = await getTimetablesForDay(pointIds, targetDate);
+
+  // Añadir campo timetable a cada punto
+  filteredPoints = filteredPoints.map((p) => ({
+    ...p,
+    timetable: timetablesMap.get(p.recycling_point_id) || [],
+  }));
+  log.debug('Enriched points with timetable data', {
+    targetDay: targetDate.toDateString(),
+    pointsWithTimetable: Array.from(timetablesMap.keys()).length,
+  });
+
+  // --- APLICAR FILTRO DE NOMBRE (accent-insensitive) ---
+  if (name) {
+    const normSearch = name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    filteredPoints = filteredPoints.filter((p) => {
+      if (!p.name) return false;
+      const normName = p.name
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+      return normName.includes(normSearch);
+    });
+    log.debug('Applied name (accent-insensitive) filter', { search: name, before: points.length, after: filteredPoints.length });
+  }
+
+  // --- APLICAR FILTROS DE HORARIO (POST-PRISMA) ---
+  // Los filtros de schedule se aplican en memoria porque el horario está normalizado en tablas auxiliares
+  // IMPORTANTE: Usar filterByScheduleInMemory porque ya tenemos el campo timetable enriquecido
+  if (isOpenNow) {
+    // Filter points that are open right now
+    filteredPoints = filterByScheduleInMemory(filteredPoints, new Date());
+    log.debug('Applied isOpenNow filter', { before: points.length, after: filteredPoints.length });
+  } else if (openAt) {
+    // Filter points that are open at a specific datetime
+    const targetDate = new Date(openAt);
+    if (!isNaN(targetDate.getTime())) {
+      filteredPoints = filterByScheduleInMemory(filteredPoints, targetDate);
+      log.debug('Applied openAt filter', { openAt, before: points.length, after: filteredPoints.length });
+    } else {
+      log.warn('Invalid openAt date provided', { openAt });
+    }
+  }
 
   // Nota: coldStart ahora depende de si NUNCA se ha sincronizado.
   // Si hay filtros, points.length puede ser 0 aunque haya datos en cache.
@@ -199,14 +310,41 @@ export async function getCachedPoints({ source, apiLocation, onRefresh, filters 
             latitude: true,
             longitude: true,
             equipment_type: true,
-            schedule: true,
             last_updated: true,
+            container: {
+              select: {
+                container_id: true,
+                type: true,
+                is_full: true,
+                is_damaged: true,
+              },
+            },
           },
           orderBy: { api_id: 'asc' },
         });
 
+        // Enriquecer con horarios del día
+        const targetDateRefresh = openAt ? new Date(openAt) : new Date();
+        const refreshedIds = refreshed.map((p) => p.recycling_point_id).filter(Boolean);
+        const timetablesMapRefresh = await getTimetablesForDay(refreshedIds, targetDateRefresh);
+        let filteredRefreshed = refreshed.map((p) => ({
+          ...p,
+          timetable: timetablesMapRefresh.get(p.recycling_point_id) || [],
+        }));
+
+        // Aplicar filtros de horario también después del refresh
+        // IMPORTANTE: Usar filterByScheduleInMemory porque ya enriquecimos con timetable
+        if (isOpenNow) {
+          filteredRefreshed = filterByScheduleInMemory(filteredRefreshed, new Date());
+        } else if (openAt) {
+          const targetDate = new Date(openAt);
+          if (!isNaN(targetDate.getTime())) {
+            filteredRefreshed = filterByScheduleInMemory(filteredRefreshed, targetDate);
+          }
+        }
+
         return {
-          data: refreshed,
+          data: filteredRefreshed,
           metadata: { ...(await ensureMetadata(source)), is_stale: false },
           isStale: false,
           coldStart: false,
@@ -235,7 +373,7 @@ export async function getCachedPoints({ source, apiLocation, onRefresh, filters 
 
   // Serve cached data immediately (even if stale), SWR will refresh in background
   return {
-    data: points,
+    data: filteredPoints,
     metadata: { ...meta, is_stale: stale },
     isStale: stale,
     coldStart: false,

@@ -85,10 +85,9 @@ model recycling_point {
   api_id             Int
   api_location       api_location
   name               String
-  latitude           Decimal     @db.Decimal(9, 6)
-  longitude          Decimal     @db.Decimal(9, 6)
-  equipment_type     equipment_type      // "TipoEquipamiento"
-  schedule           String?      // "Horario"
+  latitude           Decimal        @db.Decimal(9, 6)
+  longitude          Decimal        @db.Decimal(9, 6)
+  equipment_type     equipment_type
   last_updated       DateTime?
   raw_payload        Json?
   active             Boolean      @default(true)
@@ -111,6 +110,8 @@ model time_interval {
   open_time           DateTime              @db.Time(6)
   end_time            DateTime              @db.Time(6)
   timetable_intervals timetable_intervals[]
+
+  @@unique([open_time, end_time])
 }
 
 model timetable {
@@ -119,6 +120,8 @@ model timetable {
   recycling_point_id  String                @db.Uuid
   recycling_point     recycling_point       @relation(fields: [recycling_point_id], references: [recycling_point_id], onDelete: Cascade, onUpdate: NoAction)
   timetable_intervals timetable_intervals[]
+
+  @@unique([recycling_point_id, week_day], map: "timetable_recycling_point_id_week_day_key")
 }
 
 model timetable_intervals {
@@ -219,6 +222,20 @@ enum api_location {
   Navarra
 }
 
+enum equipment_type {
+  Recycling_center               @map("Recycling Center")
+  Batteries
+  Medicines_and_packaging        @map("Medicines and Packaging")
+  Garden_waste                   @map("Garden Waste")
+  Clothing_and_footwear          @map("Clothing and Footwear")
+  Bulky_waste                    @map("Bulky Waste")
+  Glass_containers               @map("Glass Containers")
+  Coffee_capsules                @map("Coffee Capsules")
+  Used_cooking_oil               @map("Used Cooking Oil")
+  Household_construction_waste   @map("Household Construction Waste")
+  Community_composting           @map("Community Composting")
+}
+
 enum product_type {
   Glass
   Paper
@@ -230,20 +247,6 @@ enum product_type {
   Batteries
   Oil
   Hazardous
-}
-
-enum equipment_type {
-  Recycling_center              @map("Recycling Center")
-  Batteries
-  Medicines_and_packaging       @map("Medicines and Packaging")
-  Garden_Waste                  @map("Garden Waste")
-  Clothing_and_footwear         @map("Clothing and Footwear")
-  Bulky_waste                   @map("Bulky Waste")
-  Glass_containers              @map("Glass Containers")
-  Coffee_capsules               @map("Coffee Capsules")
-  Used_cooking_oil              @map("Used Cooking Oil")
-  Household_construction_waste  @map("Household Construction Waste")
-  Community_composting          @map("Community Composting")
 }
 
 enum week_day {

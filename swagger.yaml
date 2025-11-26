@@ -1,0 +1,458 @@
+openapi: 3.0.0
+info:
+  title: PESkaos API
+  description: API para la aplicación EcoMap.
+  version: 1.0.0
+  contact:
+    name: Equipo Backend PESkaos
+servers:
+  - url: http://localhost:3001
+    description: Servidor de desarrollo local
+  - url: https://tu-url-produccion.railway.app
+    description: Servidor de producción (Railway)
+
+components:
+  securitySchemes:
+    firebaseAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token de identidad obtenido directamente de Firebase (usar solo en /sync).
+    backendAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token JWT generado por este backend tras la sincronización.
+
+  schemas:
+    # Basado en el modelo 'registered_user' y 'client' de Prisma
+    UserProfile:
+      type: object
+      properties:
+        uid:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        surname:
+          type: string
+        username:
+          type: string
+        dni:
+          type: string
+        profile_picture:
+          type: string
+          nullable: true
+        app_language:
+          type: string
+          enum: [ca, es, en]
+        address:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        birth_date:
+          type: string
+          format: date
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [client, admin, institution]
+        points:
+          type: integer
+        streak:
+          type: integer
+
+    # Basado en el modelo 'recycling_point' de Prisma
+    RecyclingPoint:
+      type: object
+      properties:
+        recycling_point_id:
+          type: string
+          format: uuid
+        api_id:
+          type: integer
+        api_location:
+          type: string
+          enum: [Navarra, Barcelona]
+        name:
+          type: string
+        latitude:
+          type: number
+          format: float
+        longitude:
+          type: number
+          format: float
+        equipment_type:
+          type: string
+          description: Mapeado desde el enum equipment_type de la BD
+        distance_km:
+          type: number
+          description: Distancia en KM desde el punto de búsqueda. **Solo presente** si se aplica el filtro de proximidad (lat+lng+radius).
+        timetable:
+          type: array
+          items:
+            type: object
+            properties:
+              open_time:
+                type: string
+              end_time:
+                type: string
+
+    # Respuesta estándar de la API
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        code:
+          type: string
+          description: Código de error interno (ej. USER_NOT_FOUND)
+
+paths:
+  # --- Health Check ---
+  /:
+    get:
+      summary: Verificar estado del servidor
+      tags: [General]
+      responses:
+        '200':
+          description: API running
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: API running.
+
+  # --- Usuarios ---
+  /api/users/sync:
+    post:
+      summary: Sincronizar usuario / Login / Registro
+      description: Intercambia un token de Firebase por un JWT del Backend y crea el usuario si no existe.
+      tags: [Usuarios]
+      security:
+        - firebaseAuth: []
+      requestBody:
+        description: Datos opcionales para registro manual.
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                username:
+                  type: string
+      responses:
+        '200':
+          description: Login correcto o usuario creado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      jwt:
+                        type: string
+                        description: JWT del Backend para futuras peticiones.
+                      expiryDate:
+                        type: string
+                        format: date-time
+
+  /api/users/me:
+    get:
+      summary: Obtener perfil del usuario actual
+      tags: [Usuarios]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Perfil obtenido correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserProfile'
+    put:
+      summary: Actualizar perfil del usuario
+      tags: [Usuarios]
+      security:
+        - backendAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                surname:
+                  type: string
+                username:
+                  type: string
+                address:
+                  type: string
+                phone:
+                  type: string
+                  example: '+34 612345678'
+                birth_date:
+                  type: string
+                  format: date
+                  example: '1990-01-01'
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Perfil actualizado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserProfile'
+    delete:
+      summary: Eliminar cuenta de usuario
+      description: Requiere autenticación reciente (< 5 min).
+      tags: [Usuarios]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Cuenta eliminada.
+
+  /api/users/logout:
+    post:
+      summary: Cerrar sesión
+      description: Invalida el JWT del backend en la base de datos.
+      tags: [Usuarios]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Sesión cerrada correctamente.
+
+  /api/users/language:
+    put:
+      summary: Cambiar idioma de la aplicación
+      tags: [Usuarios]
+      security:
+        - backendAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newLanguage:
+                  type: string
+                  enum: [ca, es, en]
+      responses:
+        '200':
+          description: Idioma actualizado.
+
+  # --- Puntos de Reciclaje ---
+  /api/recycling-points/{region}:
+    get:
+      summary: Obtener puntos de reciclaje por región
+      description: Soporta filtros por proximidad, tipo, horario, etc. Usa cache SWR.
+      tags: [Puntos de Reciclaje]
+      parameters:
+        - in: path
+          name: region
+          required: true
+          schema:
+            type: string
+            enum: [navarra, barcelona]
+        # Filtros extraídos de recycling-points.controller.js
+        - in: query
+          name: api_id
+          schema:
+            type: integer
+          description: Filtrar por ID original de la API externa.
+        - in: query
+          name: equipment_type
+          schema:
+            type: string
+            # Enum extraído de schema.prisma y equipment-type-mapper.js
+            enum:
+              [
+                Recycling_center,
+                Batteries,
+                Medicines_and_packaging,
+                Garden_waste,
+                Clothing_and_footwear,
+                Bulky_waste,
+                Glass_containers,
+                Coffee_capsules,
+                Used_cooking_oil,
+                Household_construction_waste,
+                Community_composting,
+              ]
+        - in: query
+          name: wasteType
+          schema:
+            type: string
+            enum: [Glass, Paper, Plastic, Organic, General_waste, Textile, Electronics, Batteries, Oil, Hazardous]
+          description: Filtra puntos que tengan contenedores de este tipo.
+        - in: query
+          name: name
+          schema:
+            type: string
+          description: Búsqueda parcial por nombre.
+
+        # --- FILTROS DE PROXIMIDAD (INTERDEPENDIENTES) ---
+        - in: query
+          name: lat
+          schema:
+            type: number
+            format: float
+          description: 'Latitud del centro de búsqueda. **Requerido para filtro de proximidad** (debe usarse junto con `lng` y `radius`). Si falta alguno de los tres, se ignora este filtro.'
+        - in: query
+          name: lng
+          schema:
+            type: number
+            format: float
+          description: 'Longitud del centro de búsqueda. **Requerido para filtro de proximidad** (debe usarse junto con `lat` y `radius`). Si falta alguno de los tres, se ignora este filtro.'
+        - in: query
+          name: radius
+          schema:
+            type: number
+            format: float
+          description: 'Radio en kilómetros. **Requerido para filtro de proximidad** (debe usarse junto con `lat` y `lng`). Si falta alguno de los tres, se ignora este filtro.'
+        # -----------------------------------------------
+
+        - in: query
+          name: isOpenNow
+          schema:
+            type: boolean
+          description: Filtrar solo puntos abiertos ahora mismo.
+        - in: query
+          name: openAt
+          schema:
+            type: string
+            format: date-time
+          description: Filtrar puntos abiertos en una fecha específica.
+      responses:
+        '200':
+          description: Lista de puntos de reciclaje.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  totalRegisters:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RecyclingPoint'
+
+  /api/recycling-points/{region}/status:
+    get:
+      summary: Estado del cache (Solo Admin)
+      tags: [Puntos de Reciclaje]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: region
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Metadata del cache.
+
+  /api/recycling-points/{region}/refresh:
+    post:
+      summary: Forzar sincronización (Solo Admin)
+      tags: [Puntos de Reciclaje]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: region
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sincronización completada.
+        '409':
+          description: Sincronización ya en progreso.
+
+  # --- Rutas ---
+  /api/routes:
+    get:
+      summary: Calcular ruta (OpenRouteService)
+      tags: [Rutas]
+      parameters:
+        - in: query
+          name: start
+          required: true
+          schema:
+            type: string
+            example: '41.3851,2.1734'
+          description: Latitud,Longitud de inicio.
+        - in: query
+          name: end
+          required: true
+          schema:
+            type: string
+            example: '41.4036,2.1744'
+          description: Latitud,Longitud de destino.
+        - in: query
+          name: profile
+          schema:
+            type: string
+            default: driving-car
+            enum: [driving-car, cycling-regular, foot-walking, wheelchair]
+      responses:
+        '200':
+          description: Datos de la ruta calculada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      distance:
+                        type: number
+                      duration:
+                        type: number
+                      geometry:
+                        type: array
+                        items:
+                          type: array # [lng, lat]
+                      steps:
+                        type: array
+                        items:
+                          type: object
