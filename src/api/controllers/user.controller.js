@@ -1050,12 +1050,12 @@ export const getUserPrivateData = async (req, res) => {
   // Verificación de seguridad recomendada:
   // Solo permitir si el usuario es Admin o si es el mismo usuario que consulta sus datos.
   if (req.user.uid !== id) {
-     // Aquí podrías añadir lógica para verificar si req.user.uid es admin si deseas permitir admins
-     return res.status(403).json({
-       success: false,
-       message: 'No tienes permiso para ver los datos confidenciales de este usuario.',
-       code: 'FORBIDDEN_ACCESS',
-     });
+    // Aquí podrías añadir lógica para verificar si req.user.uid es admin si deseas permitir admins
+    return res.status(403).json({
+      success: false,
+      message: 'No tienes permiso para ver los datos confidenciales de este usuario.',
+      code: 'FORBIDDEN_ACCESS',
+    });
   }
 
   try {
@@ -1063,11 +1063,11 @@ export const getUserPrivateData = async (req, res) => {
       where: { user_id: id },
       select: {
         email: true,
-        dni: true,  
+        dni: true,
         client: {
           select: {
-            phone: true,     
-            address: true,   
+            phone: true,
+            address: true,
             birth_date: true,
           },
         },
