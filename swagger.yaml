@@ -23,6 +23,11 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: Token JWT generado por este backend tras la sincronización.
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: Clave de API para servicios externos.
 
   schemas:
     # Basado en el modelo 'registered_user' y 'client' de Prisma
@@ -129,6 +134,54 @@ components:
         publication_id:
           type: string
           format: uuid
+
+    DetectionItem:
+      type: object
+      properties:
+        class:
+          type: integer
+        class_name:
+          type: string
+        confidence:
+          type: number
+          format: float
+        bbox:
+          type: array
+          items:
+            type: number
+            format: float
+
+    BikeDetectionResponse:
+      type: object
+      properties:
+        hasBike:
+          type: boolean
+        confidence:
+          type: number
+          format: float
+          nullable: true
+        count:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DetectionItem'
+
+    WasteDetectionResponse:
+      type: object
+      properties:
+        hasWaste:
+          type: boolean
+        confidence:
+          type: number
+          format: float
+          nullable: true
+        count:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DetectionItem'
 
     TradeDetails:
       type: object
@@ -476,7 +529,7 @@ paths:
           name: wasteType
           schema:
             type: string
-            enum: [Glass, Paper, Plastic, Organic, General_waste, Textile, Electronics, Batteries, Oil, Hazardous]
+            enum: [ElectricContainer, GlassContainer, OrganicContainer, PaperContainer, PlasticContainer, TextileContainer, Unrecyclable]
           description: Filtra puntos que tengan contenedores de este tipo.
         - in: query
           name: name
@@ -1478,3 +1531,62 @@ paths:
                         items:
                           type: object # Placeholder, Valoration schema not defined yet
 
+
+  # --- Detección De Imagenes ---
+  /api/bikes:
+    post:
+      summary: Detectar bicicletas en imagen
+      tags: [Detección De Imagenes]
+      security:
+        - apiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Resultado de la detección.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/BikeDetectionResponse'
+
+  /api/recycling:
+    post:
+      summary: Detectar basura en imagen
+      tags: [Detección De Imagenes]
+      security:
+        - apiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Resultado de la detección.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/WasteDetectionResponse'

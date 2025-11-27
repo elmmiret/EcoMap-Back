@@ -57,10 +57,12 @@ export async function detectBikeInImage(req, res) {
     // Responder al cliente
     res.status(200).json({
       success: true,
-      hasBike: result.hasBike,
-      confidence: result.confidence,
-      detections: result.detections.length,
-      details: result.detections,
+      data: {
+        hasBike: result.hasBike,
+        confidence: result.confidence,
+        count: result.detections.length,
+        items: result.detections,
+      }
     });
   } catch (error) {
     log.error('Error in bike detection endpoint /api/bikes', {

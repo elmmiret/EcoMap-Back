@@ -314,16 +314,13 @@ enum equipment_type {
 }
 
 enum product_type {
-  Glass
-  Paper
-  Plastic
-  Organic
-  General_waste @map("General waste")
-  Textile
-  Electronics
-  Batteries
-  Oil
-  Hazardous
+  ElectricContainer
+  GlassContainer
+  OrganicContainer
+  PaperContainer
+  PlasticContainer
+  TextileContainer
+  Unrecyclable
 }
 
 enum week_day {

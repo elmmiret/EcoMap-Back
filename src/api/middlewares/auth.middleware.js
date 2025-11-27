@@ -244,3 +244,31 @@ export const requireClient = (req, res, next) => {
   // Usuario es client, continuar
   next();
 };
+
+/**
+ * Middleware to verify API Key for external services
+ * Checks x-api-key header
+ */
+export const requireApiKey = (req, res, next) => {
+  const apiKey = req.headers['x-api-key'];
+  const validApiKey = process.env.AI_SERVICE_API_KEY;
+
+  if (!validApiKey) {
+    console.error('AI_SERVICE_API_KEY not configured in environment variables');
+    return res.status(500).json({
+      success: false,
+      message: 'Server configuration error',
+      code: 'CONFIG_ERROR',
+    });
+  }
+
+  if (!apiKey || apiKey !== validApiKey) {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid or missing API Key',
+      code: 'INVALID_API_KEY',
+    });
+  }
+
+  next();
+};
