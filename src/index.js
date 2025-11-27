@@ -12,8 +12,6 @@ import recyclingPoints from './api/routes/recycling-points.routes.js';
 import routeRoutes from './api/routes/route.routes.js';
 import publicationRoutes from './api/routes/publication.routes.js';
 import reservationRoutes from './api/routes/reservation.routes.js';
-import dotenv from 'dotenv';
-import { createLogger } from '#lib/logger.js';
 import chatRoutes from './api/routes/chat.routes.js';
 import notificationRoutes from './api/routes/notification.routes.js';
 import swaggerUi from 'swagger-ui-express';
