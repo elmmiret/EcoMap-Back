@@ -39,7 +39,7 @@ export const createReservation = async (req, res) => {
       return res.status(409).json({
         success: false,
         message: 'Este artículo ya no está disponible para reservas.',
-        code: 'ITEM_NOT_AVIABLE',
+        code: 'ITEM_NOT_AVAILABLE',
       });
     }
 
@@ -393,5 +393,119 @@ export const confirmReservation = async (req, res) => {
       message: 'Error interno al confirmar la reserva.',
       code: 'SERVER_ERROR',
     });
+  }
+};
+
+/**
+ * Obtiene todas las reservas finalizadas (reservation_ended).
+ * Incluye la info de la reserva original y el trade.
+ * Endpoint: GET /api/reservations/ended
+ */
+export const getAllEndedReservations = async (req, res) => {
+  try {
+    const endedReservations = await prisma.reservation_ended.findMany({
+      include: {
+        reservation: {
+          include: {
+            trade: {
+              include: { publication: true },
+            },
+            client: {
+              include: { registered_user: { select: { username: true, name: true } } },
+            },
+          },
+        },
+      },
+      orderBy: { ended_at: 'desc' },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Se encontraron ${endedReservations.length} reservas finalizadas.`,
+      data: endedReservations,
+    });
+  } catch (error) {
+    console.error('Error obteniendo reservas finalizadas:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.', code: 'SERVER_ERROR' });
+  }
+};
+
+/**
+ * Obtiene las reservas finalizadas de un usuario específico (las que él hizo).
+ * Endpoint: GET /api/reservations/ended/user/:userId
+ */
+export const getEndedReservationsByUserId = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const endedReservations = await prisma.reservation_ended.findMany({
+      where: {
+        reservation: {
+          client_id: userId, // se filtra por el usuario que hizo la reserva
+        },
+      },
+      include: {
+        reservation: {
+          include: {
+            trade: {
+              include: { publication: true },
+            },
+          },
+        },
+      },
+      orderBy: { ended_at: 'desc' },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `El usuario tiene ${endedReservations.length} reservas finalizadas.`,
+      data: endedReservations,
+    });
+  } catch (error) {
+    console.error(`Error obteniendo reservas finalizadas del usuario ${userId}:`, error);
+    return res.status(500).json({ success: false, message: 'Error interno.', code: 'SERVER_ERROR' });
+  }
+};
+
+/**
+ * Obtiene todas las valoraciones asociadas a una reserva finalizada.
+ * Endpoint: GET /api/reservations/ended/:reservationId/valorations
+ */
+export const getReservationValorations = async (req, res) => {
+  const { reservationId } = req.params;
+
+  try {
+    // Verificamos primero que la reserva finalizada exista
+    const endedReservation = await prisma.reservation_ended.findUnique({
+      where: { reservation_id: reservationId },
+    });
+
+    if (!endedReservation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Reserva finalizada no encontrada.',
+        code: 'RESERVATION_ENDED_NOT_FOUND',
+      });
+    }
+
+    // Buscamos las valoraciones
+    const valorations = await prisma.valoration.findMany({
+      where: { reservation_id: reservationId },
+      include: {
+        client: {
+          // Quién hizo la valoración
+          include: { registered_user: { select: { username: true } } },
+        },
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Se encontraron ${valorations.length} valoraciones para esta reserva.`,
+      data: valorations,
+    });
+  } catch (error) {
+    console.error(`Error obteniendo valoraciones de reserva ${reservationId}:`, error);
+    return res.status(500).json({ success: false, message: 'Error interno.', code: 'SERVER_ERROR' });
   }
 };

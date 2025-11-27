@@ -8,6 +8,9 @@ import {
   getReservationByUserIdAndId,
   deleteReservation,
   confirmReservation,
+  getAllEndedReservations,
+  getEndedReservationsByUserId,
+  getReservationValorations,
 } from '#controllers/reservation.controller.js';
 
 const router = express.Router();
@@ -30,7 +33,25 @@ router.patch('/:reservationId', authenticateBackendJWT, confirmReservation);
  * @route DELETE /api/reservations/:reservationId/delete
  * @description Cancela una reserva por su ID.
  */
-router.delete('/:reservationId/delete', authenticateBackendJWT, deleteReservation);
+router.delete('/:reservationId/cancel', authenticateBackendJWT, deleteReservation);
+
+/**
+ * @route GET /api/reservations/ended
+ * @description Obtiene TODAS las reservas finalizadas.
+ */
+router.get('/ended', authenticateBackendJWT, getAllEndedReservations);
+
+/**
+ * @route GET /api/reservations/ended/user/:userId
+ * @description Obtiene las reservas finalizadas de un usuario específico.
+ */
+router.get('/ended/user/:userId', authenticateBackendJWT, getEndedReservationsByUserId);
+
+/**
+ * @route GET /api/reservations/ended/:reservationId/valorations
+ * @description Obtiene las valoraciones de una reserva finalizada específica.
+ */
+router.get('/ended/:reservationId/valorations', authenticateBackendJWT, getReservationValorations);
 
 /**
  * @route GET /api/reservations
@@ -53,7 +74,6 @@ router.get('/user/:userId/:reservationId', authenticateBackendJWT, getReservatio
 /**
  * @route GET /api/reservations/:reservationId
  * @description Obtiene el detalle de cualquier reserva por su ID.
- * IMPORTANTE: Esta ruta debe ir AL FINAL para no capturar "/user/..." como si fuera un ID.
  */
 router.get('/:reservationId', authenticateBackendJWT, getReservationById);
 
