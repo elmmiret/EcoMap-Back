@@ -19,8 +19,8 @@ export const CACHE_SOURCES = Object.fromEntries(Object.values(RECYCLING_SOURCES)
 function getCachePolicy(source) {
   const config = Object.values(RECYCLING_SOURCES).find((cfg) => cfg.source === source);
   return {
-    ttl: config?.ttl || 90 * 60 * 1000, // default 1h30m
-    syncInterval: config?.syncInterval || 60 * 60 * 1000, // default 1h
+    ttl: config?.ttl || 25 * 60 * 60 * 1000, // default 25h
+    syncInterval: config?.syncInterval || 24 * 60 * 60 * 1000, // default 24h
   };
 }
 

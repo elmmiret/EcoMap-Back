@@ -11,26 +11,26 @@ import { syncBarcelonaPoints } from '#services/barcelona-sync.service.js';
  * - source: cache_metadata.source value (UPPERCASE_SNAKE_CASE)
  * - apiLocation: Prisma api_location enum value (PascalCase)
  * - syncFn: async function that syncs this zone's data
- * - cron: cron expression for background sync schedule
+ * - cron: cron expression for background sync schedule (once daily)
  * - ttl: time-to-live in ms (when cache becomes stale)
- * - syncInterval: how often background sync runs in ms
+ * - syncInterval: how often background sync runs in ms (24h)
  */
 export const RECYCLING_SOURCES = {
   navarra: {
     source: 'NAVARRA_POINTS',
     apiLocation: 'Navarra',
     syncFn: syncNavarraPoints,
-    cron: '0 * * * *', // every hour at :00
-    ttl: 90 * 60 * 1000, // 1h 30min
-    syncInterval: 60 * 60 * 1000, // 1h
+    cron: '0 3 * * *', // every day at 03:00 AM
+    ttl: 25 * 60 * 60 * 1000, // 25h
+    syncInterval: 24 * 60 * 60 * 1000, // 24h
   },
   barcelona: {
     source: 'BARCELONA_POINTS',
     apiLocation: 'Barcelona',
     syncFn: syncBarcelonaPoints,
-    cron: '15 * * * *', // every hour at :15 (offset to avoid overlap)
-    ttl: 90 * 60 * 1000, // 1h 30min
-    syncInterval: 60 * 60 * 1000, // 1h
+    cron: '0 4 * * *', // every day at 04:00 AM (offset to avoid overlap)
+    ttl: 25 * 60 * 60 * 1000, // 25h
+    syncInterval: 24 * 60 * 60 * 1000, // 24h
   },
 };
 
