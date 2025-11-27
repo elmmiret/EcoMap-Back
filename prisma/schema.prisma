@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["windows", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -22,10 +23,11 @@ model client {
   profile_picture                     String?
   streak                              Int
   registered_user                     registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
-  message_message_receiver_idToclient message[]       @relation("message_receiver_idToclient")
-  message_message_sender_idToclient   message[]       @relation("message_sender_idToclient")
-  publications                        publication[]
+  chats_as_user1                      chat[]          @relation("chat_user1")
+  chats_as_user2                      chat[]          @relation("chat_user2")
+  messages_sent                       message[]       @relation("message_sender")
   saved_recycling_points              saved_recycling_point[]
+  publications                        publication[]
 }
 
 model institution {
@@ -52,6 +54,7 @@ model registered_user {
   institution  institution?
   partner      partner?
   notification notification[]
+  device_tokens device_token[]
   user         user              @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
   sessions     session[]
 }
@@ -172,17 +175,39 @@ model reward {
   publication    publication @relation(fields: [publication_id], references: [publication_id], onDelete: Cascade, onUpdate: NoAction)
 }
 
+model chat {
+  chat_id    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user1_id   String
+  user2_id   String
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  user1      client    @relation("chat_user1", fields: [user1_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  user2      client    @relation("chat_user2", fields: [user2_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  messages   message[]
+
+  @@unique([user1_id, user2_id])
+  @@index([user1_id])
+  @@index([user2_id])
+}
+
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model message {
-  message_id                         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  text                               String
-  read                               Boolean         @default(false)
-  sent_at                            DateTime        @default(now()) @db.Timestamp(6)
-  sender_id                          String
-  receiver_id                        String
-  client_message_receiver_idToclient client          @relation("message_receiver_idToclient", fields: [receiver_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
-  client_message_sender_idToclient   client          @relation("message_sender_idToclient", fields: [sender_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
-  message_media                      message_media[]
+  message_id    String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chat_id       String          @db.Uuid
+  sender_id     String
+  content       String
+  is_read       Boolean         @default(false)
+  delivered     Boolean         @default(false)
+  is_deleted    Boolean         @default(false)
+  is_edited     Boolean         @default(false)
+  created_at    DateTime        @default(now()) @db.Timestamp(6)
+  chat          chat            @relation(fields: [chat_id], references: [chat_id], onDelete: Cascade, onUpdate: NoAction)
+  sender        client          @relation("message_sender", fields: [sender_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  message_media message_media[]
+
+  @@index([chat_id])
+  @@index([sender_id])
+  @@index([chat_id, is_read])
 }
 
 model message_media {
@@ -199,6 +224,15 @@ model notification {
   content           String
   delivered         Boolean           @default(false)
   registered_user   registered_user   @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model device_token {
+  token           String          @id
+  user_id         String
+  updated_at      DateTime        @updatedAt
+  registered_user registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id])
 }
 
 model saved_recycling_point {

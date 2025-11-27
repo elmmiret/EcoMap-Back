@@ -195,6 +195,57 @@ components:
           items:
             $ref: '#/components/schemas/PublicationMedia'
 
+    # --- Chat Schemas ---
+    Chat:
+      type: object
+      properties:
+        chat_id:
+          type: string
+          format: uuid
+        other_user:
+          type: object
+          properties:
+            name:
+              type: string
+            surname:
+              type: string
+            profile_picture:
+              type: string
+        last_message:
+          type: object
+          properties:
+            content:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+        unread_count:
+          type: integer
+        updated_at:
+          type: string
+          format: date-time
+
+    Message:
+      type: object
+      properties:
+        message_id:
+          type: string
+          format: uuid
+        chat_id:
+          type: string
+          format: uuid
+        content:
+          type: string
+        is_read:
+          type: boolean
+        delivered:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        is_deleted:
+          type: boolean
+
 paths:
   # --- Health Check ---
   /:
@@ -958,3 +1009,172 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponse'
+
+  # --- Chat ---
+  /api/chats:
+    get:
+      summary: Listar chats del usuario
+      tags: [Chat]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de chats obtenida correctamente.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Chat'
+    post:
+      summary: Iniciar o recuperar chat
+      description: Crea un nuevo chat con el usuario objetivo (por username) o devuelve el existente.
+      tags: [Chat]
+      security:
+        - backendAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  description: Username del usuario con el que se quiere chatear.
+      responses:
+        '200':
+          description: Chat recuperado o creado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Chat'
+
+  /api/chats/{chatId}/messages:
+    get:
+      summary: Obtener historial de mensajes
+      tags: [Chat]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: chatId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+          description: Número de mensajes a recuperar.
+        - in: query
+          name: before
+          schema:
+            type: string
+            format: uuid
+          description: ID del mensaje cursor para paginación (traer mensajes anteriores a este).
+      responses:
+        '200':
+          description: Historial de mensajes.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+    post:
+      summary: Enviar mensaje
+      tags: [Chat]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: chatId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                  description: Contenido del mensaje.
+      responses:
+        '201':
+          description: Mensaje enviado y guardado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+
+  /api/chats/{chatId}/read:
+    put:
+      summary: Marcar mensajes como leídos
+      tags: [Chat]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: chatId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Mensajes marcados como leídos.
+
+  /api/chats/messages/{messageId}:
+    delete:
+      summary: Eliminar mensaje
+      description: Elimina un mensaje propio si tiene menos de 5 minutos de antigüedad (soft delete).
+      tags: [Chat]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: messageId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Mensaje eliminado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '403':
+          description: No eres el propietario del mensaje.
+        '400':
+          description: Tiempo de eliminación expirado (> 5 min).
+
+  # --- Notificaciones ---
+  /api/notifications/token:
+    post:
+      summary: Registrar token FCM
+      description: Guarda el token de Firebase Cloud Messaging del dispositivo para recibir notificaciones push.
+      tags: [Notificaciones]
+      security:
+        - backendAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  description: Token FCM del dispositivo.
+      responses:
+        '200':
+          description: Token registrado correctamente.

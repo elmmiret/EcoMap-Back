@@ -215,3 +215,32 @@ export const requireAdminOrInstitution = (req, res, next) => {
   // Usuario tiene permisos, continuar
   next();
 };
+
+/**
+ * Middleware to verify that the authenticated user is a client
+ * MUST be used after authenticateBackendJWT middleware
+ * Checks req.user.role from the decoded JWT payload
+ *
+ * Usage:
+ * router.post('/client-only', authenticateBackendJWT, requireClient, controller);
+ */
+export const requireClient = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required',
+      code: 'NOT_AUTHENTICATED',
+    });
+  }
+
+  if (req.user.role !== 'client') {
+    return res.status(403).json({
+      success: false,
+      message: 'Client privileges required',
+      code: 'FORBIDDEN',
+    });
+  }
+
+  // Usuario es client, continuar
+  next();
+};
