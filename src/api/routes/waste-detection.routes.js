@@ -1,7 +1,7 @@
 /**
  * Waste Detection Routes
  *
- * POST /api/recycling - Detectar basura en imagen
+ * POST /api/detect/recycling - Detectar basura en imagen
  */
 
 import { Router } from 'express';
@@ -10,8 +10,8 @@ import { requireApiKey } from '#middlewares/auth.middleware.js';
 
 const router = Router();
 
-// POST /api/recycling
+// POST /api/detect/recycling
 // Recibe imagen multipart/form-data con key "image"
-router.post('/recycling', requireApiKey, uploadImage, handleMulterError, detectWasteInImage);
+router.post('/detect/recycling', requireApiKey, uploadImage, handleMulterError, detectWasteInImage);
 
 export default router;

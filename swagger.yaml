@@ -1533,7 +1533,7 @@ paths:
 
 
   # --- Detección De Imagenes ---
-  /api/bikes:
+  /api/detect/bikes:
     post:
       summary: Detectar bicicletas en imagen
       tags: [Detección De Imagenes]
@@ -1562,7 +1562,7 @@ paths:
                       data:
                         $ref: '#/components/schemas/BikeDetectionResponse'
 
-  /api/recycling:
+  /api/detect/recycling:
     post:
       summary: Detectar basura en imagen
       tags: [Detección De Imagenes]

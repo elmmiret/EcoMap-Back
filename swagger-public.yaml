@@ -82,7 +82,7 @@ components:
 
 paths:
   # --- Detección De Imagenes ---
-  /api/bikes:
+  /api/detect/bikes:
     post:
       summary: Detectar bicicletas en imagen
       description: Envía una imagen y recibe información sobre las bicicletas detectadas con confianza superior al 50%.
@@ -131,7 +131,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiResponse'
 
-  /api/recycling:
+  /api/detect/recycling:
     post:
       summary: Detectar residuos en imagen
       description: Envía una imagen y recibe información sobre los tipos de residuos/contenedores detectados con confianza superior al 50%.

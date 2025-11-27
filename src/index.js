@@ -50,12 +50,10 @@ initializeFirebaseAdmin();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ruta para la documentación de la API
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDoc, {
   customSiteTitle: swaggerTitle
 }));
-
-// ruta para la documentación de la API
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // montar las rutas de autentificación bajo el prefijo /api/users
 app.use('/api/users', authRoutes);

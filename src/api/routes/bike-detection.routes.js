@@ -1,7 +1,7 @@
 /**
  * Bike Detection Routes
  *
- * POST /api/bikes - Detectar bicicleta en imagen
+ * POST /api/detect/bikes - Detectar bicicleta en imagen
  */
 
 import { Router } from 'express';
@@ -10,8 +10,8 @@ import { requireApiKey } from '#middlewares/auth.middleware.js';
 
 const router = Router();
 
-// POST /api/bikes
+// POST /api/detect/bikes
 // Recibe imagen multipart/form-data con key "image"
-router.post('/bikes', requireApiKey, uploadImage, handleMulterError, detectBikeInImage);
+router.post('/detect/bikes', requireApiKey, uploadImage, handleMulterError, detectBikeInImage);
 
 export default router;
