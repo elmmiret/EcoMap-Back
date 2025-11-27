@@ -30,7 +30,7 @@ const DAY_MAP = {
  */
 export async function isOpenAt(recyclingPointId, datetime = new Date()) {
   const dayOfWeek = DAY_MAP[datetime.getDay()];
-  
+
   // Convertir hora local a UTC para comparación con datos en BD
   // getTimezoneOffset() devuelve minutos (negativo para UTC+, positivo para UTC-)
   const timezoneOffsetMs = -datetime.getTimezoneOffset() * 60 * 1000; // Invertir el signo
@@ -86,7 +86,7 @@ export async function filterOpenPoints(recyclingPointIds, datetime = new Date())
   }
 
   const dayOfWeek = DAY_MAP[datetime.getDay()];
-  
+
   // Convertir hora local a UTC para comparación con datos en BD
   // getTimezoneOffset() devuelve minutos (negativo para UTC+, positivo para UTC-)
   const timezoneOffsetMs = -datetime.getTimezoneOffset() * 60 * 1000; // Invertir el signo
@@ -212,10 +212,10 @@ export async function getTimetableForDay(recyclingPointId, datetime = new Date()
       // Convertir de UTC a zona local
       const openTimeUTC = new Date(ti.time_interval.open_time);
       const endTimeUTC = new Date(ti.time_interval.end_time);
-      
+
       const openTimeLocal = new Date(openTimeUTC.getTime() + timezoneOffsetMs);
       const endTimeLocal = new Date(endTimeUTC.getTime() + timezoneOffsetMs);
-      
+
       intervals.push({
         open_time: openTimeLocal.toISOString().split('T')[1].slice(0, 8), // HH:MM:SS en zona local
         end_time: endTimeLocal.toISOString().split('T')[1].slice(0, 8), // HH:MM:SS en zona local
@@ -267,10 +267,10 @@ export async function getTimetablesForDay(recyclingPointIds, datetime = new Date
       // Convertir de UTC a zona local
       const openTimeUTC = new Date(ti.time_interval.open_time);
       const endTimeUTC = new Date(ti.time_interval.end_time);
-      
+
       const openTimeLocal = new Date(openTimeUTC.getTime() + timezoneOffsetMs);
       const endTimeLocal = new Date(endTimeUTC.getTime() + timezoneOffsetMs);
-      
+
       result.get(timetable.recycling_point_id).push({
         open_time: openTimeLocal.toISOString().split('T')[1].slice(0, 8), // HH:MM:SS en zona local
         end_time: endTimeLocal.toISOString().split('T')[1].slice(0, 8), // HH:MM:SS en zona local
@@ -300,7 +300,7 @@ export function filterByScheduleInMemory(points, datetime = new Date()) {
   // getTimezoneOffset() devuelve minutos (negativo para UTC+, positivo para UTC-)
   const timezoneOffsetMs = -datetime.getTimezoneOffset() * 60 * 1000; // Invertir el signo
   const utcDatetime = new Date(datetime.getTime() + timezoneOffsetMs);
-  
+
   const hours = String(utcDatetime.getUTCHours()).padStart(2, '0');
   const minutes = String(utcDatetime.getUTCMinutes()).padStart(2, '0');
   const seconds = String(utcDatetime.getUTCSeconds()).padStart(2, '0');
