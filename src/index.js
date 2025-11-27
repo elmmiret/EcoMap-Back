@@ -1,6 +1,12 @@
 import express from 'express';
-import { initializeFirebaseAdmin } from './config/firebase.js';
-import { startSchedulers, warmupCaches } from '#services/scheduler.service.js';
+import dotenv from 'dotenv';
+import { createServer } from 'http';
+import { initializeFirebaseAdmin } from '#config/firebase.js';
+import { startSchedulers } from '#services/scheduler.service.js';
+import { warmupCaches } from '#services/scheduler.service.js';
+import { initializeSocket } from '#services/socket.service.js';
+import { createLogger } from '#lib/logger.js';
+
 import authRoutes from './api/routes/user.routes.js';
 import recyclingPoints from './api/routes/recycling-points.routes.js';
 import routeRoutes from './api/routes/route.routes.js';
@@ -8,6 +14,8 @@ import publicationRoutes from './api/routes/publication.routes.js';
 import reservationRoutes from './api/routes/reservation.routes.js';
 import dotenv from 'dotenv';
 import { createLogger } from '#lib/logger.js';
+import chatRoutes from './api/routes/chat.routes.js';
+import notificationRoutes from './api/routes/notification.routes.js';
 import swaggerUi from 'swagger-ui-express';
 import yaml from 'yamljs';
 import path from 'path';
@@ -17,12 +25,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const swaggerDocument = yaml.load(path.join(__dirname, '../swagger.yaml'));
 
-const log = createLogger('startup');
-
 // cargar variables de entorno desde .env
 dotenv.config();
 
+const log = createLogger('startup');
+
 const app = express();
+const httpServer = createServer(app);
 const PORT = process.env.PORT || 3000;
 
 // --- INICIALIZACION de Firebase Admin SDK ---
@@ -35,12 +44,17 @@ app.use(express.urlencoded({ extended: true }));
 // ruta para la documentación de la API
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
+// ruta para la documentación de la API
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
 // montar las rutas de autentificación bajo el prefijo /api/users
 app.use('/api/users', authRoutes);
 app.use('/api/recycling-points', recyclingPoints);
 app.use('/api/routes', routeRoutes);
 app.use('/api/publications', publicationRoutes);
 app.use('/api/reservations', reservationRoutes);
+app.use('/api/chats', chatRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // ruta base para verificar que la API está corriendo
 app.get('/', (req, res) => {
@@ -54,8 +68,12 @@ app.use((err, req, res, _next) => {
 });
 
 // iniciar servidor
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   log.info(`Servidor Express corriendo en http://localhost:${PORT}`);
+
+  // Initialize Socket.io
+  initializeSocket(httpServer);
+  log.info('Socket.io initialized');
 
   // Start background schedulers only in production (avoid cron traffic in development)
   if (process.env.NODE_ENV === 'production') {
