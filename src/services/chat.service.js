@@ -53,9 +53,9 @@ function formatChat(chat, currentUserId) {
     },
     last_message: lastMessage
       ? {
-        content: lastMessage.is_deleted ? 'Mensaje eliminado' : lastMessage.content,
-        created_at: lastMessage.created_at,
-      }
+          content: lastMessage.is_deleted ? 'Mensaje eliminado' : lastMessage.content,
+          created_at: lastMessage.created_at,
+        }
       : null,
     unread_count: chat._count?.messages || 0,
     updated_at: chat.updated_at,
@@ -228,16 +228,11 @@ export async function sendMessage(chatId, senderId, content) {
         select: { name: true },
       });
 
-      await sendPushNotification(
-        recipientId,
-        `Nuevo mensaje de ${sender?.name || 'Alguien'}`,
-        content.substring(0, 100),
-        {
-          type: 'NEW_MESSAGE',
-          chat_id: chatId,
-          message_id: message.message_id,
-        }
-      );
+      await sendPushNotification(recipientId, `Nuevo mensaje de ${sender?.name || 'Alguien'}`, content.substring(0, 100), {
+        type: 'NEW_MESSAGE',
+        chat_id: chatId,
+        message_id: message.message_id,
+      });
     }
   } catch (error) {
     log.error('Socket/Push error:', error);
@@ -291,14 +286,10 @@ export async function getChatMessages(chatId, userId, limit = 50, before = null)
   const messages = await messageService.getMessagesByChatId(chatId, limit, before);
 
   // Mark undelivered messages as delivered (async, non-blocking)
-  const undeliveredMessageIds = messages
-    .filter((m) => m.sender_id !== userId && !m.delivered)
-    .map((m) => m.message_id);
+  const undeliveredMessageIds = messages.filter((m) => m.sender_id !== userId && !m.delivered).map((m) => m.message_id);
 
   if (undeliveredMessageIds.length > 0) {
-    messageService
-      .markMessagesAsDelivered(undeliveredMessageIds)
-      .catch((err) => log.error('Error marking messages as delivered:', err));
+    messageService.markMessagesAsDelivered(undeliveredMessageIds).catch((err) => log.error('Error marking messages as delivered:', err));
   }
 
   return messages.map(formatMessage);

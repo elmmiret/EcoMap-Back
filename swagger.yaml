@@ -247,7 +247,6 @@ components:
           type: boolean
 
 paths:
-
   # --- Health Check ---
   /:
     get:
@@ -1011,7 +1010,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiResponse'
 
-# --- Chat ---
+  # --- Chat ---
   /api/chats:
     get:
       summary: Listar chats del usuario
@@ -1179,4 +1178,3 @@ paths:
       responses:
         '200':
           description: Token registrado correctamente.
-

@@ -1,7 +1,4 @@
 import { prisma } from '#lib/prisma.js';
-import { createLogger } from '#lib/logger.js';
-
-const log = createLogger('message-service');
 
 /**
  * Message Service
@@ -16,13 +13,13 @@ const log = createLogger('message-service');
  * @returns {Promise<object>}
  */
 export async function createMessage(chatId, senderId, content) {
-    return prisma.message.create({
-        data: {
-            chat_id: chatId,
-            sender_id: senderId,
-            content: content,
-        },
-    });
+  return prisma.message.create({
+    data: {
+      chat_id: chatId,
+      sender_id: senderId,
+      content: content,
+    },
+  });
 }
 
 /**
@@ -33,18 +30,18 @@ export async function createMessage(chatId, senderId, content) {
  * @returns {Promise<Array>}
  */
 export async function getMessagesByChatId(chatId, limit = 50, before = null) {
-    const query = {
-        where: { chat_id: chatId },
-        orderBy: { created_at: 'desc' },
-        take: limit,
-    };
+  const query = {
+    where: { chat_id: chatId },
+    orderBy: { created_at: 'desc' },
+    take: limit,
+  };
 
-    if (before) {
-        query.cursor = { message_id: before };
-        query.skip = 1;
-    }
+  if (before) {
+    query.cursor = { message_id: before };
+    query.skip = 1;
+  }
 
-    return prisma.message.findMany(query);
+  return prisma.message.findMany(query);
 }
 
 /**
@@ -53,10 +50,10 @@ export async function getMessagesByChatId(chatId, limit = 50, before = null) {
  * @returns {Promise<object>}
  */
 export async function markMessageAsDelivered(messageId) {
-    return prisma.message.update({
-        where: { message_id: messageId },
-        data: { delivered: true },
-    });
+  return prisma.message.update({
+    where: { message_id: messageId },
+    data: { delivered: true },
+  });
 }
 
 /**
@@ -65,10 +62,10 @@ export async function markMessageAsDelivered(messageId) {
  * @returns {Promise<object>}
  */
 export async function markMessagesAsDelivered(messageIds) {
-    return prisma.message.updateMany({
-        where: { message_id: { in: messageIds } },
-        data: { delivered: true },
-    });
+  return prisma.message.updateMany({
+    where: { message_id: { in: messageIds } },
+    data: { delivered: true },
+  });
 }
 
 /**
@@ -78,16 +75,16 @@ export async function markMessagesAsDelivered(messageIds) {
  * @returns {Promise<object>}
  */
 export async function markMessagesAsRead(chatId, userId) {
-    return prisma.message.updateMany({
-        where: {
-            chat_id: chatId,
-            sender_id: { not: userId },
-            is_read: false,
-        },
-        data: {
-            is_read: true,
-        },
-    });
+  return prisma.message.updateMany({
+    where: {
+      chat_id: chatId,
+      sender_id: { not: userId },
+      is_read: false,
+    },
+    data: {
+      is_read: true,
+    },
+  });
 }
 
 /**
@@ -96,13 +93,13 @@ export async function markMessagesAsRead(chatId, userId) {
  * @returns {Promise<object>}
  */
 export async function softDeleteMessage(messageId) {
-    return prisma.message.update({
-        where: { message_id: messageId },
-        data: {
-            is_deleted: true,
-            content: '', // Clear content for privacy
-        },
-    });
+  return prisma.message.update({
+    where: { message_id: messageId },
+    data: {
+      is_deleted: true,
+      content: '', // Clear content for privacy
+    },
+  });
 }
 
 /**
@@ -111,7 +108,7 @@ export async function softDeleteMessage(messageId) {
  * @returns {Promise<object|null>}
  */
 export async function getMessageById(messageId) {
-    return prisma.message.findUnique({
-        where: { message_id: messageId },
-    });
+  return prisma.message.findUnique({
+    where: { message_id: messageId },
+  });
 }

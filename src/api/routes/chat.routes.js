@@ -1,13 +1,6 @@
 import express from 'express';
 import { authenticateBackendJWT, requireClient } from '#middlewares/auth.middleware.js';
-import {
-    startChat,
-    listChats,
-    postMessage,
-    markRead,
-    getMessages,
-    removeMessage
-} from '#controllers/chat.controller.js';
+import { startChat, listChats, postMessage, markRead, getMessages, removeMessage } from '#controllers/chat.controller.js';
 
 const router = express.Router();
 

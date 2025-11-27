@@ -5,20 +5,20 @@ const router = express.Router();
 import { authenticateUser, authenticateBackendJWT } from '#middlewares/auth.middleware.js';
 import { validatePhone } from '#middlewares/validation.middleware.js';
 import {
-    syncUserToPostgres,
-    changeAppLanguage,
-    logoutUser,
-    getUserProfile,
-    deleteUser,
-    updateUserProfile,
-    getAllUserIds,
-    getAllClientIds,
-    getAllInstitutionIds,
-    getAllAdminIds,
-    getUserById,
-    getUserTypeById,
-    getUserPublicData,
-    getUserPrivateData,
+  syncUserToPostgres,
+  changeAppLanguage,
+  logoutUser,
+  getUserProfile,
+  deleteUser,
+  updateUserProfile,
+  getAllUserIds,
+  getAllClientIds,
+  getAllInstitutionIds,
+  getAllAdminIds,
+  getUserById,
+  getUserTypeById,
+  getUserPublicData,
+  getUserPrivateData,
 } from '#controllers/user.controller.js';
 
 /**
