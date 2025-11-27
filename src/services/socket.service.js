@@ -45,8 +45,16 @@ export function initializeSocket(httpServer) {
             try {
                 const { message_id } = data;
                 if (message_id) {
-                    await markMessageAsDelivered(message_id);
-                    // Optionally emit 'message_delivered' to sender if needed
+                    const updatedMessage = await markMessageAsDelivered(message_id);
+
+                    // Notify the sender that the message was delivered
+                    if (updatedMessage && updatedMessage.sender_id) {
+                        io.to(updatedMessage.sender_id).emit('message_delivered', {
+                            chat_id: updatedMessage.chat_id,
+                            message_id: updatedMessage.message_id,
+                            delivered: true,
+                        });
+                    }
                 }
             } catch (error) {
                 log.error('Error handling message_received:', error);

@@ -1,5 +1,6 @@
 import { prisma } from '#lib/prisma.js';
 import { createLogger } from '#lib/logger.js';
+import { markMessageAsDelivered } from '#services/message.service.js';
 import admin from 'firebase-admin';
 
 const log = createLogger('notification-service');
@@ -66,6 +67,10 @@ export async function sendPushNotification(userId, title, body, data = {}) {
                     where: { token: { in: failedTokens } },
                 });
             }
+        }
+
+        if (response.successCount > 0 && data.type === 'NEW_MESSAGE' && data.message_id) {
+            await markMessageAsDelivered(data.message_id);
         }
 
         log.info(`Notification sent to user ${userId}: ${response.successCount} success, ${response.failureCount} failure`);
