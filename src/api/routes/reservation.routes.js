@@ -1,13 +1,13 @@
 import express from 'express';
 import { authenticateBackendJWT } from '#middlewares/auth.middleware.js';
-import { 
-    createReservation, 
-    getAllReservations,
-    getReservationById,
-    getReservationsByUserId,
-    getReservationByUserIdAndId,
-    cancelReservation,
-    confirmReservation,
+import {
+  createReservation,
+  getAllReservations,
+  getReservationById,
+  getReservationsByUserId,
+  getReservationByUserIdAndId,
+  deleteReservation,
+  confirmReservation,
 } from '#controllers/reservation.controller.js';
 
 const router = express.Router();
@@ -27,10 +27,10 @@ router.post('/create', authenticateBackendJWT, createReservation);
 router.patch('/:reservationId', authenticateBackendJWT, confirmReservation);
 
 /**
- * @route DELETE /api/reservations/:reservationId/cancel
+ * @route DELETE /api/reservations/:reservationId/delete
  * @description Cancela una reserva por su ID.
  */
-router.delete('/:reservationId/cancel', authenticateBackendJWT, cancelReservation);
+router.delete('/:reservationId/delete', authenticateBackendJWT, deleteReservation);
 
 /**
  * @route GET /api/reservations
