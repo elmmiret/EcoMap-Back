@@ -11,6 +11,7 @@ import authRoutes from './api/routes/user.routes.js';
 import recyclingPoints from './api/routes/recycling-points.routes.js';
 import routeRoutes from './api/routes/route.routes.js';
 import publicationRoutes from './api/routes/publication.routes.js';
+import reservationRoutes from './api/routes/reservation.routes.js';
 import chatRoutes from './api/routes/chat.routes.js';
 import notificationRoutes from './api/routes/notification.routes.js';
 import swaggerUi from 'swagger-ui-express';
@@ -49,6 +50,7 @@ app.use('/api/users', authRoutes);
 app.use('/api/recycling-points', recyclingPoints);
 app.use('/api/routes', routeRoutes);
 app.use('/api/publications', publicationRoutes);
+app.use('/api/reservations', reservationRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/notifications', notificationRoutes);
 
