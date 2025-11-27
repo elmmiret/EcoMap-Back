@@ -25,12 +25,17 @@ const DAY_MAP = {
  * consultando directamente la BD
  *
  * @param {string} recyclingPointId - UUID del recycling_point
- * @param {Date} datetime - Fecha/hora a verificar (por defecto: ahora)
+ * @param {Date} datetime - Fecha/hora a verificar (se interpreta como hora local del usuario)
  * @returns {Promise<boolean>} true si el punto está abierto
  */
 export async function isOpenAt(recyclingPointId, datetime = new Date()) {
   const dayOfWeek = DAY_MAP[datetime.getDay()];
-  const currentTime = datetime.toTimeString().split(' ')[0]; // HH:MM:SS
+
+  // Convertir hora local a UTC para comparación con datos en BD
+  // getTimezoneOffset() devuelve minutos (negativo para UTC+, positivo para UTC-)
+  const timezoneOffsetMs = -datetime.getTimezoneOffset() * 60 * 1000; // Invertir el signo
+  const utcDatetime = new Date(datetime.getTime() + timezoneOffsetMs);
+  const currentTime = utcDatetime.toISOString().split('T')[1].slice(0, 8); // HH:MM:SS en UTC
 
   // Buscar timetables del punto para el día de la semana actual
   const timetables = await prisma.timetable.findMany({
@@ -55,8 +60,8 @@ export async function isOpenAt(recyclingPointId, datetime = new Date()) {
   // Verificar si algún intervalo incluye la hora actual
   for (const timetable of timetables) {
     for (const ti of timetable.timetable_intervals) {
-      const openTime = ti.time_interval.open_time.toTimeString().split(' ')[0];
-      const endTime = ti.time_interval.end_time.toTimeString().split(' ')[0];
+      const openTime = ti.time_interval.open_time.toISOString().split('T')[1].slice(0, 8); // HH:MM:SS
+      const endTime = ti.time_interval.end_time.toISOString().split('T')[1].slice(0, 8); // HH:MM:SS
 
       if (currentTime >= openTime && currentTime < endTime) {
         return true;
@@ -72,7 +77,7 @@ export async function isOpenAt(recyclingPointId, datetime = new Date()) {
  * Devuelve solo los IDs de puntos que están abiertos en el momento dado
  *
  * @param {string[]} recyclingPointIds - Array de UUIDs de recycling_points
- * @param {Date} datetime - Fecha/hora a verificar (por defecto: ahora)
+ * @param {Date} datetime - Fecha/hora a verificar (se interpreta como hora local del usuario)
  * @returns {Promise<string[]>} Array de IDs de puntos abiertos
  */
 export async function filterOpenPoints(recyclingPointIds, datetime = new Date()) {
@@ -81,7 +86,12 @@ export async function filterOpenPoints(recyclingPointIds, datetime = new Date())
   }
 
   const dayOfWeek = DAY_MAP[datetime.getDay()];
-  const currentTime = datetime.toTimeString().split(' ')[0]; // HH:MM:SS
+
+  // Convertir hora local a UTC para comparación con datos en BD
+  // getTimezoneOffset() devuelve minutos (negativo para UTC+, positivo para UTC-)
+  const timezoneOffsetMs = -datetime.getTimezoneOffset() * 60 * 1000; // Invertir el signo
+  const utcDatetime = new Date(datetime.getTime() + timezoneOffsetMs);
+  const currentTime = utcDatetime.toISOString().split('T')[1].slice(0, 8); // HH:MM:SS en UTC
 
   // Query optimizada: buscar todos los timetables relevantes en una sola consulta
   const timetables = await prisma.timetable.findMany({
@@ -102,8 +112,8 @@ export async function filterOpenPoints(recyclingPointIds, datetime = new Date())
   const openPointsSet = new Set();
   for (const timetable of timetables) {
     for (const ti of timetable.timetable_intervals) {
-      const openTime = ti.time_interval.open_time.toTimeString().split(' ')[0];
-      const endTime = ti.time_interval.end_time.toTimeString().split(' ')[0];
+      const openTime = ti.time_interval.open_time.toISOString().split('T')[1].slice(0, 8);
+      const endTime = ti.time_interval.end_time.toISOString().split('T')[1].slice(0, 8);
 
       if (currentTime >= openTime && currentTime < endTime) {
         openPointsSet.add(timetable.recycling_point_id);
@@ -166,9 +176,10 @@ export function getOpenNowCondition(datetime = new Date()) {
 
 /**
  * Obtiene los horarios de un punto para un día específico
+ * Los horarios se devuelven en la zona horaria local del usuario (p.ej., UTC+1)
  * @param {string} recyclingPointId - UUID del recycling_point
  * @param {Date} datetime - Fecha para obtener el día de la semana
- * @returns {Promise<Array>} Array de intervalos horarios { open_time, end_time }
+ * @returns {Promise<Array>} Array de intervalos horarios { open_time, end_time } en zona local
  */
 export async function getTimetableForDay(recyclingPointId, datetime = new Date()) {
   const dayOfWeek = DAY_MAP[datetime.getDay()];
@@ -191,13 +202,23 @@ export async function getTimetableForDay(recyclingPointId, datetime = new Date()
     return [];
   }
 
-  // Extraer todos los intervalos y formatearlos
+  // Obtener offset para convertir de UTC a zona local
+  const timezoneOffsetMs = -datetime.getTimezoneOffset() * 60 * 1000;
+
+  // Extraer todos los intervalos y formatearlos en zona local
   const intervals = [];
   for (const timetable of timetables) {
     for (const ti of timetable.timetable_intervals) {
+      // Convertir de UTC a zona local
+      const openTimeUTC = new Date(ti.time_interval.open_time);
+      const endTimeUTC = new Date(ti.time_interval.end_time);
+
+      const openTimeLocal = new Date(openTimeUTC.getTime() + timezoneOffsetMs);
+      const endTimeLocal = new Date(endTimeUTC.getTime() + timezoneOffsetMs);
+
       intervals.push({
-        open_time: ti.time_interval.open_time.toTimeString().split(' ')[0], // HH:MM:SS
-        end_time: ti.time_interval.end_time.toTimeString().split(' ')[0], // HH:MM:SS
+        open_time: openTimeLocal.toISOString().split('T')[1].slice(0, 8), // HH:MM:SS en zona local
+        end_time: endTimeLocal.toISOString().split('T')[1].slice(0, 8), // HH:MM:SS en zona local
       });
     }
   }
@@ -207,9 +228,10 @@ export async function getTimetableForDay(recyclingPointId, datetime = new Date()
 
 /**
  * Obtiene los horarios de múltiples puntos para un día específico
+ * Los horarios se devuelven en la zona horaria local del usuario (p.ej., UTC+1)
  * @param {string[]} recyclingPointIds - Array de UUIDs
  * @param {Date} datetime - Fecha para obtener el día de la semana
- * @returns {Promise<Map<string, Array>>} Map de recycling_point_id -> array de intervalos
+ * @returns {Promise<Map<string, Array>>} Map de recycling_point_id -> array de intervalos { open_time, end_time } en zona local
  */
 export async function getTimetablesForDay(recyclingPointIds, datetime = new Date()) {
   if (!Array.isArray(recyclingPointIds) || !recyclingPointIds.length) {
@@ -232,6 +254,9 @@ export async function getTimetablesForDay(recyclingPointIds, datetime = new Date
     },
   });
 
+  // Obtener offset para convertir de UTC a zona local
+  const timezoneOffsetMs = -datetime.getTimezoneOffset() * 60 * 1000;
+
   // Agrupar por recycling_point_id
   const result = new Map();
   for (const timetable of timetables) {
@@ -239,9 +264,16 @@ export async function getTimetablesForDay(recyclingPointIds, datetime = new Date
       result.set(timetable.recycling_point_id, []);
     }
     for (const ti of timetable.timetable_intervals) {
+      // Convertir de UTC a zona local
+      const openTimeUTC = new Date(ti.time_interval.open_time);
+      const endTimeUTC = new Date(ti.time_interval.end_time);
+
+      const openTimeLocal = new Date(openTimeUTC.getTime() + timezoneOffsetMs);
+      const endTimeLocal = new Date(endTimeUTC.getTime() + timezoneOffsetMs);
+
       result.get(timetable.recycling_point_id).push({
-        open_time: ti.time_interval.open_time.toTimeString().split(' ')[0],
-        end_time: ti.time_interval.end_time.toTimeString().split(' ')[0],
+        open_time: openTimeLocal.toISOString().split('T')[1].slice(0, 8), // HH:MM:SS en zona local
+        end_time: endTimeLocal.toISOString().split('T')[1].slice(0, 8), // HH:MM:SS en zona local
       });
     }
   }
@@ -254,7 +286,7 @@ export async function getTimetablesForDay(recyclingPointIds, datetime = new Date
  * Versión optimizada que no consulta la BD, usa los datos en memoria
  *
  * @param {Array<{timetable: Array<{open_time: string, end_time: string}>}>} points - Array de puntos con campo timetable
- * @param {Date} datetime - Fecha/hora a verificar
+ * @param {Date} datetime - Fecha/hora a verificar (se interpreta como hora local del usuario, se convierte a UTC para comparación)
  * @returns {Array} Array de puntos abiertos
  */
 export function filterByScheduleInMemory(points, datetime = new Date()) {
@@ -262,11 +294,16 @@ export function filterByScheduleInMemory(points, datetime = new Date()) {
     return [];
   }
 
-  // IMPORTANTE: Normalizar a UTC para comparar correctamente
-  // Los horarios en BD están en UTC, así que extraemos la hora UTC de datetime
-  const hours = String(datetime.getUTCHours()).padStart(2, '0');
-  const minutes = String(datetime.getUTCMinutes()).padStart(2, '0');
-  const seconds = String(datetime.getUTCSeconds()).padStart(2, '0');
+  // IMPORTANTE: Los horarios en BD están en UTC (sin zona horaria)
+  // El datetime recibido es hora local del usuario (p.ej., UTC+1)
+  // Convertimos datetime a UTC para comparar correctamente
+  // getTimezoneOffset() devuelve minutos (negativo para UTC+, positivo para UTC-)
+  const timezoneOffsetMs = -datetime.getTimezoneOffset() * 60 * 1000; // Invertir el signo
+  const utcDatetime = new Date(datetime.getTime() + timezoneOffsetMs);
+
+  const hours = String(utcDatetime.getUTCHours()).padStart(2, '0');
+  const minutes = String(utcDatetime.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(utcDatetime.getUTCSeconds()).padStart(2, '0');
   const currentTimeUTC = `${hours}:${minutes}:${seconds}`; // HH:MM:SS en UTC
 
   return points.filter((point) => {
