@@ -6,6 +6,7 @@ import { startSchedulers } from '#services/scheduler.service.js';
 import { warmupCaches } from '#services/scheduler.service.js';
 import { initializeSocket } from '#services/socket.service.js';
 import { createLogger } from '#lib/logger.js';
+import { authenticateBackendJWT, requireAdmin } from '#middlewares/auth.middleware.js';
 
 import authRoutes from './api/routes/user.routes.js';
 import recyclingPoints from './api/routes/recycling-points.routes.js';
@@ -36,6 +37,8 @@ const PORT = process.env.PORT || 3000;
 // Configuración de Swagger según el entorno
 const isProduction = process.env.NODE_ENV === 'production';
 const swaggerDoc = isProduction ? yaml.load(path.join(__dirname, '../swagger-public.yaml')) : yaml.load(path.join(__dirname, '../swagger.yaml'));
+// Documentación privada (Solo Admin)
+const privateSwaggerDoc = yaml.load(path.join(__dirname, '../swagger.yaml'));
 
 const swaggerTitle = isProduction ? 'PESkaos AI Detection API - Public' : 'PESkaos API - Complete Documentation (Development)';
 
@@ -52,6 +55,16 @@ app.use(
   swaggerUi.serve,
   swaggerUi.setup(swaggerDoc, {
     customSiteTitle: swaggerTitle,
+  })
+);
+
+app.use(
+  '/api-docs-private',
+  authenticateBackendJWT,
+  requireAdmin,
+  swaggerUi.serve,
+  swaggerUi.setup(privateSwaggerDoc, {
+    customSiteTitle: 'PESkaos API - Private Admin Documentation',
   })
 );
 
