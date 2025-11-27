@@ -53,7 +53,7 @@ function formatChat(chat, currentUserId) {
     },
     last_message: lastMessage
       ? {
-        content: lastMessage.content,
+        content: lastMessage.is_deleted ? 'Mensaje eliminado' : lastMessage.content,
         created_at: lastMessage.created_at,
       }
       : null,
