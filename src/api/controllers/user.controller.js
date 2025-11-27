@@ -782,3 +782,115 @@ export const updateUserProfile = async (req, res) => {
     });
   }
 };
+
+/**
+ * Obtiene una lista de todos los usuarios registrados (información pública básica).
+ */
+export const getAllUsers = async (req, res) => {
+  try {
+    const users = await prisma.registered_user.findMany({
+      select: {
+        name: true,
+        surname: true,
+        username: true,
+        client: {
+          select: {
+            profile_picture: true,
+          }
+        }
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    });
+
+    const formattedUsers = users.map(user => ({
+      name: user.name,
+      surname: user.surname,
+      username: user.username,
+      profile_picture: user.client?.profile_picture || null,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: formattedUsers,
+    });
+  } catch (error) {
+    console.error('[getAllUsers] Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al obtener la lista de usuarios.',
+      code: 'GET_USERS_ERROR',
+    });
+  }
+};
+
+/**
+ * Obtiene el perfil público de un usuario por su nombre de usuario.
+ */
+export const getUserByUsername = async (req, res) => {
+  const { username } = req.params;
+
+  if (!username) {
+    return res.status(400).json({
+      success: false,
+      message: 'Debe proporcionar un nombre de usuario.',
+      code: 'MISSING_USERNAME',
+    });
+  }
+
+  try {
+    const userProfile = await prisma.registered_user.findUnique({
+      where: { username },
+      select: {
+        user_id: true,
+        name: true,
+        surname: true,
+        username: true,
+        client: {
+          select: {
+            profile_picture: true,
+            description: true,
+          },
+        },
+        admin: true,
+        institution: true,
+      },
+    });
+
+    if (!userProfile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    // Determinar el rol
+    let role = 'client';
+    if (userProfile.admin) role = 'admin';
+    if (userProfile.institution) role = 'institution';
+
+    const responseData = {
+      user_id: userProfile.user_id, // Necesario para iniciar chat
+      name: userProfile.name,
+      surname: userProfile.surname,
+      username: userProfile.username,
+      profile_picture: userProfile.client?.profile_picture || null,
+      description: userProfile.client?.description || null,
+      role,
+    };
+
+    return res.status(200).json({
+      success: true,
+      data: responseData,
+    });
+  } catch (error) {
+    console.error('[getUserByUsername] Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al obtener el perfil del usuario.',
+      code: 'GET_USER_ERROR',
+    });
+  }
+};

@@ -1,7 +1,7 @@
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { createLogger } from '#lib/logger.js';
-import { markMessageAsDelivered } from './chat.service.js';
+import { markMessageAsDelivered } from './message.service.js';
 
 const log = createLogger('socket-service');
 let io;

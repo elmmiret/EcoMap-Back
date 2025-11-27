@@ -4,7 +4,7 @@ const router = express.Router();
 
 import { authenticateUser, authenticateBackendJWT } from '#middlewares/auth.middleware.js';
 import { validatePhone } from '#middlewares/validation.middleware.js';
-import { syncUserToPostgres, changeAppLanguage, logoutUser, getUserProfile, deleteUser, updateUserProfile } from '#controllers/user.controller.js';
+import { syncUserToPostgres, changeAppLanguage, logoutUser, getUserProfile, deleteUser, updateUserProfile, getAllUsers, getUserByUsername } from '#controllers/user.controller.js';
 
 /**
  * @route POST /api/users/sync
@@ -47,5 +47,19 @@ router.post('/logout', authenticateBackendJWT, logoutUser);
  * @access Protegido (requiere autenticación con JWT del backend)
  */
 router.put('/language', authenticateBackendJWT, changeAppLanguage);
+
+/**
+ * @route GET /api/users
+ * @description Obtiene una lista de todos los usuarios (información pública).
+ * @access Protegido (requiere autenticación con JWT del backend)
+ */
+router.get('/', authenticateBackendJWT, getAllUsers);
+
+/**
+ * @route GET /api/users/:username
+ * @description Obtiene el perfil público de un usuario por su username.
+ * @access Protegido (requiere autenticación con JWT del backend)
+ */
+router.get('/:username', authenticateBackendJWT, getUserByUsername);
 
 export default router;
