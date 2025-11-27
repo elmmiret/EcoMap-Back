@@ -2,8 +2,8 @@ import express from 'express';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { initializeFirebaseAdmin } from '#config/firebase.js';
-import { startSchedulers } from '#jobs/index.js';
-import { warmupCaches } from '#services/cache.service.js';
+import { startSchedulers } from '#services/scheduler.service.js';
+import { warmupCaches } from '#services/scheduler.service.js';
 import { initializeSocket } from '#services/socket.service.js';
 import { createLogger } from '#lib/logger.js';
 

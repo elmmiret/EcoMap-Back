@@ -5,7 +5,8 @@ import {
     listChats,
     postMessage,
     markRead,
-    getMessages
+    getMessages,
+    removeMessage
 } from '#controllers/chat.controller.js';
 
 const router = express.Router();
@@ -20,7 +21,7 @@ router.get('/', authenticateBackendJWT, requireClient, listChats);
 /**
  * @route POST /api/chats
  * @description Start a new chat or get existing one
- * @body { targetUserId: string }
+ * @body { username: string }
  * @access Protected (Client only)
  */
 router.post('/', authenticateBackendJWT, requireClient, startChat);
@@ -47,5 +48,12 @@ router.post('/:chatId/messages', authenticateBackendJWT, requireClient, postMess
  * @access Protected (Client only)
  */
 router.put('/:chatId/read', authenticateBackendJWT, requireClient, markRead);
+
+/**
+ * @route DELETE /api/chats/messages/:messageId
+ * @description Delete a message (soft delete)
+ * @access Protected (Client only)
+ */
+router.delete('/messages/:messageId', authenticateBackendJWT, requireClient, removeMessage);
 
 export default router;
