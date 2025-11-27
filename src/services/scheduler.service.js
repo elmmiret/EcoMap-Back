@@ -111,7 +111,7 @@ export async function warmupCaches() {
       } else if (result.success) {
         log.info(
           `Warmup ${location}: OK (+${result.inserted} / ${result.updated} / -${result.deactivated})` +
-          (result.totalRecords !== undefined ? ` total=${result.totalRecords}` : '')
+            (result.totalRecords !== undefined ? ` total=${result.totalRecords}` : '')
         );
       } else {
         log.warn(`Warmup ${location}: FAILED - ${result.error || 'unknown error'}`);

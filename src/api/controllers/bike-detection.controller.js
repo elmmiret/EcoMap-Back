@@ -62,7 +62,7 @@ export async function detectBikeInImage(req, res) {
         confidence: result.confidence,
         count: result.detections.length,
         items: result.detections,
-      }
+      },
     });
   } catch (error) {
     log.error('Error in bike detection endpoint /api/bikes', {

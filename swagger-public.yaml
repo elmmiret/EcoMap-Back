@@ -169,11 +169,11 @@ paths:
                   count: 2
                   items:
                     - class: 1
-                      class_name: "PlasticContainer"
+                      class_name: 'PlasticContainer'
                       confidence: 0.95
                       bbox: [100, 150, 300, 400]
                     - class: 3
-                      class_name: "PaperContainer"
+                      class_name: 'PaperContainer'
                       confidence: 0.88
                       bbox: [350, 200, 500, 450]
         '400':

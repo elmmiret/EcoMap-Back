@@ -1531,7 +1531,6 @@ paths:
                         items:
                           type: object # Placeholder, Valoration schema not defined yet
 
-
   # --- Detección De Imagenes ---
   /api/detect/bikes:
     post:
