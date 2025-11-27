@@ -27,6 +27,7 @@ model client {
   chats_as_user2                      chat[]          @relation("chat_user2")
   messages_sent                       message[]       @relation("message_sender")
   saved_recycling_points              saved_recycling_point[]
+  publications                        publication[]
 }
 
 model institution {
