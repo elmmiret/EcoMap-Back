@@ -6,10 +6,8 @@ info:
   contact:
     name: Equipo Backend PESkaos
 servers:
-  - url: http://localhost:3001
-    description: Servidor de desarrollo local
-  - url: https://tu-url-produccion.railway.app
-    description: Servidor de producción (Railway)
+  - url: https://peskaos-back-production.up.railway.app
+    description: Servidor publico
 
 components:
   securitySchemes:
