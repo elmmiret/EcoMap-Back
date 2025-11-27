@@ -2,6 +2,8 @@ import { verifyIdToken } from '#services/auth.service.js';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import { prisma } from '#lib/prisma.js';
+import { JWT_CONFIG } from '#lib/jwt.js';
+
 dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -83,7 +85,9 @@ export const authenticateBackendJWT = async (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET, {
+      algorithms: [JWT_CONFIG.algorithm] // Especificar algoritmo esperado
+    });
 
     // Verificar que la sesión existe en la base de datos
     const session = await prisma.session.findUnique({
