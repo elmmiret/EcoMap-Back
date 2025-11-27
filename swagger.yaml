@@ -246,6 +246,40 @@ components:
         is_deleted:
           type: boolean
 
+    Reservation:
+      type: object
+      properties:
+        reservation_id:
+          type: string
+          format: uuid
+        trade_id:
+          type: string
+          format: uuid
+        client_id:
+          type: string
+          format: uuid
+        reservation_date:
+          type: string
+          format: date-time
+        confirmed:
+          type: boolean
+        trade:
+          $ref: '#/components/schemas/TradeDetails'
+        client:
+          $ref: '#/components/schemas/UserProfile'
+
+    ReservationEnded:
+      type: object
+      properties:
+        reservation_id:
+          type: string
+          format: uuid
+        ended_at:
+          type: string
+          format: date-time
+        reservation:
+          $ref: '#/components/schemas/Reservation'
+
 paths:
   # --- Health Check ---
   /:
@@ -1178,3 +1212,269 @@ paths:
       responses:
         '200':
           description: Token registrado correctamente.
+
+  # --- Reservas ---
+  /api/reservations/create:
+    post:
+      summary: Crear nueva reserva
+      tags: [Reservas]
+      security:
+        - backendAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tradeId:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: Reserva creada.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Reservation'
+
+  /api/reservations/{reservationId}:
+    get:
+      summary: Obtener detalle de reserva
+      tags: [Reservas]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: reservationId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detalle de la reserva.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Reservation'
+    patch:
+      summary: Confirmar reserva
+      tags: [Reservas]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: reservationId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                confirmed:
+                  type: boolean
+      responses:
+        '200':
+          description: Reserva confirmada.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          reservation:
+                            $ref: '#/components/schemas/Reservation'
+                          reservation_ended:
+                            $ref: '#/components/schemas/ReservationEnded'
+
+  /api/reservations/{reservationId}/cancel:
+    delete:
+      summary: Cancelar reserva
+      tags: [Reservas]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: reservationId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reserva cancelada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /api/reservations:
+    get:
+      summary: Obtener todas las reservas
+      tags: [Reservas]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de reservas.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Reservation'
+
+  /api/reservations/user/{userId}:
+    get:
+      summary: Obtener reservas de un usuario
+      tags: [Reservas]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de reservas del usuario.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Reservation'
+
+  /api/reservations/user/{userId}/{reservationId}:
+    get:
+      summary: Obtener reserva específica de usuario
+      tags: [Reservas]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: reservationId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detalle de la reserva.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Reservation'
+
+  /api/reservations/ended:
+    get:
+      summary: Obtener reservas finalizadas
+      tags: [Reservas]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de reservas finalizadas.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ReservationEnded'
+
+  /api/reservations/ended/user/{userId}:
+    get:
+      summary: Obtener reservas finalizadas de un usuario
+      tags: [Reservas]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de reservas finalizadas del usuario.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ReservationEnded'
+
+  /api/reservations/ended/{reservationId}/valorations:
+    get:
+      summary: Obtener valoraciones de una reserva finalizada
+      tags: [Reservas]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: reservationId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de valoraciones.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object # Placeholder, Valoration schema not defined yet
+
