@@ -23,7 +23,6 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const swaggerDocument = yaml.load(path.join(__dirname, '../swagger.yaml'));
 
 // cargar variables de entorno desde .env
 dotenv.config();
@@ -34,6 +33,16 @@ const app = express();
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 3000;
 
+// Configuración de Swagger según el entorno
+const isProduction = process.env.NODE_ENV === 'production';
+const swaggerDoc = isProduction
+  ? yaml.load(path.join(__dirname, '../swagger-public.yaml'))
+  : yaml.load(path.join(__dirname, '../swagger.yaml'));
+
+const swaggerTitle = isProduction
+  ? 'PESkaos AI Detection API - Public'
+  : 'PESkaos API - Complete Documentation (Development)';
+
 // --- INICIALIZACION de Firebase Admin SDK ---
 initializeFirebaseAdmin();
 
@@ -41,8 +50,9 @@ initializeFirebaseAdmin();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ruta para la documentación de la API
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDoc, {
+  customSiteTitle: swaggerTitle
+}));
 
 // ruta para la documentación de la API
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
