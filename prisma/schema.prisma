@@ -26,6 +26,7 @@ model client {
   message_message_sender_idToclient   message[]       @relation("message_sender_idToclient")
   publications                        publication[]
   saved_recycling_points              saved_recycling_point[]
+  reservation                         reservation[]
 }
 
 model institution {
@@ -155,6 +156,7 @@ model trade {
   points_price      Int
   created_at        DateTime            @default(now())
   publication       publication         @relation(fields: [publication_id], references: [publication_id], onDelete: Cascade, onUpdate: NoAction)
+  reservation       reservation[]
 }
 
 model publication_media {
@@ -170,6 +172,20 @@ model reward {
   points_price   Int
   available      Boolean     @default(true)
   publication    publication @relation(fields: [publication_id], references: [publication_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model reservation {
+  reservation_id                      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reservation_date                    DateTime       @default(now())
+
+  trade_id       String   @db.Uuid
+  trade          trade    @relation(fields: [trade_id], references: [trade_id], onDelete: Cascade, onUpdate: NoAction)
+
+  client_id      String
+  client         client   @relation(fields: [client_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([trade_id])
+  @@index([client_id])
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
