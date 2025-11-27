@@ -3,6 +3,7 @@
 
 import cron from 'node-cron';
 import { runSyncJob } from '#jobs/sync-points.job.js';
+import { runKeepAliveJob } from '#jobs/keep-alive-ai.job.js';
 import { RECYCLING_SOURCES, getAvailableLocations } from '#config/recycling-sources.config.js';
 import { createLogger } from '#lib/logger.js';
 
@@ -46,6 +47,20 @@ export function startSchedulers() {
     taskInstances.set(location, task);
     log.info(`${location} sync scheduled with CRON="${cronExpr}" TZ="${DEFAULT_TZ}"`);
   });
+
+  // Schedule AI Keep Alive (Every day at 02:00 AM)
+  // Running every 24h is safe to prevent the 48h sleep timeout.
+  if (!taskInstances.has('ai-keep-alive')) {
+    const aiTask = cron.schedule(
+      '0 2 * * *',
+      async () => {
+        await runKeepAliveJob();
+      },
+      { timezone: DEFAULT_TZ }
+    );
+    taskInstances.set('ai-keep-alive', aiTask);
+    log.info('AI Keep Alive scheduled with CRON="0 2 * * *"');
+  }
 
   return taskInstances;
 }

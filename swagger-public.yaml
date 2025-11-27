@@ -1,0 +1,196 @@
+openapi: 3.0.0
+info:
+  title: PESkaos AI Detection API
+  description: API pública para detección de imágenes usando IA.
+  version: 1.0.0
+  contact:
+    name: Equipo Backend PESkaos
+servers:
+  - url: http://localhost:3001
+    description: Servidor de desarrollo local
+  - url: https://tu-url-produccion.railway.app
+    description: Servidor de producción (Railway)
+
+components:
+  securitySchemes:
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: Clave de API para servicios externos.
+
+  schemas:
+    # Respuesta estándar de la API
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        code:
+          type: string
+          description: Código de error interno
+
+    DetectionItem:
+      type: object
+      properties:
+        class:
+          type: integer
+        class_name:
+          type: string
+        confidence:
+          type: number
+          format: float
+        bbox:
+          type: array
+          items:
+            type: number
+            format: float
+
+    BikeDetectionResponse:
+      type: object
+      properties:
+        hasBike:
+          type: boolean
+        confidence:
+          type: number
+          format: float
+          nullable: true
+        count:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DetectionItem'
+
+    WasteDetectionResponse:
+      type: object
+      properties:
+        hasWaste:
+          type: boolean
+        confidence:
+          type: number
+          format: float
+          nullable: true
+        count:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DetectionItem'
+
+paths:
+  # --- Detección De Imagenes ---
+  /api/detect/bikes:
+    post:
+      summary: Detectar bicicletas en imagen
+      description: Envía una imagen y recibe información sobre las bicicletas detectadas con confianza superior al 50%.
+      tags: [Detección De Imagenes]
+      security:
+        - apiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: Imagen a analizar (máximo 10MB)
+      responses:
+        '200':
+          description: Resultado de la detección.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/BikeDetectionResponse'
+        '400':
+          description: Error en la petición (imagen no proporcionada o formato inválido)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          description: API Key inválida o no proporcionada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '503':
+          description: Servicio de detección no disponible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /api/detect/recycling:
+    post:
+      summary: Detectar residuos en imagen
+      description: Envía una imagen y recibe información sobre los tipos de residuos/contenedores detectados con confianza superior al 50%.
+      tags: [Detección De Imagenes]
+      security:
+        - apiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: Imagen a analizar (máximo 10MB)
+      responses:
+        '200':
+          description: Resultado de la detección.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/WasteDetectionResponse'
+              example:
+                success: true
+                data:
+                  hasWaste: true
+                  confidence: 0.95
+                  count: 2
+                  items:
+                    - class: 1
+                      class_name: 'PlasticContainer'
+                      confidence: 0.95
+                      bbox: [100, 150, 300, 400]
+                    - class: 3
+                      class_name: 'PaperContainer'
+                      confidence: 0.88
+                      bbox: [350, 200, 500, 450]
+        '400':
+          description: Error en la petición (imagen no proporcionada o formato inválido)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          description: API Key inválida o no proporcionada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '503':
+          description: Servicio de detección no disponible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
