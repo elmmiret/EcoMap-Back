@@ -7,6 +7,7 @@ import {
     getReservationsByUserId,
     getReservationByUserIdAndId,
     cancelReservation,
+    confirmReservation,
 } from '#controllers/reservation.controller.js';
 
 const router = express.Router();
@@ -17,6 +18,13 @@ const router = express.Router();
  * @access Protegido (Cualquier usuario logueado, el controlador valida si es cliente)
  */
 router.post('/create', authenticateBackendJWT, createReservation);
+
+/**
+ * @route PATCH /api/reservations/:reservationId
+ * @description Confirma una reserva (pasando confirmed: true) y crea reservation_ended.
+ * Solo para el dueño del Trade.
+ */
+router.patch('/:reservationId', authenticateBackendJWT, confirmReservation);
 
 /**
  * @route DELETE /api/reservations/:reservationId/cancel

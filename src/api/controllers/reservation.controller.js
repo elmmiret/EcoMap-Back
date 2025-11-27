@@ -216,3 +216,168 @@ export const getAllReservations = async (req, res) => {
       return res.status(500).json({ success: false, message: 'Error interno.', code: 'SERVER_ERROR' });
     }
   };
+
+  /**
+ * Cancela (elimina) una reserva existente.
+ * Permisos: Solo puede cancelar el creador de la reserva o el dueño del Trade.
+ * Endpoint: DELETE /api/reservations/:reservationId/cancel
+ */
+export const deleteReservation = async (req, res) => {
+    const { reservationId } = req.params;
+    const { uid } = req.user; // id del usuario autenticado
+  
+    try {
+      // buscar la reserva e incluir información del 'trade' para verificar propiedad
+      const reservation = await prisma.reservation.findUnique({
+        where: { reservation_id: reservationId },
+        include: {
+          trade: {
+            include: { publication: true } // necesario para acceder al client_id (dueño)
+          }
+        }
+      });
+  
+      if (!reservation) {
+        return res.status(404).json({
+          success: false,
+          message: 'Reserva no encontrada.',
+          code: 'RESERVATION_NOT_FOUND'
+        });
+      }
+  
+      // verificar permisos, ¿es el creador de la reserva o el dueño del trade?
+      const isRequester = reservation.client_id === uid;
+      // ¿es el dueño del artículo que se va a intercambiar?
+      const isTradeOwner = reservation.trade?.publication?.client_id === uid;
+  
+      if (!isRequester && !isTradeOwner) {
+        return res.status(403).json({
+          success: false,
+          message: 'No tienes permiso para cancelar esta reserva.',
+          code: 'FORBIDDEN_ACTION'
+        });
+      }
+  
+      // eliminar la reserva
+      await prisma.reservation.delete({
+        where: { reservation_id: reservationId }
+      });
+  
+      return res.status(200).json({
+        success: true,
+        message: 'Reserva cancelada correctamente.'
+      });
+  
+    } catch (error) {
+      console.error(`Error cancelando reserva ${reservationId}:`, error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error interno al cancelar la reserva.',
+        code: 'SERVER_ERROR'
+      });
+    }
+  };
+
+  /**
+ * Confirma una reserva existente y finaliza el proceso.
+ * - Pone 'confirmed' a true.
+ * - Crea la entrada en 'reservation_ended'.
+ * - Actualiza el estado de la publicación a 'Completed'.
+ * * Permisos: Solo el propietario del 'trade' puede confirmar.
+ * Endpoint: PATCH /api/reservations/:reservationId
+ */
+export const confirmReservation = async (req, res) => {
+    const { reservationId } = req.params;
+    const { confirmed } = req.body; // { "confirmed": true }
+    const { uid } = req.user; // id del dueño del trade que confirma
+  
+    // validación básica del body
+    if (confirmed !== true) {
+      return res.status(400).json({
+        success: false,
+        message: 'Para confirmar la reserva debes enviar { "confirmed": true } en el cuerpo.',
+        code: 'INVALID_ACTION_BODY'
+      });
+    }
+  
+    try {
+      // Buscar la reserva e incluir datos del Trade para ver quién es el dueño
+      const reservation = await prisma.reservation.findUnique({
+        where: { reservation_id: reservationId },
+        include: {
+          reservation_ended: true, // para verificar si ya existe
+          trade: {
+            include: {
+              publication: true // necesario para acceder al client_id (dueño)
+            }
+          }
+        }
+      });
+  
+      if (!reservation) {
+        return res.status(404).json({
+          success: false,
+          message: 'Reserva no encontrada.',
+          code: 'RESERVATION_NOT_FOUND'
+        });
+      }
+  
+      // Verificar permisos: ¿Es el usuario el dueño del Trade?
+      // reservation.trade.publication.client_id es el dueño original
+      if (reservation.trade.publication.client_id !== uid) {
+        return res.status(403).json({
+          success: false,
+          message: 'No tienes permiso para confirmar esta reserva. Solo el propietario del artículo puede hacerlo.',
+          code: 'FORBIDDEN_NOT_OWNER'
+        });
+      }
+  
+      // verificar si ya estaba confirmada
+      if (reservation.confirmed || reservation.reservation_ended) {
+        return res.status(409).json({
+          success: false,
+          message: 'Esta reserva ya ha sido confirmada anteriormente.',
+          code: 'ALREADY_CONFIRMED'
+        });
+      }
+  
+      // 4. Ejecutar la lógica en transacción (Todo o nada)
+      const result = await prisma.$transaction(async (tx) => {
+        // actualizar la reserva a confirmed: true
+        const updatedRes = await tx.reservation.update({
+          where: { reservation_id: reservationId },
+          data: { confirmed: true }
+        });
+  
+        // crear la entrada en reservation_ended
+        const endedRes = await tx.reservation_ended.create({
+          data: {
+            reservation_id: reservationId
+            // ended_at se pone solo con default(now())
+          }
+        });
+  
+        // cerrar la publicación original del trade (poner estado 'Completed')
+        await tx.publication.update({
+          where: { publication_id: reservation.trade.publication_id },
+          data: { publication_state: 'Completed' }
+        });
+  
+        return { reservation: updatedRes, reservation_ended: endedRes };
+      });
+  
+      return res.status(200).json({
+        success: true,
+        message: 'Reserva confirmada y finalizada correctamente.',
+        data: result
+      });
+  
+    } catch (error) {
+      console.error(`Error confirmando reserva ${reservationId}:`, error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error interno al confirmar la reserva.',
+        code: 'SERVER_ERROR'
+      });
+    }
+  };
