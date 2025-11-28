@@ -36,11 +36,28 @@ const PORT = process.env.PORT || 3000;
 
 // Configuración de Swagger según el entorno
 const isProduction = process.env.NODE_ENV === 'production';
-const swaggerDoc = isProduction ? yaml.load(path.join(__dirname, '../swagger-public.yaml')) : yaml.load(path.join(__dirname, '../swagger.yaml'));
-// Documentación privada (Solo Admin)
-const privateSwaggerDoc = yaml.load(path.join(__dirname, '../swagger.yaml'));
 
-const swaggerTitle = isProduction ? 'PESkaos AI Detection API - Public' : 'PESkaos API - Complete Documentation (Development)';
+// /api-docs siempre muestra la documentación pública (swagger-public.yaml)
+let publicSwaggerDoc;
+try {
+  const publicPath = path.join(__dirname, '../swagger-public.yaml');
+  publicSwaggerDoc = yaml.load(publicPath);
+} catch (err) {
+  log.error('Error loading public swagger:', err.message);
+  publicSwaggerDoc = { info: { title: 'Error loading public docs' } };
+}
+
+// /api-docs-private siempre muestra la documentación completa (swagger.yaml) - requiere autenticación admin
+let privateSwaggerDoc;
+try {
+  const privatePath = path.join(__dirname, '../swagger.yaml');
+  privateSwaggerDoc = yaml.load(privatePath);
+} catch (err) {
+  log.error('Error loading private swagger:', err.message);
+  privateSwaggerDoc = { info: { title: 'Error loading private docs' } };
+}
+
+const swaggerTitle = isProduction ? 'PESkaos AI Detection API - Public' : 'PESkaos API - Public Documentation';
 
 // --- INICIALIZACION de Firebase Admin SDK ---
 initializeFirebaseAdmin();
@@ -49,24 +66,23 @@ initializeFirebaseAdmin();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ruta para la documentación de la API
-app.use(
-  '/api-docs',
-  swaggerUi.serve,
-  swaggerUi.setup(swaggerDoc, {
-    customSiteTitle: swaggerTitle,
-  })
-);
+// Servir Swagger UI assets (CSS, JS, etc.)
+app.use('/api-docs', swaggerUi.serve);
+app.use('/api-docs-private', swaggerUi.serve);
 
-app.use(
-  '/api-docs-private',
-  authenticateBackendJWT,
-  requireAdmin,
-  swaggerUi.serve,
-  swaggerUi.setup(privateSwaggerDoc, {
+// Ruta para la documentación de la API pública
+app.get('/api-docs', (req, res, next) => {
+  return swaggerUi.setup(publicSwaggerDoc, {
+    customSiteTitle: swaggerTitle,
+  })(req, res, next);
+});
+
+// Ruta para la documentación de la API privada (requiere autenticación de Admin)
+app.get('/api-docs-private', authenticateBackendJWT, requireAdmin, (req, res, next) => {
+  return swaggerUi.setup(privateSwaggerDoc, {
     customSiteTitle: 'PESkaos API - Private Admin Documentation',
-  })
-);
+  })(req, res, next);
+});
 
 // montar las rutas de autentificación bajo el prefijo /api/users
 app.use('/api/users', authRoutes);
