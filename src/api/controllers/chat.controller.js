@@ -63,13 +63,19 @@ export const postMessage = async (req, res) => {
   try {
     const userId = req.user.uid;
     const { chatId } = req.params;
-    const { content } = req.body;
+    const { content, media } = req.body;
 
-    if (!content || typeof content !== 'string' || content.trim().length === 0) {
-      return res.status(400).json({ success: false, error: 'INVALID_CONTENT' });
+    const hasContent = content && typeof content === 'string' && content.trim().length > 0;
+    const hasMedia = Array.isArray(media) && media.length > 0;
+
+    if (!hasContent && !hasMedia) {
+      return res.status(400).json({ success: false, error: 'INVALID_CONTENT_OR_MEDIA' });
     }
 
-    const message = await sendMessage(chatId, userId, content);
+    const finalContent = hasContent ? content : '';
+    const mediaUrls = hasMedia ? media : [];
+
+    const message = await sendMessage(chatId, userId, finalContent, mediaUrls);
     return res.status(201).json({ success: true, message });
   } catch (error) {
     log.error('Error sending message:', error);

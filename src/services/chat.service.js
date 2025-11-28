@@ -31,6 +31,9 @@ const chatInclude = {
   messages: {
     orderBy: { created_at: 'desc' },
     take: 1,
+    include: {
+      message_media: true,
+    },
   },
 };
 
@@ -55,6 +58,7 @@ function formatChat(chat, currentUserId) {
       ? {
           content: lastMessage.is_deleted ? 'Mensaje eliminado' : lastMessage.content,
           created_at: lastMessage.created_at,
+          has_media: !lastMessage.is_deleted && lastMessage.message_media?.length > 0,
         }
       : null,
     unread_count: chat._count?.messages || 0,
@@ -72,6 +76,7 @@ function formatMessage(message) {
     message_id: message.message_id,
     chat_id: message.chat_id,
     content: message.is_deleted ? 'Mensaje eliminado' : message.content,
+    media: message.is_deleted ? [] : message.message_media?.map((m) => m.media_url) || [],
     is_read: message.is_read,
     delivered: message.delivered,
     created_at: message.created_at,
@@ -189,13 +194,14 @@ export async function getUserChats(userId) {
  * @param {string} chatId
  * @param {string} senderId
  * @param {string} content
+ * @param {Array<string>} mediaUrls
  * @returns {Promise<object>} Formatted message
  */
-export async function sendMessage(chatId, senderId, content) {
+export async function sendMessage(chatId, senderId, content, mediaUrls = []) {
   const chat = await verifyChatAccess(chatId, senderId);
 
   // Create message via message service
-  const message = await messageService.createMessage(chatId, senderId, content);
+  const message = await messageService.createMessage(chatId, senderId, content, mediaUrls);
 
   // Update chat timestamp
   await prisma.chat.update({

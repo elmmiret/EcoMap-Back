@@ -272,6 +272,8 @@ components:
             created_at:
               type: string
               format: date-time
+            has_media:
+              type: boolean
         unread_count:
           type: integer
         updated_at:
@@ -298,6 +300,11 @@ components:
           format: date-time
         is_deleted:
           type: boolean
+        media:
+          type: array
+          items:
+            type: string
+            format: uri
 
     Reservation:
       type: object
@@ -1192,7 +1199,13 @@ paths:
               properties:
                 content:
                   type: string
-                  description: Contenido del mensaje.
+                  description: Contenido del mensaje (opcional si se envía media).
+                media:
+                  type: array
+                  items:
+                    type: string
+                    format: uri
+                  description: Lista de URLs de imágenes adjuntas.
       responses:
         '201':
           description: Mensaje enviado y guardado.
