@@ -56,10 +56,10 @@ function formatChat(chat, currentUserId) {
     },
     last_message: lastMessage
       ? {
-        content: lastMessage.is_deleted ? 'Mensaje eliminado' : lastMessage.content,
-        created_at: lastMessage.created_at,
-        has_media: !lastMessage.is_deleted && lastMessage.message_media?.length > 0,
-      }
+          content: lastMessage.is_deleted ? 'Mensaje eliminado' : lastMessage.content,
+          created_at: lastMessage.created_at,
+          has_media: !lastMessage.is_deleted && lastMessage.message_media?.length > 0,
+        }
       : null,
     unread_count: chat._count?.messages || 0,
     updated_at: chat.updated_at,

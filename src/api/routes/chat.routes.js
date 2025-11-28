@@ -36,14 +36,7 @@ router.get('/:chatId/messages', authenticateBackendJWT, requireClient, getMessag
  * @body { content: string, media: string[] }
  * @access Protected (Client only)
  */
-router.post(
-    '/:chatId/messages',
-    authenticateBackendJWT,
-    requireClient,
-    chatMessageLimiter,
-    validateChatMessage,
-    postMessage
-);
+router.post('/:chatId/messages', authenticateBackendJWT, requireClient, chatMessageLimiter, validateChatMessage, postMessage);
 
 /**
  * @route PUT /api/chats/:chatId/read
