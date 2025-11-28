@@ -10,14 +10,21 @@ import { prisma } from '#lib/prisma.js';
  * @param {string} chatId
  * @param {string} senderId
  * @param {string} content
+ * @param {Array<string>} mediaUrls
  * @returns {Promise<object>}
  */
-export async function createMessage(chatId, senderId, content) {
+export async function createMessage(chatId, senderId, content, mediaUrls = []) {
   return prisma.message.create({
     data: {
       chat_id: chatId,
       sender_id: senderId,
       content: content,
+      message_media: {
+        create: mediaUrls.map((url) => ({ media_url: url })),
+      },
+    },
+    include: {
+      message_media: true,
     },
   });
 }
@@ -34,6 +41,9 @@ export async function getMessagesByChatId(chatId, limit = 50, before = null) {
     where: { chat_id: chatId },
     orderBy: { created_at: 'desc' },
     take: limit,
+    include: {
+      message_media: true,
+    },
   };
 
   if (before) {
@@ -99,6 +109,9 @@ export async function softDeleteMessage(messageId) {
       is_deleted: true,
       content: '', // Clear content for privacy
     },
+    include: {
+      message_media: true,
+    },
   });
 }
 
@@ -110,5 +123,8 @@ export async function softDeleteMessage(messageId) {
 export async function getMessageById(messageId) {
   return prisma.message.findUnique({
     where: { message_id: messageId },
+    include: {
+      message_media: true,
+    },
   });
 }
