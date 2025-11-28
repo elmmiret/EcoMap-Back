@@ -13,7 +13,7 @@ let io;
 export function initializeSocket(httpServer) {
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+      origin: process.env.CORS_ORIGIN || 'http://localhost:3001',
       methods: ['GET', 'POST'],
     },
   });
