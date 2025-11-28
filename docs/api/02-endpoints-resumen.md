@@ -6,22 +6,25 @@ Vista rápida de todos los endpoints disponibles en la API de PESkaos.
 
 ## 🟢 Públicos (Sin autenticación)
 
-| Método | Endpoint                        | Descripción                                                                                              | Respuesta                                 |
-| ------ | ------------------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| `GET`  | `/`                             | Verificar estado del servidor                                                                            | `"API running."`                          |
-| `GET`  | `/api/recycling-points/:region` | Puntos de reciclaje por región (`:region` puede ser `barcelona` o `navarra`). Soporta búsqueda y filtros | `Object` con `success`, `message`, `data` |
+Estos endpoints son de libre acceso sin necesidad de autenticación.
+
+| Método | Endpoint                        | Descripción                                                 | Respuesta                                 |
+| ------ | ------------------------------- | ----------------------------------------------------------- | ----------------------------------------- |
+| `GET`  | `/`                             | Verificar estado del servidor                               | `"API running."`                          |
+| `GET`  | `/api/recycling-points/:region` | Puntos de reciclaje por región (optimizado con cache SWR)  | `Object` con `success`, `message`, `data` |
+| `GET`  | `/api/routes`                   | Calcular ruta entre coordenadas (ORS API)                   | `Object` con `success`, `message`, `data` |
 
 📖 Ver detalles:
 
 - [GET / - Health Check](endpoints/health-check.md)
-- [GET /api/recycling-points/barcelona](endpoints/barcelona-points.md)
-- [GET /api/recycling-points/navarra](endpoints/navarra-points.md)
+- [GET /api/recycling-points/:region](endpoints/recycling-points-region.md)
+- [GET /api/routes - Calcular Ruta](endpoints/routes-calculate.md)
 
 ---
 
 ## 🔐 Autenticación (Firebase Token)
 
-Estos endpoints requieren el token de Firebase en el header `Authorization`.
+Estos endpoints requieren el **token de Firebase** en el header `Authorization`.
 
 | Método | Endpoint          | Descripción                                          | Devuelve                   |
 | ------ | ----------------- | ---------------------------------------------------- | -------------------------- |
@@ -33,51 +36,63 @@ Estos endpoints requieren el token de Firebase en el header `Authorization`.
 
 ## 🔒 Protegidos (Backend JWT)
 
-Estos endpoints requieren el JWT del backend en el header `Authorization`.
+Estos endpoints requieren el **JWT del backend** en el header `Authorization`.
 
-> ⚠️ **Próximamente**: Más endpoints se añadirán aquí.
+### 👤 Nivel de Acceso: Todos los Usuarios Autenticados
 
-### 👥 Usuarios
+Cualquier usuario autenticado (client, admin, institution) puede acceder.
 
-| Método   | Endpoint            | Descripción                         | Rol Requerido |
-| -------- | ------------------- | ----------------------------------- | ------------- |
-| `POST`   | `/api/users/logout` | Cierra la sesión del usuario actual | Todos         |
-| `GET`    | `/api/users/me`     | Obtener perfil del usuario actual   | Todos         |
-| `PUT`    | `/api/users/me`     | Actualizar perfil                   | Todos         |
-| `DELETE` | `/api/users/me`     | Eliminar cuenta                     | Todos         |
+#### Gestión de Usuario
+
+| Método   | Endpoint              | Descripción                         | Rol Requerido |
+| -------- | --------------------- | ----------------------------------- | ------------- |
+| `POST`   | `/api/users/logout`   | Cierra la sesión del usuario actual | Todos         |
+| `GET`    | `/api/users/me`       | Obtener perfil del usuario actual   | Todos         |
+| `PUT`    | `/api/users/me`       | Actualizar perfil                   | Todos         |
+| `PUT`    | `/api/users/language` | Actualizar idioma de la app         | Todos         |
+| `DELETE` | `/api/users/me`       | Eliminar cuenta                     | Todos         |
 
 📖 Ver detalles:
 
 - [POST /api/users/logout](endpoints/logout.md)
 - [GET /api/users/me](endpoints/users-me.md)
+- [PUT /api/users/language](endpoints/users-language.md)
+- [PUT /api/users/me](endpoints/users-update.md)
 - [DELETE /api/users/me](endpoints/users-delete.md)
 
-### ♻️ Puntos de Reciclaje
+---
 
-| Método   | Endpoint                    | Descripción                  | Rol Requerido |
-| -------- | --------------------------- | ---------------------------- | ------------- |
-| `GET`    | `/api/recycling-points`     | Listar puntos de reciclaje   | Todos         |
-| `GET`    | `/api/recycling-points/:id` | Obtener detalles de un punto | Todos         |
-| `POST`   | `/api/recycling-points`     | Crear punto de reciclaje     | Admin         |
-| `PUT`    | `/api/recycling-points/:id` | Actualizar punto             | Admin         |
-| `DELETE` | `/api/recycling-points/:id` | Eliminar punto               | Admin         |
+### 🔒 Nivel de Acceso: Solo Administradores
 
-### 🗑️ Contenedores
+Requieren `"role": "admin"` en el JWT del backend.
 
-| Método | Endpoint              | Descripción                    | Rol Requerido |
-| ------ | --------------------- | ------------------------------ | ------------- |
-| `GET`  | `/api/containers`     | Listar contenedores            | Todos         |
-| `GET`  | `/api/containers/:id` | Obtener detalles de contenedor | Todos         |
-| `POST` | `/api/containers`     | Crear contenedor               | Admin         |
-| `PUT`  | `/api/containers/:id` | Actualizar contenedor          | Admin         |
+#### Cache de Puntos de Reciclaje (Admin)
 
-### 🕒 Horarios
+| Método | Endpoint                               | Descripción                                       | Rol Requerido |
+| ------ | -------------------------------------- | ------------------------------------------------- | ------------- |
+| `GET`  | `/api/recycling-points/:region/status` | Obtener estado del cache y metadatos              | Admin         |
+| `POST` | `/api/recycling-points/:region/refresh`| Forzar sincronización inmediata del cache         | Admin         |
 
-| Método | Endpoint              | Descripción                | Rol Requerido |
-| ------ | --------------------- | -------------------------- | ------------- |
-| `GET`  | `/api/timetables`     | Listar horarios            | Todos         |
-| `GET`  | `/api/timetables/:id` | Obtener horario específico | Todos         |
-| `POST` | `/api/timetables`     | Crear horario              | Admin         |
+📖 Ver detalles:
+
+- [GET /api/recycling-points/:region/status](endpoints/recycling-points-status.md)
+- [POST /api/recycling-points/:region/refresh](endpoints/recycling-points-refresh.md)
+
+---
+
+### 🏢 Nivel de Acceso: Solo Instituciones
+
+Requieren `"role": "institution"` en el JWT del backend.
+
+> ⚠️ **Próximamente**: Endpoints específicos para instituciones.
+
+---
+
+### 🔐 Nivel de Acceso: Admin o Institución
+
+Requieren `"role": "admin"` o `"role": "institution"` en el JWT del backend.
+
+> ⚠️ **Próximamente**: Endpoints compartidos entre admin e instituciones (ej: estadísticas, reportes).
 
 ---
 
@@ -86,14 +101,30 @@ Estos endpoints requieren el JWT del backend en el header `Authorization`.
 | Rol           | Descripción               | Permisos                                                   |
 | ------------- | ------------------------- | ---------------------------------------------------------- |
 | `client`      | Usuario normal de la app  | Ver y actualizar su propio perfil, ver puntos de reciclaje |
-| `admin`       | Administrador del sistema | Gestionar puntos de reciclaje, contenedores, horarios      |
-| `institution` | Institución/Organización  | Permisos especiales por definir                            |
+| `admin`       | Administrador del sistema | Todos los permisos + gestión de cache y sincronizaciones  |
+| `institution` | Institución/Organización  | Permisos especiales (por definir)                          |
+
+---
+
+## � Matriz de Permisos
+
+| Endpoint                                    | 🟢 Público | 👤 Client | 🔒 Admin | 🏢 Institution |
+| ------------------------------------------- | ---------- | --------- | -------- | -------------- |
+| `GET /`                                     | ✅          | ✅         | ✅        | ✅              |
+| `GET /api/recycling-points/:region`         | ✅          | ✅         | ✅        | ✅              |
+| `GET /api/routes`                           | ✅          | ✅         | ✅        | ✅              |
+| `POST /api/users/sync`                      | ✅          | ✅         | ✅        | ✅              |
+| `POST /api/users/logout`                    | ❌          | ✅         | ✅        | ✅              |
+| `GET /api/users/me`                         | ❌          | ✅         | ✅        | ✅              |
+| `PUT /api/users/me`                         | ❌          | ✅         | ✅        | ✅              |
+| `PUT /api/users/language`                   | ❌          | ✅         | ✅        | ✅              |
+| `DELETE /api/users/me`                      | ❌          | ✅         | ✅        | ✅              |
+| `GET /api/recycling-points/:region/status`  | ❌          | ❌         | ✅        | ❌              |
+| `POST /api/recycling-points/:region/refresh`| ❌          | ❌         | ✅        | ❌              |
 
 ---
 
 ## 📝 Formato de URLs
-
-### Parámetros de Ruta
 
 ```
 /api/users/:id

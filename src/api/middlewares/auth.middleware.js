@@ -128,3 +128,147 @@ export const authenticateBackendJWT = async (req, res, next) => {
     });
   }
 };
+
+/**
+ * Middleware to verify that the authenticated user is an admin
+ * MUST be used after authenticateBackendJWT middleware
+ * Checks req.user.role from the decoded JWT payload
+ *
+ * Usage:
+ * router.post('/admin-only', authenticateBackendJWT, requireAdmin, controller);
+ */
+export const requireAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required',
+      code: 'NOT_AUTHENTICATED',
+    });
+  }
+
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Admin privileges required',
+      code: 'FORBIDDEN',
+    });
+  }
+
+  // Usuario es admin, continuar
+  next();
+};
+
+/**
+ * Middleware to verify that the authenticated user is an institution
+ * MUST be used after authenticateBackendJWT middleware
+ * Checks req.user.role from the decoded JWT payload
+ *
+ * Usage:
+ * router.post('/institution-only', authenticateBackendJWT, requireInstitution, controller);
+ */
+export const requireInstitution = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required',
+      code: 'NOT_AUTHENTICATED',
+    });
+  }
+
+  if (req.user.role !== 'institution') {
+    return res.status(403).json({
+      success: false,
+      message: 'Institution privileges required',
+      code: 'FORBIDDEN',
+    });
+  }
+
+  // Usuario es institution, continuar
+  next();
+};
+
+/**
+ * Middleware to verify that the authenticated user is either admin or institution
+ * MUST be used after authenticateBackendJWT middleware
+ * Useful for endpoints that should be accessible by both roles
+ *
+ * Usage:
+ * router.get('/stats', authenticateBackendJWT, requireAdminOrInstitution, controller);
+ */
+export const requireAdminOrInstitution = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required',
+      code: 'NOT_AUTHENTICATED',
+    });
+  }
+
+  if (req.user.role !== 'admin' && req.user.role !== 'institution') {
+    return res.status(403).json({
+      success: false,
+      message: 'Admin or institution privileges required',
+      code: 'FORBIDDEN',
+    });
+  }
+
+  // Usuario tiene permisos, continuar
+  next();
+};
+
+/**
+ * Middleware to verify that the authenticated user is a client
+ * MUST be used after authenticateBackendJWT middleware
+ * Checks req.user.role from the decoded JWT payload
+ *
+ * Usage:
+ * router.post('/client-only', authenticateBackendJWT, requireClient, controller);
+ */
+export const requireClient = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required',
+      code: 'NOT_AUTHENTICATED',
+    });
+  }
+
+  if (req.user.role !== 'client') {
+    return res.status(403).json({
+      success: false,
+      message: 'Client privileges required',
+      code: 'FORBIDDEN',
+    });
+  }
+
+  // Usuario es client, continuar
+  next();
+};
+
+/**
+ * Middleware to verify API Key for external services
+ * Checks x-api-key header
+ */
+export const requireApiKey = (req, res, next) => {
+  const apiKey = req.headers['x-api-key'];
+  const validApiKey = process.env.AI_SERVICE_API_KEY;
+
+  if (!validApiKey) {
+    console.error('AI_SERVICE_API_KEY not configured in environment variables');
+    return res.status(500).json({
+      success: false,
+      message: 'Server configuration error',
+      code: 'CONFIG_ERROR',
+    });
+  }
+
+  if (!apiKey || apiKey !== validApiKey) {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid or missing API Key',
+      code: 'INVALID_API_KEY',
+    });
+  }
+
+  next();
+};

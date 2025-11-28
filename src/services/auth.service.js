@@ -1,4 +1,7 @@
 import { getFirebaseAuth } from '#config/firebase.js';
+import { createLogger } from '#lib/logger.js';
+
+const log = createLogger('auth');
 
 /**
  * Verifies Firebase ID token and returns decoded token with user info
@@ -11,11 +14,11 @@ export const verifyIdToken = async (idToken) => {
     const auth = getFirebaseAuth();
     const decodedToken = await auth.verifyIdToken(idToken);
 
-    console.log(`Token verified for user: ${decodedToken.uid}`);
+    log.debug(`Token verified for user: ${decodedToken.uid}`);
 
     return decodedToken;
   } catch (error) {
-    console.error('Token verification failed:', error.message);
+    log.warn('Token verification failed:', error.message);
 
     // Provide more specific error messages
     if (error.code === 'auth/id-token-expired') {
@@ -41,7 +44,7 @@ export const getUserByUid = async (uid) => {
     const userRecord = await auth.getUser(uid);
     return userRecord;
   } catch (error) {
-    console.error('Error fetching user ${uid}:', error.message);
+    log.warn('Error fetching user ${uid}:', error.message);
     throw new Error('User not found');
   }
 };
@@ -55,9 +58,9 @@ export const setCustomClaims = async (uid, customClaims) => {
   try {
     const auth = getFirebaseAuth();
     await auth.setCustomUserClaims(uid, customClaims);
-    console.log(`✅ Custom claims set for user ${uid}:`, customClaims);
+    log.info(`✅ Custom claims set for user ${uid}:`, customClaims);
   } catch (error) {
-    console.error(`❌ Error setting custom claims for ${uid}:`, error.message);
+    log.error(`❌ Error setting custom claims for ${uid}:`, error.message);
     throw new Error('Failed to set custom claims');
   }
 };
@@ -70,9 +73,9 @@ export const revokeRefreshTokens = async (uid) => {
   try {
     const auth = getFirebaseAuth();
     await auth.revokeRefreshTokens(uid);
-    console.log(`✅ Refresh tokens revoked for user ${uid}`);
+    log.info(`✅ Refresh tokens revoked for user ${uid}`);
   } catch (error) {
-    console.error(`❌ Error revoking tokens for ${uid}:`, error.message);
+    log.error(`❌ Error revoking tokens for ${uid}:`, error.message);
     throw new Error('Failed to revoke tokens');
   }
 };

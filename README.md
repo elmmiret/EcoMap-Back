@@ -35,17 +35,11 @@ npm install
 
 ## 3. Configura l'entorn de variables
 
-- Copia l'arxiu d'exemple de variables:
+- Obté les credencials reals del canal **#archivos-back** del servidor de Discord de l'equip:
+  - Descarrega l'arxiu `.env.txt` i renombra'l a `.env` a l'arrel del projecte
+  - Descarrega l'arxiu `firebase-service-account-key.json` i col·loca'l a l'arrel del projecte
 
-```
-
-cp .env.example .env
-
-```
-
-- Edita el nou `.env` amb les teves pròpies credencials/configuracions.
-
-**⚠️ IMPORTANT: Mai pugis el teu `.env` al repositori. Assegura't que està al teu `.gitignore`.**
+**⚠️ IMPORTANT: Mai pugis el teu `.env` ni el `firebase-service-account-key.json` al repositori. Assegura't que estan al teu `.gitignore`.**
 
 ---
 
@@ -55,7 +49,7 @@ Assegura't de tenir Docker Desktop obert i després executa:
 
 ```
 
-docker-compose up -d
+docker compose up -d
 
 ```
 
@@ -96,6 +90,27 @@ npm run dev
 
 ---
 
+## 7. Documentació de l'API (Swagger)
+
+El projecte inclou una interfície interactiva (Swagger UI) per explorar i provar els endpoints de l'API sense necessitat d'escriure codi.
+
+Per accedir-hi:
+
+1. Assegura't que el servidor està en marxa (`npm run dev`).
+2. Obre el teu navegador i visita:
+
+   👉 **http://localhost:3001/api-docs**
+
+Allà trobaràs:
+
+- Tots els endpoints disponibles (Usuaris, Punts de Reciclatge, Rutes, etc.).
+- Els esquemes de dades (JSON) que s'han d'enviar i rebre.
+- Botó **"Try it out"** per fer peticions reals directament contra el teu backend local.
+
+## **Nota:** Per als endpoints protegits (cadenat 🔒), recorda autenticar-te primer amb el botó "Authorize" utilitzant el token corresponent (Firebase o Backend JWT).
+
+---
+
 ## Comandes útils
 
 | Comanda           | Descripció                                                           |
@@ -116,11 +131,59 @@ Per realitzar queries a la base de dades, utilitza **Prisma Client**. Per evitar
 
 Importa-la i utilitza-la així:
 
-```js
+````js
 import { prisma } from '#lib/prisma.js';
 
 // Exemple de query
 const users = await prisma.user.findMany();
+
+## Logging configurable (nivell i namespaces)
+
+El projecte incorpora un logger amb nivells i filtres per namespace controlats per variables d'entorn. Per defecte, el nivell és `info` i mostra només els missatges rellevants.
+
+- Variables d'entorn:
+  - `LOG_LEVEL`: `error` | `warn` | `info` | `debug` | `trace` (per defecte: `info`)
+  - `LOG_NAMESPACES`: llista separada per comes amb patrons amb `*` (comodí). Si es deixa buit, es mostren tots els namespaces per nivells ≤ `info`.
+
+- Namespaces principals disponibles:
+  - `startup` (arrencada del servidor)
+  - `scheduler` (cron i warmup)
+  - `navarra-sync` (descàrrega i sincronització de Navarra)
+  - `cache` (SWR i actualitzacions de cache)
+  - `sync-job` (job genèric de sincronització)
+  - `recycling-points` (controlador d’endpoint)
+  - `route-service` (càlcul de rutes ORS)
+  - `auth` (verificació de tokens, claims, etc.)
+
+- Exemples d’ús al `.env`:
+
+```bash
+# Veure només informació rellevant (per defecte)
+LOG_LEVEL=info
+
+# Depurar només la sincronització de Navarra
+LOG_LEVEL=debug
+LOG_NAMESPACES=navarra-sync
+
+# Depurar cache i scheduler a la vegada
+LOG_LEVEL=debug
+LOG_NAMESPACES=cache,scheduler
+
+# Veure TOT (només recomanat puntualment en local)
+LOG_LEVEL=trace
+LOG_NAMESPACES=*
+````
+
+Vegeu `.env.example` per a més exemples comentats.
+
+---
+
+## Warmup i Schedulers segons l'entorn
+
+- El servidor executa un "warmup" (precàrrega de la cache de punts) només en producció (`NODE_ENV=production`).
+- Les tasques programades (cron) també s’inicien només en producció.
+- En desenvolupament, amb `NODE_ENV=development`, ambdós mecanismes es salten automàticament per evitar trànsit innecessari a APIs externes.
+
 ```
 
 Prisma facilita les operacions amb la base de dades de forma segura i tipada, sense necessitat d'escriure SQL manualment en la majoria de casos.
@@ -171,6 +234,8 @@ npx prisma migrate dev --name <numero*migracio>*<nom_canvi>
 ```
 
 ---
+
+```
 
 ```
 
