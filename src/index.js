@@ -36,11 +36,14 @@ const PORT = process.env.PORT || 3000;
 
 // Configuración de Swagger según el entorno
 const isProduction = process.env.NODE_ENV === 'production';
-const swaggerDoc = isProduction ? yaml.load(path.join(__dirname, '../swagger-public.yaml')) : yaml.load(path.join(__dirname, '../swagger.yaml'));
-// Documentación privada (Solo Admin)
+
+// /api-docs siempre muestra la documentación pública (swagger-public.yaml)
+const publicSwaggerDoc = yaml.load(path.join(__dirname, '../swagger-public.yaml'));
+
+// /api-docs-private siempre muestra la documentación completa (swagger.yaml) - requiere autenticación admin
 const privateSwaggerDoc = yaml.load(path.join(__dirname, '../swagger.yaml'));
 
-const swaggerTitle = isProduction ? 'PESkaos AI Detection API - Public' : 'PESkaos API - Complete Documentation (Development)';
+const swaggerTitle = isProduction ? 'PESkaos AI Detection API - Public' : 'PESkaos API - Public Documentation';
 
 // --- INICIALIZACION de Firebase Admin SDK ---
 initializeFirebaseAdmin();
@@ -49,15 +52,16 @@ initializeFirebaseAdmin();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ruta para la documentación de la API
+// ruta para la documentación de la API pública
 app.use(
   '/api-docs',
   swaggerUi.serve,
-  swaggerUi.setup(swaggerDoc, {
+  swaggerUi.setup(publicSwaggerDoc, {
     customSiteTitle: swaggerTitle,
   })
 );
 
+// ruta para la documentación de la API privada (requiere autenticación de Admin)
 app.use(
   '/api-docs-private',
   authenticateBackendJWT,
