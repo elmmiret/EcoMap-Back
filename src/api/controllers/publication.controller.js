@@ -14,7 +14,6 @@ export const createTrade = async (req, res) => {
     description,
     itemState, // Enum: New, Little_used, Widely_used, Bad_condition
     pointsPrice,
-    mediaUrl, // URL de la imagen (opcional)
   } = req.body;
   const imageFile = req.file; // Archivo subido (si existe)
 
@@ -127,7 +126,7 @@ export const createTrade = async (req, res) => {
  */
 export const createReward = async (req, res) => {
   const { uid } = req.user;
-  const { title, description, content, pointsPrice, mediaUrl } = req.body;
+  const { title, description, content, pointsPrice } = req.body;
   const imageFile = req.file; // Archivo subido (si existe)
 
   if (!title || !content || pointsPrice === undefined) {
