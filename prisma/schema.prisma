@@ -149,7 +149,7 @@ model publication {
   institution_id    String?
   institution       institution?        @relation(fields: [institution_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
   trade             trade?
-  publication_media publication_media[]
+  publication_media publication_media?
   reward            reward?
 }
 
@@ -166,7 +166,7 @@ model trade {
 model publication_media {
   media_id       String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   media_url      String
-  publication_id String      @db.Uuid
+  publication_id String      @unique @db.Uuid
   publication    publication @relation(fields: [publication_id], references: [publication_id], onDelete: Cascade, onUpdate: NoAction)
 }
 
