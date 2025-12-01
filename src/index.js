@@ -68,21 +68,33 @@ app.use(express.urlencoded({ extended: true }));
 
 // Servir Swagger UI assets (CSS, JS, etc.)
 app.use('/api-docs', swaggerUi.serve);
-app.use('/api-docs-private', swaggerUi.serve);
 
-// Ruta para la documentación de la API pública
-app.get('/api-docs', (req, res, next) => {
-  return swaggerUi.setup(publicSwaggerDoc, {
-    customSiteTitle: swaggerTitle,
-  })(req, res, next);
-});
+// En desarrollo: /api-docs muestra documentación completa sin autenticación
+// En producción: /api-docs muestra documentación pública, /api-docs-private requiere admin
+if (isProduction) {
+  app.use('/api-docs-private', swaggerUi.serve);
 
-// Ruta para la documentación de la API privada (requiere autenticación de Admin)
-app.get('/api-docs-private', authenticateBackendJWT, requireAdmin, (req, res, next) => {
-  return swaggerUi.setup(privateSwaggerDoc, {
-    customSiteTitle: 'PESkaos API - Private Admin Documentation',
-  })(req, res, next);
-});
+  // Ruta para la documentación de la API pública
+  app.get('/api-docs', (req, res, next) => {
+    return swaggerUi.setup(publicSwaggerDoc, {
+      customSiteTitle: swaggerTitle,
+    })(req, res, next);
+  });
+
+  // Ruta para la documentación de la API privada (requiere autenticación de Admin)
+  app.get('/api-docs-private', authenticateBackendJWT, requireAdmin, (req, res, next) => {
+    return swaggerUi.setup(privateSwaggerDoc, {
+      customSiteTitle: 'PESkaos API - Private Admin Documentation',
+    })(req, res, next);
+  });
+} else {
+  // En desarrollo, /api-docs muestra la documentación completa sin autenticación
+  app.get('/api-docs', (req, res, next) => {
+    return swaggerUi.setup(privateSwaggerDoc, {
+      customSiteTitle: 'PESkaos API - Full Documentation (Development)',
+    })(req, res, next);
+  });
+}
 
 // montar las rutas de autentificación bajo el prefijo /api/users
 app.use('/api/users', authRoutes);
