@@ -1,5 +1,6 @@
 // src/api/controllers/publication.controller.js
 import { prisma } from '#lib/prisma.js';
+import { uploadToS3 } from '#services/storage.service.js';
 
 /**
  * Crea una nueva publicación para un usuario (cliente).
@@ -13,8 +14,8 @@ export const createTrade = async (req, res) => {
     description,
     itemState, // Enum: New, Little_used, Widely_used, Bad_condition
     pointsPrice,
-    mediaUrl, // URL de la imagen (opcional)
   } = req.body;
+  const imageFile = req.file; // Archivo subido (si existe)
 
   // Validaciones básicas
   if (!title || !itemState || pointsPrice === undefined) {
@@ -37,7 +38,22 @@ export const createTrade = async (req, res) => {
   }
 
   try {
-    // Usamos una transacción para asegurar que se cree todo o nada
+    // si hay imagen, subir a S3 y obtener la URL
+    let mediaUrl = null;
+    if (imageFile) {
+      try {
+        mediaUrl = await uploadToS3(imageFile);
+      } catch (uploadError) {
+        console.error('Error subiendo imagen a S3:', uploadError);
+        return res.status(500).json({
+          success: false,
+          message: 'Error al subir la imagen.',
+          code: 'IMAGE_UPLOAD_ERROR',
+        });
+      }
+    }
+
+    // usamos una transacción para asegurar que se cree todo o nada
     const newPublication = await prisma.$transaction(async (tx) => {
       // crear la publicación principal
       const publication = await tx.publication.create({
@@ -59,7 +75,7 @@ export const createTrade = async (req, res) => {
         },
       });
 
-      // si hay imagen, crear registro en publication_media
+      // si hay imagen, crear registro en publication_media (guardar S3 URL)
       if (mediaUrl) {
         await tx.publication_media.create({
           data: {
@@ -110,7 +126,8 @@ export const createTrade = async (req, res) => {
  */
 export const createReward = async (req, res) => {
   const { uid } = req.user;
-  const { title, description, content, pointsPrice, mediaUrl } = req.body;
+  const { title, description, content, pointsPrice } = req.body;
+  const imageFile = req.file; // Archivo subido (si existe)
 
   if (!title || !content || pointsPrice === undefined) {
     return res.status(400).json({ success: false, message: 'Faltan datos: título, contenido o precio.' });
@@ -125,6 +142,20 @@ export const createReward = async (req, res) => {
         message: 'Permiso denegado. Solo las instituciones pueden crear recompensas.',
         code: 'FORBIDDEN_INSTITUTION_ONLY',
       });
+    }
+
+    let mediaUrl = null;
+    if (imageFile) {
+      try {
+        mediaUrl = await uploadToS3(imageFile);
+      } catch (uploadError) {
+        console.error('Error subiendo imagen a S3:', uploadError);
+        return res.status(500).json({
+          success: false,
+          message: 'Error al subir la imagen.',
+          code: 'IMAGE_UPLOAD_ERROR',
+        });
+      }
     }
 
     const newReward = await prisma.$transaction(async (tx) => {
@@ -151,7 +182,10 @@ export const createReward = async (req, res) => {
 
       if (mediaUrl) {
         await tx.publication_media.create({
-          data: { media_url: mediaUrl, publication_id: publication.publication_id },
+          data: {
+            media_url: mediaUrl,
+            publication_id: publication.publication_id,
+          },
         });
       }
       return publication;
