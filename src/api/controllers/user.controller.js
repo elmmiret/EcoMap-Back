@@ -451,7 +451,6 @@ export const getUserProfile = async (req, res) => {
         app_language: true,
         client: {
           select: {
-            profile_picture: true,
             address: true,
             phone: true,
             birth_date: true,
@@ -622,7 +621,6 @@ export const updateUserProfile = async (req, res) => {
           app_language: true,
           client: {
             select: {
-              profile_picture: true,
               address: true,
               phone: true,
               birth_date: true,
@@ -711,7 +709,6 @@ export const updateUserProfile = async (req, res) => {
         app_language: true,
         client: {
           select: {
-            profile_picture: true,
             address: true,
             phone: true,
             birth_date: true,
@@ -801,7 +798,6 @@ export const getUserById = async (req, res) => {
         // Seleccionamos datos del perfil de cliente si existen
         client: {
           select: {
-            profile_picture: true,
             description: true,
             points: true,
             streak: true,
@@ -985,7 +981,6 @@ export const getUserPublicData = async (req, res) => {
         // Datos públicos del cliente
         client: {
           select: {
-            profile_picture: true,
             description: true,
             points: true,
             streak: true,
@@ -1103,5 +1098,86 @@ export const getUserPrivateData = async (req, res) => {
       message: 'Error interno al obtener datos privados.',
       code: 'SERVER_ERROR',
     });
+  }
+};
+
+/**
+ * Obtiene las valoraciones que un usuario ha escrito.
+ * Endpoint: GET /api/users/:id/valorations/made
+ */
+export const getUserValorationsMade = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const valorations = await prisma.valoration.findMany({
+      where: { valoration_owner: id },
+      include: {
+        target: {
+          // Incluimos datos de a quién valoró
+          include: { registered_user: { select: { username: true, name: true } } },
+        },
+        reservation_ended: {
+          // Incluimos contexto (qué trade fue)
+          include: {
+            reservation: {
+              include: { trade: { include: { publication: { select: { title: true } } } } },
+            },
+          },
+        },
+      },
+      orderBy: { reservation_ended: { ended_at: 'desc' } }, // Ordenar por fecha
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: valorations.length,
+      data: valorations,
+    });
+  } catch (error) {
+    console.error('Error obteniendo valoraciones hechas:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.', code: 'SERVER_ERROR' });
+  }
+};
+
+/**
+ * Obtiene las valoraciones que un usuario ha recibido.
+ * Endpoint: GET /api/users/:id/valorations/received
+ */
+export const getUserValorationsReceived = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const valorations = await prisma.valoration.findMany({
+      where: { valoration_target: id },
+      include: {
+        author: {
+          // Incluimos quién escribió la reseña
+          include: {
+            registered_user: { select: { username: true, name: true } },
+          },
+        },
+        reservation_ended: {
+          include: {
+            reservation: {
+              include: { trade: { include: { publication: { select: { title: true } } } } },
+            },
+          },
+        },
+      },
+      orderBy: { reservation_ended: { ended_at: 'desc' } },
+    });
+
+    // Cálculo opcional de la media
+    const averageScore = valorations.length > 0 ? valorations.reduce((acc, curr) => acc + curr.score, 0) / valorations.length : 0;
+
+    return res.status(200).json({
+      success: true,
+      count: valorations.length,
+      average_score: parseFloat(averageScore.toFixed(1)), // Ej: 4.5
+      data: valorations,
+    });
+  } catch (error) {
+    console.error('Error obteniendo valoraciones recibidas:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.', code: 'SERVER_ERROR' });
   }
 };

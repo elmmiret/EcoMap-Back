@@ -28,7 +28,8 @@ model client {
   messages_sent                       message[]       @relation("message_sender")
   saved_recycling_points              saved_recycling_point[]
   reservations                        reservation[]
-  valorations                         valoration[]
+  valorations_made                    valoration[]    @relation("ValorationAuthor")
+  valorations_received                valoration[]    @relation("ValorationTarget")
   publications                        publication[]
 }
 
@@ -212,10 +213,14 @@ model valoration {
   reservation_ended   reservation_ended @relation(fields: [reservation_id], references: [reservation_id], onDelete: Cascade, onUpdate: NoAction)
 
   valoration_owner    String
-  client              client            @relation(fields: [valoration_owner], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  author              client            @relation("ValorationAuthor", fields: [valoration_owner], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  valoration_target   String
+  target              client            @relation("ValorationTarget", fields: [valoration_target], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([reservation_id])
   @@index([valoration_owner])
+  @@index([valoration_target])
  }
    
 model chat {
