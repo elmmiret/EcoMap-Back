@@ -1,6 +1,6 @@
 import express from 'express';
-import multer from 'multer';
 import { authenticateBackendJWT } from '#middlewares/auth.middleware.js';
+import { uploadImageMiddleware } from '#middlewares/upload.middleware.js';
 import {
   createTrade,
   createReward,
@@ -22,12 +22,6 @@ import {
 
 const router = express.Router();
 
-// Configurar multer para guardar el archivo en memoria temporalmente
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // Límite de tamaño de archivo: 5MB (ejemplo)
-});
-
 // ==========================================
 //                 REWARDS
 // ==========================================
@@ -36,7 +30,7 @@ const upload = multer({
  * @route POST /api/publications/rewards
  * @description Crea una nueva publicación (Reward) - Solo Instituciones.
  */
-router.post('/rewards', authenticateBackendJWT, upload.single('file'), createReward);
+router.post('/rewards', authenticateBackendJWT, uploadImageMiddleware, createReward);
 
 /**
  * @route GET /api/publications/rewards
@@ -65,7 +59,7 @@ router.patch('/rewards/:id/availability', authenticateBackendJWT, updateRewardAv
  * @route POST /api/publications/trades
  * @description Crea una nueva publicación (Trade) - Solo Clientes.
  */
-router.post('/trades', authenticateBackendJWT, upload.single('file'), createTrade);
+router.post('/trades', authenticateBackendJWT, uploadImageMiddleware, createTrade);
 
 /**
  * @route GET /api/publications/trades
