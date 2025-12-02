@@ -11,7 +11,7 @@ import {
   getAllEndedReservations,
   getEndedReservationsByUserId,
   getReservationValorations,
-  createValoration
+  createValoration,
 } from '#controllers/reservation.controller.js';
 
 const router = express.Router();

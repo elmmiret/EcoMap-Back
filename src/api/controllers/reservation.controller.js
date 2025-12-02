@@ -412,7 +412,7 @@ export const createValoration = async (req, res) => {
     return res.status(400).json({
       success: false,
       message: 'Faltan datos obligatorios: puntuación (score) y comentario (comment).',
-      code: 'MISSING_DATA'
+      code: 'MISSING_DATA',
     });
   }
 
@@ -420,7 +420,7 @@ export const createValoration = async (req, res) => {
     return res.status(400).json({
       success: false,
       message: 'La puntuación debe estar entre 0 y 10.',
-      code: 'INVALID_SCORE'
+      code: 'INVALID_SCORE',
     });
   }
 
@@ -434,20 +434,20 @@ export const createValoration = async (req, res) => {
           include: {
             trade: {
               include: {
-                publication: true // Para obtener client_id (Dueño)
-              }
-            }
-          }
+                publication: true, // Para obtener client_id (Dueño)
+              },
+            },
+          },
         },
-        valorations: true // Para verificar si ya ha valorado
-      }
+        valorations: true, // Para verificar si ya ha valorado
+      },
     });
 
     if (!reservationEnded) {
       return res.status(404).json({
         success: false,
         message: 'No se encontró la reserva finalizada. Asegúrate de que la reserva ha sido confirmada primero.',
-        code: 'RESERVATION_ENDED_NOT_FOUND'
+        code: 'RESERVATION_ENDED_NOT_FOUND',
       });
     }
 
@@ -460,23 +460,23 @@ export const createValoration = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: 'No tienes permiso para valorar esta transacción. No eres ni el comprador ni el vendedor.',
-        code: 'FORBIDDEN_NOT_PARTICIPANT'
+        code: 'FORBIDDEN_NOT_PARTICIPANT',
       });
     }
 
     // 5. Verificar si YA ha valorado (Evitar duplicados)
-    const alreadyValuated = reservationEnded.valorations.some(v => v.valoration_owner === uid);
+    const alreadyValuated = reservationEnded.valorations.some((v) => v.valoration_owner === uid);
     if (alreadyValuated) {
       return res.status(409).json({
         success: false,
         message: 'Ya has enviado una valoración para esta reserva.',
-        code: 'ALREADY_VALUATED'
+        code: 'ALREADY_VALUATED',
       });
     }
 
     // 6. Calcular el Objetivo (Target)
     // Si soy el dueño, valoro al solicitante. Si soy el solicitante, valoro al dueño.
-    const targetId = (uid === ownerId) ? requesterId : ownerId;
+    const targetId = uid === ownerId ? requesterId : ownerId;
 
     // 7. Crear la valoración en la base de datos
     const newValoration = await prisma.valoration.create({
@@ -484,23 +484,22 @@ export const createValoration = async (req, res) => {
         score: Number(score),
         comment: comment,
         reservation_id: reservationId, // Vinculamos a la reserva finalizada
-        valoration_owner: uid,         // El autor (quien llama a la API)
-        valoration_target: targetId    // El objetivo calculado automáticamente
-      }
+        valoration_owner: uid, // El autor (quien llama a la API)
+        valoration_target: targetId, // El objetivo calculado automáticamente
+      },
     });
 
     return res.status(201).json({
       success: true,
       message: 'Valoración creada exitosamente.',
-      data: newValoration
+      data: newValoration,
     });
-
   } catch (error) {
     console.error('Error creando valoración:', error);
     return res.status(500).json({
       success: false,
       message: 'Error interno al crear la valoración.',
-      code: 'VALORATION_CREATION_ERROR'
+      code: 'VALORATION_CREATION_ERROR',
     });
   }
 };

@@ -20,7 +20,7 @@ import {
   getUserPublicData,
   getUserPrivateData,
   getUserValorationsMade,
-  getUserValorationsReceived
+  getUserValorationsReceived,
 } from '#controllers/user.controller.js';
 
 /**
