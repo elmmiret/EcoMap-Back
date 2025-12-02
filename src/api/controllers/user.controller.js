@@ -451,7 +451,6 @@ export const getUserProfile = async (req, res) => {
         app_language: true,
         client: {
           select: {
-            profile_picture: true,
             address: true,
             phone: true,
             birth_date: true,
@@ -622,7 +621,6 @@ export const updateUserProfile = async (req, res) => {
           app_language: true,
           client: {
             select: {
-              profile_picture: true,
               address: true,
               phone: true,
               birth_date: true,
@@ -711,7 +709,6 @@ export const updateUserProfile = async (req, res) => {
         app_language: true,
         client: {
           select: {
-            profile_picture: true,
             address: true,
             phone: true,
             birth_date: true,
@@ -801,7 +798,6 @@ export const getUserById = async (req, res) => {
         // Seleccionamos datos del perfil de cliente si existen
         client: {
           select: {
-            profile_picture: true,
             description: true,
             points: true,
             streak: true,
@@ -985,7 +981,6 @@ export const getUserPublicData = async (req, res) => {
         // Datos públicos del cliente
         client: {
           select: {
-            profile_picture: true,
             description: true,
             points: true,
             streak: true,
@@ -1159,7 +1154,6 @@ export const getUserValorationsReceived = async (req, res) => {
           // Incluimos quién escribió la reseña
           include: {
             registered_user: { select: { username: true, name: true } },
-            profile_picture: true,
           },
         },
         reservation_ended: {

@@ -600,7 +600,7 @@ export const getReservationValorations = async (req, res) => {
     const valorations = await prisma.valoration.findMany({
       where: { reservation_id: reservationId },
       include: {
-        client: {
+        author: {
           // Quién hizo la valoración
           include: { registered_user: { select: { username: true } } },
         },
