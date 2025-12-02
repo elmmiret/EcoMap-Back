@@ -397,6 +397,115 @@ export const confirmReservation = async (req, res) => {
 };
 
 /**
+ * Crea una valoración para una reserva finalizada.
+ * Determina automáticamente quién es el 'target' (a quién se valora).
+ * - Si el autor es el Dueño del Trade -> Valora al Cliente que reservó.
+ * - Si el autor es el Cliente que reservó -> Valora al Dueño del Trade.
+ * Endpoint: POST /api/reservations/ended/:reservationId/valorations
+ */
+export const createValoration = async (req, res) => {
+  const { reservationId } = req.params;
+  const { score, comment } = req.body;
+  const { uid } = req.user; // id del usuario que hace la valoración
+
+  if (score === undefined || !comment) {
+    return res.status(400).json({
+      success: false,
+      message: 'Faltan datos obligatorios: puntuación (score) y comentario (comment).',
+      code: 'MISSING_DATA'
+    });
+  }
+
+  if (score < 0 || score > 10) {
+    return res.status(400).json({
+      success: false,
+      message: 'La puntuación debe estar entre 0 y 10.',
+      code: 'INVALID_SCORE'
+    });
+  }
+
+  try {
+    // 2. Buscar la reserva finalizada e incluir TODA la cadena de relaciones
+    // Necesitamos llegar hasta la Publicación para saber quién es el dueño original
+    const reservationEnded = await prisma.reservation_ended.findUnique({
+      where: { reservation_id: reservationId },
+      include: {
+        reservation: {
+          include: {
+            trade: {
+              include: {
+                publication: true // Para obtener client_id (Dueño)
+              }
+            }
+          }
+        },
+        valorations: true // Para verificar si ya ha valorado
+      }
+    });
+
+    if (!reservationEnded) {
+      return res.status(404).json({
+        success: false,
+        message: 'No se encontró la reserva finalizada. Asegúrate de que la reserva ha sido confirmada primero.',
+        code: 'RESERVATION_ENDED_NOT_FOUND'
+      });
+    }
+
+    // 3. Identificar a los participantes
+    const requesterId = reservationEnded.reservation.client_id; // El que pidió el objeto
+    const ownerId = reservationEnded.reservation.trade.publication.client_id; // El dueño del objeto
+
+    // 4. Verificar que el usuario (uid) es uno de los dos participantes
+    if (uid !== requesterId && uid !== ownerId) {
+      return res.status(403).json({
+        success: false,
+        message: 'No tienes permiso para valorar esta transacción. No eres ni el comprador ni el vendedor.',
+        code: 'FORBIDDEN_NOT_PARTICIPANT'
+      });
+    }
+
+    // 5. Verificar si YA ha valorado (Evitar duplicados)
+    const alreadyValuated = reservationEnded.valorations.some(v => v.valoration_owner === uid);
+    if (alreadyValuated) {
+      return res.status(409).json({
+        success: false,
+        message: 'Ya has enviado una valoración para esta reserva.',
+        code: 'ALREADY_VALUATED'
+      });
+    }
+
+    // 6. Calcular el Objetivo (Target)
+    // Si soy el dueño, valoro al solicitante. Si soy el solicitante, valoro al dueño.
+    const targetId = (uid === ownerId) ? requesterId : ownerId;
+
+    // 7. Crear la valoración en la base de datos
+    const newValoration = await prisma.valoration.create({
+      data: {
+        score: Number(score),
+        comment: comment,
+        reservation_id: reservationId, // Vinculamos a la reserva finalizada
+        valoration_owner: uid,         // El autor (quien llama a la API)
+        valoration_target: targetId    // El objetivo calculado automáticamente
+      }
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Valoración creada exitosamente.',
+      data: newValoration
+    });
+
+  } catch (error) {
+    console.error('Error creando valoración:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al crear la valoración.',
+      code: 'VALORATION_CREATION_ERROR'
+    });
+  }
+};
+
+/**
  * Obtiene todas las reservas finalizadas (reservation_ended).
  * Incluye la info de la reserva original y el trade.
  * Endpoint: GET /api/reservations/ended

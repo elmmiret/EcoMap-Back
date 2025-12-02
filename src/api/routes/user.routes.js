@@ -19,6 +19,8 @@ import {
   getUserTypeById,
   getUserPublicData,
   getUserPrivateData,
+  getUserValorationsMade,
+  getUserValorationsReceived
 } from '#controllers/user.controller.js';
 
 /**
@@ -107,6 +109,18 @@ router.get('/ids/admins', authenticateBackendJWT, getAllAdminIds);
  * @access Protegido (Backend JWT)
  */
 router.get('/:id/type', authenticateBackendJWT, getUserTypeById);
+
+/**
+ * @route GET /api/users/:id/valorations/made
+ * @description Obtiene las valoraciones escritas por el usuario.
+ */
+router.get('/:id/valorations/made', authenticateBackendJWT, getUserValorationsMade);
+
+/**
+ * @route GET /api/users/:id/valorations/received
+ * @description Obtiene las valoraciones recibidas por el usuario (su reputación).
+ */
+router.get('/:id/valorations/received', authenticateBackendJWT, getUserValorationsReceived);
 
 /**
  * @route GET /api/users/:id

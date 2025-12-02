@@ -11,6 +11,7 @@ import {
   getAllEndedReservations,
   getEndedReservationsByUserId,
   getReservationValorations,
+  createValoration
 } from '#controllers/reservation.controller.js';
 
 const router = express.Router();
@@ -46,6 +47,12 @@ router.get('/ended', authenticateBackendJWT, getAllEndedReservations);
  * @description Obtiene las reservas finalizadas de un usuario específico.
  */
 router.get('/ended/user/:userId', authenticateBackendJWT, getEndedReservationsByUserId);
+
+/**
+ * @route POST /api/reservations/ended/:reservationId/valorations
+ * @description Crea una valoración para una reserva finalizada.
+ */
+router.post('/ended/:reservationId/valorations', authenticateBackendJWT, createValoration);
 
 /**
  * @route GET /api/reservations/ended/:reservationId/valorations
