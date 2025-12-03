@@ -457,7 +457,7 @@ export const getUserProfile = async (req, res) => {
             description: true,
             points: true,
             streak: true,
-            valorations_score: true
+            valorations_score: true,
           },
         },
         admin: true,
@@ -495,7 +495,7 @@ export const getUserProfile = async (req, res) => {
       role,
       points: userProfile.client?.points || 0,
       streak: userProfile.client?.streak || 0,
-      valorations_score: userProfile.client?.valorations_score || 0
+      valorations_score: userProfile.client?.valorations_score || 0,
     };
 
     return res.status(200).json({
@@ -836,7 +836,7 @@ export const getUserById = async (req, res) => {
       points: user.client?.points || 0,
       streak: user.client?.streak || 0,
       valorations_score: user.client?.valorations_score || 0,
-      role
+      role,
     };
 
     return res.status(200).json({

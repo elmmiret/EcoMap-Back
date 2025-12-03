@@ -759,7 +759,7 @@ export const updateTradeBody = async (req, res) => {
     // buscar la publicación
     const publication = await prisma.publication.findUnique({
       where: { publication_id: id },
-      include: { trade: true } // Verificar que sea un Trade
+      include: { trade: true }, // Verificar que sea un Trade
     });
 
     if (!publication) {
@@ -794,22 +794,22 @@ export const updateTradeBody = async (req, res) => {
         data: {
           // solo actualizamos si el campo viene en el body (undefined se ignora)
           ...(title && { title }),
-          ...(description && { description })
-        }
+          ...(description && { description }),
+        },
       });
 
       // si hay nueva imagen, la añadimos a la galería
       // (Opcional: si quisieras REEMPLAZAR, harías un deleteMany antes)
       if (mediaUrl) {
         await tx.publication_media.deleteMany({
-          where: { publication_id: id }
+          where: { publication_id: id },
         });
 
         await tx.publication_media.create({
           data: {
             media_url: mediaUrl,
-            publication_id: id
-          }
+            publication_id: id,
+          },
         });
       }
 
@@ -819,11 +819,65 @@ export const updateTradeBody = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: 'Publicación actualizada.',
-      data: updatedPub
+      data: updatedPub,
     });
-
   } catch (error) {
     console.error('Error actualizando trade:', error);
     return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
+
+/**
+ * Obtiene el valorations_score del propietario de un 'trade' específico.
+ * Endpoint: GET /api/publications/trades/:id/score
+ */
+export const getTradeOwnerScore = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const trade = await prisma.trade.findUnique({
+      where: { trade_id: id },
+      include: {
+        publication: {
+          include: {
+            client: {
+              select: {
+                valorations_score: true,
+                user_id: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!trade) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trade no encontrado.',
+        code: 'TRADE_NOT_FOUND',
+      });
+    }
+
+    if (!trade.publication || !trade.publication.client) {
+      return res.status(404).json({
+        success: false,
+        message: 'No se encontró el propietario de este trade.',
+        code: 'OWNER_NOT_FOUND',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Puntuación obtenida correctamente.',
+      score: trade.publication.client.valorations_score || 0,
+    });
+  } catch (error) {
+    console.error(`Error obteniendo score del trade ${id}:`, error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno.',
+      code: 'SERVER_ERROR',
+    });
   }
 };

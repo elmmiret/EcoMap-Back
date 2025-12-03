@@ -18,7 +18,8 @@ import {
   getUserCancelledTrades,
   getUserPendingTrades,
   updateTradeState,
-  updateTradeBody
+  updateTradeBody,
+  getTradeOwnerScore,
 } from '#controllers/publication.controller.js';
 
 const router = express.Router();
@@ -129,7 +130,13 @@ router.patch('/trades/:id/state', authenticateBackendJWT, updateTradeState);
  * @description Actualiza el contenido (título, descripción, imagen) de un Trade.
  * @access Protegido (Solo creador)
  */
-router.patch('/trades/:id/body', authenticateBackendJWT, uploadImageMiddleware, updateTradeBody );
+router.patch('/trades/:id/body', authenticateBackendJWT, uploadImageMiddleware, updateTradeBody);
+
+/**
+ * @route GET /api/publications/trades/:id/score
+ * @description Obtiene el valorations_score del dueño del Trade.
+ */
+router.get('/trades/:id/score', authenticateBackendJWT, getTradeOwnerScore);
 
 /**
  * @route GET /api/publications/trades/:id

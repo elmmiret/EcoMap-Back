@@ -486,18 +486,18 @@ export const createValoration = async (req, res) => {
           comment: comment,
           reservation_id: reservationId,
           valoration_owner: uid,
-          valoration_target:targetId
-        }
+          valoration_target: targetId,
+        },
       });
 
       // calcular el nuevo promedio usando la función agregada de prisma
-      const aggregations = await tx.valoration.aggregate ({
+      const aggregations = await tx.valoration.aggregate({
         _avg: {
-          score: true
+          score: true,
         },
         where: {
-          valoration_target: targetId
-        }
+          valoration_target: targetId,
+        },
       });
 
       const newAverage = aggregations._avg.score || 0;
@@ -505,7 +505,7 @@ export const createValoration = async (req, res) => {
       // actualizar el cliente destinatario con el nuevo promedio de score
       await tx.client.update({
         where: { user_id: targetId },
-        data: { valorations_score: newAverage }
+        data: { valorations_score: newAverage },
       });
 
       return newValoration;
@@ -516,7 +516,6 @@ export const createValoration = async (req, res) => {
       message: 'Valoración creada y perfil actualizado exitosamente.',
       data: result,
     });
-
   } catch (error) {
     console.error('Error creando valoración:', error);
     return res.status(500).json({
