@@ -782,6 +782,7 @@ export const updateTradeBody = async (req, res) => {
       try {
         mediaUrl = await uploadToS3(imageFile);
       } catch (err) {
+        console.error('Error subiendo la imgen:', err);
         return res.status(500).json({ success: false, message: 'Error subiendo imagen.' });
       }
     }
