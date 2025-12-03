@@ -1185,3 +1185,39 @@ export const getUserValorationsReceived = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Error interno.', code: 'SERVER_ERROR' });
   }
 };
+
+/**
+ * Obtiene el valorations_score (puntuación media) de un usuario cliente.
+ * Endpoint: GET /api/users/:id/score
+ */
+export const getUserScore = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const client = await prisma.client.findUnique({
+      where: { user_id: id },
+      select: { valorations_score: true },
+    });
+
+    if (!client) {
+      return res.status(404).json({
+        success: false,
+        message: 'Cliente no encontrado o el usuario no tiene perfil de cliente.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Puntuación obtenida correctamente.',
+      score: client.valorations_score,
+    });
+  } catch (error) {
+    console.error(`Error obteniendo score del usuario ${id}:`, error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al obtener la puntuación.',
+      code: 'SERVER_ERROR',
+    });
+  }
+};
