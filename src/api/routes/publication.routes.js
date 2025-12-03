@@ -134,7 +134,7 @@ router.patch('/trades/:id/body', authenticateBackendJWT, uploadImageMiddleware, 
 
 /**
  * @route GET /api/publications/trades/:id/score
- * @description Obtiene el valorations_score del dueño del Trade.
+ * @description Obtiene el valorations_score del dueño del trade.
  */
 router.get('/trades/:id/score', authenticateBackendJWT, getTradeOwnerScore);
 
