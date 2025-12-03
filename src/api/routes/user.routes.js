@@ -21,6 +21,7 @@ import {
   getUserPrivateData,
   getUserValorationsMade,
   getUserValorationsReceived,
+  getUserScore,
 } from '#controllers/user.controller.js';
 
 /**
@@ -121,6 +122,12 @@ router.get('/:id/valorations/made', authenticateBackendJWT, getUserValorationsMa
  * @description Obtiene las valoraciones recibidas por el usuario (su reputación).
  */
 router.get('/:id/valorations/received', authenticateBackendJWT, getUserValorationsReceived);
+
+/**
+ * @route GET /api/users/:id/score
+ * @description Obtiene la puntuación media de valoraciones de un usuario.
+ */
+router.get('/:id/score', authenticateBackendJWT, getUserScore);
 
 /**
  * @route GET /api/users/:id

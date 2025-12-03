@@ -478,21 +478,43 @@ export const createValoration = async (req, res) => {
     // Si soy el dueño, valoro al solicitante. Si soy el solicitante, valoro al dueño.
     const targetId = uid === ownerId ? requesterId : ownerId;
 
-    // 7. Crear la valoración en la base de datos
-    const newValoration = await prisma.valoration.create({
-      data: {
-        score: Number(score),
-        comment: comment,
-        reservation_id: reservationId, // Vinculamos a la reserva finalizada
-        valoration_owner: uid, // El autor (quien llama a la API)
-        valoration_target: targetId, // El objetivo calculado automáticamente
-      },
+    const result = await prisma.$transaction(async (tx) => {
+      // crear la valoración
+      const newValoration = await tx.valoration.create({
+        data: {
+          score: Number(score),
+          comment: comment,
+          reservation_id: reservationId,
+          valoration_owner: uid,
+          valoration_target: targetId,
+        },
+      });
+
+      // calcular el nuevo promedio usando la función agregada de prisma
+      const aggregations = await tx.valoration.aggregate({
+        _avg: {
+          score: true,
+        },
+        where: {
+          valoration_target: targetId,
+        },
+      });
+
+      const newAverage = aggregations._avg.score || 0;
+
+      // actualizar el cliente destinatario con el nuevo promedio de score
+      await tx.client.update({
+        where: { user_id: targetId },
+        data: { valorations_score: newAverage },
+      });
+
+      return newValoration;
     });
 
     return res.status(201).json({
       success: true,
-      message: 'Valoración creada exitosamente.',
-      data: newValoration,
+      message: 'Valoración creada y perfil actualizado exitosamente.',
+      data: result,
     });
   } catch (error) {
     console.error('Error creando valoración:', error);

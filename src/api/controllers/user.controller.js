@@ -457,6 +457,7 @@ export const getUserProfile = async (req, res) => {
             description: true,
             points: true,
             streak: true,
+            valorations_score: true,
           },
         },
         admin: true,
@@ -494,6 +495,7 @@ export const getUserProfile = async (req, res) => {
       role,
       points: userProfile.client?.points || 0,
       streak: userProfile.client?.streak || 0,
+      valorations_score: userProfile.client?.valorations_score || 0,
     };
 
     return res.status(200).json({
@@ -801,6 +803,7 @@ export const getUserById = async (req, res) => {
             description: true,
             points: true,
             streak: true,
+            valorations_score: true,
           },
         },
         // Incluimos tablas de roles para determinar el tipo de usuario
@@ -832,6 +835,7 @@ export const getUserById = async (req, res) => {
       description: user.client?.description || null,
       points: user.client?.points || 0,
       streak: user.client?.streak || 0,
+      valorations_score: user.client?.valorations_score || 0,
       role,
     };
 
@@ -1179,5 +1183,41 @@ export const getUserValorationsReceived = async (req, res) => {
   } catch (error) {
     console.error('Error obteniendo valoraciones recibidas:', error);
     return res.status(500).json({ success: false, message: 'Error interno.', code: 'SERVER_ERROR' });
+  }
+};
+
+/**
+ * Obtiene el valorations_score (puntuación media) de un usuario cliente.
+ * Endpoint: GET /api/users/:id/score
+ */
+export const getUserScore = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const client = await prisma.client.findUnique({
+      where: { user_id: id },
+      select: { valorations_score: true },
+    });
+
+    if (!client) {
+      return res.status(404).json({
+        success: false,
+        message: 'Cliente no encontrado o el usuario no tiene perfil de cliente.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Puntuación obtenida correctamente.',
+      score: client.valorations_score,
+    });
+  } catch (error) {
+    console.error(`Error obteniendo score del usuario ${id}:`, error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al obtener la puntuación.',
+      code: 'SERVER_ERROR',
+    });
   }
 };
