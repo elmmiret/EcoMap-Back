@@ -18,6 +18,7 @@ import {
   getUserCancelledTrades,
   getUserPendingTrades,
   updateTradeState,
+  updateTradeBody
 } from '#controllers/publication.controller.js';
 
 const router = express.Router();
@@ -122,6 +123,13 @@ router.get('/trades/user/:userId/pending', authenticateBackendJWT, getUserPendin
  * @description Actualiza el estado de un Trade.
  */
 router.patch('/trades/:id/state', authenticateBackendJWT, updateTradeState);
+
+/**
+ * @route PATCH /api/publications/trades/:id/body
+ * @description Actualiza el contenido (título, descripción, imagen) de un Trade.
+ * @access Protegido (Solo creador)
+ */
+router.patch('/trades/:id/body', authenticateBackendJWT, uploadImageMiddleware, updateTradeBody );
 
 /**
  * @route GET /api/publications/trades/:id

@@ -22,6 +22,7 @@ model client {
   description                         String?
   profile_picture                     String?
   streak                              Int
+  valorations_score                   Float           @default(0.0)
   registered_user                     registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
   chats_as_user1                      chat[]          @relation("chat_user1")
   chats_as_user2                      chat[]          @relation("chat_user2")

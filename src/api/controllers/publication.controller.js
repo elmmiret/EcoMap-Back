@@ -744,3 +744,86 @@ export const updateTradeState = async (req, res) => {
     });
   }
 };
+
+/**
+ * Actualiza el contenido de un Trade (Título, Descripción e Imagen).
+ * Endpoint: PATCH /api/publications/trades/:id/body
+ */
+export const updateTradeBody = async (req, res) => {
+  const { id } = req.params;
+  const { uid } = req.user;
+  const { title, description } = req.body;
+  const imageFile = req.file; // Archivo subido (opcional)
+
+  try {
+    // buscar la publicación
+    const publication = await prisma.publication.findUnique({
+      where: { publication_id: id },
+      include: { trade: true } // Verificar que sea un Trade
+    });
+
+    if (!publication) {
+      return res.status(404).json({ success: false, message: 'Publicación no encontrada.' });
+    }
+
+    // verificar que sea un Trade (no Reward)
+    if (!publication.trade) {
+      return res.status(400).json({ success: false, message: 'Esta publicación no es un Trade.' });
+    }
+
+    // verificar propiedad
+    if (publication.client_id !== uid) {
+      return res.status(403).json({ success: false, message: 'No tienes permiso para editar esta publicación.' });
+    }
+
+    // subir imagen si existe
+    let mediaUrl = null;
+    if (imageFile) {
+      try {
+        mediaUrl = await uploadToS3(imageFile);
+      } catch (err) {
+        return res.status(500).json({ success: false, message: 'Error subiendo imagen.' });
+      }
+    }
+
+    // actualizar en transacción
+    const updatedPub = await prisma.$transaction(async (tx) => {
+      // actualizar datos básicos
+      const pub = await tx.publication.update({
+        where: { publication_id: id },
+        data: {
+          // solo actualizamos si el campo viene en el body (undefined se ignora)
+          ...(title && { title }),
+          ...(description && { description })
+        }
+      });
+
+      // si hay nueva imagen, la añadimos a la galería
+      // (Opcional: si quisieras REEMPLAZAR, harías un deleteMany antes)
+      if (mediaUrl) {
+        await tx.publication_media.deleteMany({
+          where: { publication_id: id }
+        });
+
+        await tx.publication_media.create({
+          data: {
+            media_url: mediaUrl,
+            publication_id: id
+          }
+        });
+      }
+
+      return pub;
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Publicación actualizada.',
+      data: updatedPub
+    });
+
+  } catch (error) {
+    console.error('Error actualizando trade:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
