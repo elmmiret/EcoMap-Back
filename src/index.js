@@ -17,6 +17,7 @@ import publicationRoutes from './api/routes/publication.routes.js';
 import reservationRoutes from './api/routes/reservation.routes.js';
 import chatRoutes from './api/routes/chat.routes.js';
 import notificationRoutes from './api/routes/notification.routes.js';
+import gamificationRoutes from './api/routes/gamification.routes.js';
 import swaggerUi from 'swagger-ui-express';
 import yaml from 'yamljs';
 import path from 'path';
@@ -78,6 +79,7 @@ app.use('/api/publications', publicationRoutes);
 app.use('/api/reservations', reservationRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/gamification', gamificationRoutes);
 
 // ruta base para verificar que la API está corriendo
 app.get('/', (req, res) => {

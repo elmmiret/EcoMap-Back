@@ -14,24 +14,27 @@ model admin {
 }
 
 model client {
-  user_id                             String          @id
-  address                             String?
-  phone                               String?
-  points                              Int
-  birth_date                          DateTime?       @db.Date
-  description                         String?
-  profile_picture                     String?
-  streak                              Int
-  valorations_score                   Float           @default(0.0)
-  registered_user                     registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
-  chats_as_user1                      chat[]          @relation("chat_user1")
-  chats_as_user2                      chat[]          @relation("chat_user2")
-  messages_sent                       message[]       @relation("message_sender")
-  saved_recycling_points              saved_recycling_point[]
-  reservations                        reservation[]
-  valorations_made                    valoration[]    @relation("ValorationAuthor")
-  valorations_received                valoration[]    @relation("ValorationTarget")
-  publications                        publication[]
+  user_id                String                  @id
+  address                String?
+  phone                  String?
+  points                 Int                     @default(0) // CAMBIO: Añadido default 0
+  birth_date             DateTime?               @db.Date
+  description            String?
+  profile_picture        String?
+  streak                 Int                     @default(0) // Recomendado: default 0 si no lo tenía
+  valorations_score      Float                   @default(0.0)
+  registered_user        registered_user         @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  chats_as_user1         chat[]                  @relation("chat_user1")
+  chats_as_user2         chat[]                  @relation("chat_user2")
+  messages_sent          message[]               @relation("message_sender")
+  saved_recycling_points saved_recycling_point[]
+  reservations           reservation[]
+  valorations_made       valoration[]            @relation("ValorationAuthor")
+  valorations_received   valoration[]            @relation("ValorationTarget")
+  publications           publication[]
+  
+  // CAMBIO: Relación con el historial de puntos
+  point_history          point_history[]
 }
 
 model institution {
@@ -46,21 +49,21 @@ model partner {
 }
 
 model registered_user {
-  user_id      String            @id
-  name         String
-  username     String            @unique
-  surname      String?
-  dni          String?
-  email        String            @unique
-  app_language app_language_type
-  admin        admin?
-  client       client?
-  institution  institution?
-  partner      partner?
-  notification notification[]
+  user_id       String            @id
+  name          String
+  username      String            @unique
+  surname       String?
+  dni           String?
+  email         String            @unique
+  app_language  app_language_type
+  admin         admin?
+  client        client?
+  institution   institution?
+  partner       partner?
+  notification  notification[]
   device_tokens device_token[]
-  user         user              @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
-  sessions     session[]
+  user          user              @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  sessions      session[]
 }
 
 model user {
@@ -69,11 +72,24 @@ model user {
 }
 
 model session {
-  session_id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  session_id      String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   jwt             String          @unique
   expiry_date     DateTime
   user_id         String
   registered_user registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+// CAMBIO: Nueva tabla para el historial de puntos
+model point_history {
+  history_id  String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String
+  amount      Int
+  source      point_source
+  description String?
+  created_at  DateTime     @default(now())
+  client      client       @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id])
 }
@@ -88,18 +104,18 @@ model container {
 }
 
 model recycling_point {
-  recycling_point_id String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recycling_point_id String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   api_id             Int
   api_location       api_location
   name               String
-  latitude           Decimal        @db.Decimal(9, 6)
-  longitude          Decimal        @db.Decimal(9, 6)
+  latitude           Decimal                 @db.Decimal(9, 6)
+  longitude          Decimal                 @db.Decimal(9, 6)
   equipment_type     equipment_type
   last_updated       DateTime?
   raw_payload        Json?
-  active             Boolean      @default(true)
-  created_at         DateTime     @default(now())
-  updated_at         DateTime     @updatedAt
+  active             Boolean                 @default(true)
+  created_at         DateTime                @default(now())
+  updated_at         DateTime                @updatedAt
   container          container[]
   timetable          timetable[]
   saved_by_clients   saved_recycling_point[]
@@ -141,28 +157,28 @@ model timetable_intervals {
 }
 
 model publication {
-  publication_id    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publication_id    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title             String
   description       String?
-  date              DateTime            @db.Date
+  date              DateTime           @db.Date
   publication_state state_type
   client_id         String?
-  client            client?             @relation(fields: [client_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  client            client?            @relation(fields: [client_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
   institution_id    String?
-  institution       institution?        @relation(fields: [institution_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  institution       institution?       @relation(fields: [institution_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
   trade             trade?
   publication_media publication_media?
   reward            reward?
 }
 
 model trade {
-  trade_id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  publication_id    String              @db.Uuid @unique
-  item_state        item_state_type
-  points_price      Int
-  created_at        DateTime            @default(now())
-  publication       publication         @relation(fields: [publication_id], references: [publication_id], onDelete: Cascade, onUpdate: NoAction)
-  reservations      reservation[]
+  trade_id       String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publication_id String        @unique @db.Uuid
+  item_state     item_state_type
+  points_price   Int
+  created_at     DateTime      @default(now())
+  publication    publication   @relation(fields: [publication_id], references: [publication_id], onDelete: Cascade, onUpdate: NoAction)
+  reservations   reservation[]
 }
 
 model publication_media {
@@ -181,15 +197,15 @@ model reward {
 }
 
 model reservation {
-  reservation_id                      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  reservation_date                    DateTime       @default(now())
-  confirmed                           Boolean        @default(false)
+  reservation_id   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reservation_date DateTime @default(now())
+  confirmed        Boolean  @default(false)
 
-  trade_id       String   @db.Uuid
-  trade          trade    @relation(fields: [trade_id], references: [trade_id], onDelete: Cascade, onUpdate: NoAction)
+  trade_id String @db.Uuid
+  trade    trade  @relation(fields: [trade_id], references: [trade_id], onDelete: Cascade, onUpdate: NoAction)
 
-  client_id      String
-  client         client   @relation(fields: [client_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  client_id String
+  client    client @relation(fields: [client_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
 
   reservation_ended reservation_ended?
 
@@ -198,32 +214,32 @@ model reservation {
 }
 
 model reservation_ended {
-  reservation_id String        @id @db.Uuid // pk y fk al mismo tiempo
-  ended_at       DateTime      @default(now())
+  reservation_id String   @id @db.Uuid // pk y fk al mismo tiempo
+  ended_at       DateTime @default(now())
 
-  reservation    reservation   @relation(fields: [reservation_id], references: [reservation_id], onDelete: Cascade, onUpdate: NoAction)
-  valorations    valoration[]
+  reservation reservation  @relation(fields: [reservation_id], references: [reservation_id], onDelete: Cascade, onUpdate: NoAction)
+  valorations valoration[]
 }
 
 model valoration {
-  valoration_id       String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  score               Int               // tiene que ser entre 0 y 10, validado en código
-  comment             String
-  
-  reservation_id      String            @db.Uuid
-  reservation_ended   reservation_ended @relation(fields: [reservation_id], references: [reservation_id], onDelete: Cascade, onUpdate: NoAction)
+  valoration_id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  score         Int // tiene que ser entre 0 y 10, validado en código
+  comment       String
 
-  valoration_owner    String
-  author              client            @relation("ValorationAuthor", fields: [valoration_owner], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  reservation_id    String            @db.Uuid
+  reservation_ended reservation_ended @relation(fields: [reservation_id], references: [reservation_id], onDelete: Cascade, onUpdate: NoAction)
 
-  valoration_target   String
-  target              client            @relation("ValorationTarget", fields: [valoration_target], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  valoration_owner String
+  author           client @relation("ValorationAuthor", fields: [valoration_owner], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  valoration_target String
+  target            client @relation("ValorationTarget", fields: [valoration_target], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([reservation_id])
   @@index([valoration_owner])
   @@index([valoration_target])
- }
-   
+}
+
 model chat {
   chat_id    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user1_id   String
@@ -294,6 +310,15 @@ model saved_recycling_point {
   @@index([user_id])
 }
 
+// CAMBIO: Enum para definir la fuente de los puntos
+enum point_source {
+  ECO_TRADER_SALE   // Venta/Donación en marketplace
+  RECYCLING_ACTION  // Reciclaje verificado
+  EVENT_ATTENDANCE  // Asistencia a eventos
+  REWARD_REDEMPTION // Gastar puntos (canje)
+  ADMIN_ADJUSTMENT  // Correcciones manuales
+}
+
 enum app_language_type {
   ca
   es
@@ -306,17 +331,17 @@ enum api_location {
 }
 
 enum equipment_type {
-  Recycling_center               @map("Recycling Center")
+  Recycling_center             @map("Recycling Center")
   Batteries
-  Medicines_and_packaging        @map("Medicines and Packaging")
-  Garden_waste                   @map("Garden Waste")
-  Clothing_and_footwear          @map("Clothing and Footwear")
-  Bulky_waste                    @map("Bulky Waste")
-  Glass_containers               @map("Glass Containers")
-  Coffee_capsules                @map("Coffee Capsules")
-  Used_cooking_oil               @map("Used Cooking Oil")
-  Household_construction_waste   @map("Household Construction Waste")
-  Community_composting           @map("Community Composting")
+  Medicines_and_packaging      @map("Medicines and Packaging")
+  Garden_waste                 @map("Garden Waste")
+  Clothing_and_footwear        @map("Clothing and Footwear")
+  Bulky_waste                  @map("Bulky Waste")
+  Glass_containers             @map("Glass Containers")
+  Coffee_capsules              @map("Coffee Capsules")
+  Used_cooking_oil             @map("Used Cooking Oil")
+  Household_construction_waste @map("Household Construction Waste")
+  Community_composting         @map("Community Composting")
 }
 
 enum product_type {
@@ -353,26 +378,26 @@ enum state_type {
 }
 
 enum notification_type {
-  Collection_services  @map("Collection Services")
-  Container_states     @map("Container States")
-  Recycling_events     @map("Recycling Events")
-  New_rewards          @map("New Rewards")
-  New_trade            @map("New Trade")
-  New_message          @map("New Message")
+  Collection_services @map("Collection Services")
+  Container_states    @map("Container States")
+  Recycling_events    @map("Recycling Events")
+  New_rewards         @map("New Rewards")
+  New_trade           @map("New Trade")
+  New_message         @map("New Message")
   Incidences
 }
 
 // --- Cache system metadata ---
 model cache_metadata {
-  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  source        String        @unique // e.g., 'NAVARRA_POINTS'
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  source        String       @unique // e.g., 'NAVARRA_POINTS'
   last_sync     DateTime?
   next_sync     DateTime?
-  status        cache_status  @default(READY)
+  status        cache_status @default(READY)
   error_message String?
-  total_records Int           @default(0)
-  created_at    DateTime      @default(now())
-  updated_at    DateTime      @updatedAt
+  total_records Int          @default(0)
+  created_at    DateTime     @default(now())
+  updated_at    DateTime     @updatedAt
 }
 
 enum cache_status {

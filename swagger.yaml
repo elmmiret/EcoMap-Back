@@ -74,6 +74,10 @@ components:
           type: integer
         streak:
           type: integer
+        valorations_score:
+          type: number
+          format: float
+          description: Puntuación media de valoraciones (0-10)
 
     # Basado en el modelo 'recycling_point' de Prisma
     RecyclingPoint:
@@ -306,6 +310,7 @@ components:
             type: string
             format: uri
 
+    # --- Reservation Schemas ---
     Reservation:
       type: object
       properties:
@@ -339,6 +344,57 @@ components:
           format: date-time
         reservation:
           $ref: '#/components/schemas/Reservation'
+
+    Valoration:
+      type: object
+      properties:
+        valoration_id:
+          type: string
+          format: uuid
+        score:
+          type: integer
+          minimum: 0
+          maximum: 10
+        comment:
+          type: string
+        author:
+          $ref: '#/components/schemas/UserProfile'
+
+    # --- Gamification Schemas ---
+    PointHistory:
+      type: object
+      properties:
+        history_id:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          description: Cantidad de puntos (positivo = ganancia, negativo = gasto)
+        source:
+          type: string
+          enum: [ECO_TRADER_SALE, RECYCLING_ACTION, EVENT_ATTENDANCE, REWARD_REDEMPTION, ADMIN_ADJUSTMENT]
+        description:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    GamificationProfile:
+      type: object
+      properties:
+        balance:
+          type: integer
+          description: Saldo actual de puntos
+        limit:
+          type: integer
+          description: Límite máximo de puntos permitidos
+        rules:
+          type: object
+          description: Reglas de puntos vigentes (acciones y valores permitidos)
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/PointHistory'
 
 paths:
   # --- Health Check ---
@@ -678,6 +734,62 @@ paths:
                         type: array
                         items:
                           type: object
+
+  # --- Gamificación (EcoPoints) ---
+  /api/gamification/me:
+    get:
+      summary: Obtener perfil de gamificación (Puntos e Historial)
+      tags: [Gamificación]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Perfil de gamificación recuperado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GamificationProfile'
+
+  /api/gamification/grant:
+    post:
+      summary: Otorgar puntos manualmente (Admin/Institución)
+      tags: [Gamificación]
+      security:
+        - backendAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                targetUserId:
+                  type: string
+                  format: uuid
+                amount:
+                  type: integer
+                source:
+                  type: string
+                  enum: [RECYCLING_ACTION, EVENT_ATTENDANCE, ADMIN_ADJUSTMENT]
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Puntos otorgados.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object # Resultado del processPoints
 
   # --- Publicaciones (Rewards) ---
   /api/publications/rewards:
@@ -1334,7 +1446,8 @@ paths:
                       data:
                         $ref: '#/components/schemas/Reservation'
     patch:
-      summary: Confirmar reserva
+      summary: Confirmar reserva (y transferir EcoPoints)
+      description: Confirma la reserva, cierra la publicación y transfiere los puntos del comprador al vendedor.
       tags: [Reservas]
       security:
         - backendAuth: []
@@ -1355,7 +1468,7 @@ paths:
                   type: boolean
       responses:
         '200':
-          description: Reserva confirmada.
+          description: Reserva confirmada y puntos transferidos.
           content:
             application/json:
               schema:
@@ -1370,6 +1483,8 @@ paths:
                             $ref: '#/components/schemas/Reservation'
                           reservation_ended:
                             $ref: '#/components/schemas/ReservationEnded'
+                          points_transferred:
+                            type: integer
 
   /api/reservations/{reservationId}/cancel:
     delete:
@@ -1542,7 +1657,44 @@ paths:
                       data:
                         type: array
                         items:
-                          type: object # Placeholder, Valoration schema not defined yet
+                          $ref: '#/components/schemas/Valoration'
+    post:
+      summary: Crear valoración
+      description: Valorar la transacción finalizada (comprador a vendedor o viceversa).
+      tags: [Reservas]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: reservationId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                score:
+                  type: integer
+                  minimum: 0
+                  maximum: 10
+                comment:
+                  type: string
+      responses:
+        '201':
+          description: Valoración creada y perfil actualizado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Valoration'
 
   # --- Detección De Imagenes ---
   /api/detect/bikes:
