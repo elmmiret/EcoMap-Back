@@ -3,6 +3,8 @@
 import { prisma } from '#lib/prisma.js';
 import { signUserJWT } from '#lib/jwt.js';
 import { getAuth } from '#services/auth.service.js';
+import { uploadToS3 } from '#services/storage.service.js';
+import { describe } from 'vitest';
 
 // Debug helper to keep logs consistent
 const dbg = (...args) => console.log('[syncUserToPostgres]', ...args);
@@ -13,10 +15,8 @@ const dbg = (...args) => console.log('[syncUserToPostgres]', ...args);
  * Crea: user -> registered_user -> client
  */
 export const syncUserToPostgres = async (req, res) => {
-  // UID del token de Firebase (siempre presente gracias al middleware)
   const { uid: firebaseUID } = req.user;
 
-  // obtener y validar el rol
   const { role: requestRole } = req.body;
   const validRoles = ['client', 'admin', 'institution', 'partner'];
   const roleToAssign = validRoles.includes(requestRole) ? requestRole : 'client';
@@ -63,7 +63,7 @@ export const syncUserToPostgres = async (req, res) => {
         name: existingUser.name,
         surname: existingUser.surname,
         username: existingUser.username || null,
-        profile_picture: existingUser.client?.profile_picture || null,
+        profile_picture: existingUser.profile_picture || null,
         role: currentRole,
         points: existingUser.client?.points || 0,
         streak: existingUser.client?.streak || 0,
@@ -91,10 +91,21 @@ export const syncUserToPostgres = async (req, res) => {
 
     // --- 2. Si no existe, es un REGISTRO ---
     dbg('Usuario no existe -> REGISTRO');
+
+    let s3profilePictureUrl = null;
+    if (req.file) {
+      try {
+        s3profilePictureUrl = await uploadToS3(req.file);
+        dbg('Imagen subida a S3exitosamente:', s3profilePictureUrl);
+      } catch (uploadError) {
+        console.error('Error subiendo imagen a S3:', uploadError);
+      }
+    }
+
     const { name: bodyName, email: bodyEmail, username: bodyUsername } = req.body;
     const isManualRegistration = !!(bodyName && bodyEmail); // Username es opcional
 
-    const userData = {
+    let userData = {
       uid: firebaseUID,
       email: '',
       name: '',
@@ -112,6 +123,7 @@ export const syncUserToPostgres = async (req, res) => {
       const nameParts = bodyName.split(' ');
       userData.name = nameParts[0];
       userData.surname = nameParts.slice(1).join(' ');
+      userData.profile_picture = s3profilePictureUrl;
     } else {
       // --- REGISTRO SOCIAL (Google, etc.) ---
       dbg('Detectado REGISTRO SOCIAL (obteniendo datos de Firebase)');
@@ -128,7 +140,7 @@ export const syncUserToPostgres = async (req, res) => {
 
       userData.email = userRecord.email;
       userData.username = userRecord.email ? userRecord.email.split('@')[0] : null;
-      userData.profile_picture = userRecord.photoURL || null;
+      userData.profile_picture = s3profilePictureUrl || userRecord.photoURL || null;
 
       if (userRecord.displayName) {
         const nameParts = userRecord.displayName.split(' ');
@@ -164,8 +176,6 @@ export const syncUserToPostgres = async (req, res) => {
     // --- 3. Crear el usuario completo en una transacción ---
     dbg('Iniciando transacción de creación de usuario');
 
-    let newRoleEntity = null;
-
     const { registeredUser } = await prisma.$transaction(async (tx) => {
       await tx.user.create({ data: { user_id: userData.uid } });
       dbg('Fila creada en tabla `user`');
@@ -176,6 +186,7 @@ export const syncUserToPostgres = async (req, res) => {
           name: userData.name,
           email: userData.email,
           app_language: 'es', // Valor por defecto
+          profile_picture: userData.profile_picture,
           ...(userData.surname && { surname: userData.surname }),
           ...(userData.username && { username: userData.username }),
         },
@@ -183,31 +194,26 @@ export const syncUserToPostgres = async (req, res) => {
       dbg('Fila creada en tabla `registered_user`');
 
       switch (roleToAssign) {
-        case 'admin':
-          newRoleEntity = await tx.admin.create({
+        case 'admin': await tx.admin.create({
             data: { user_id: userData.uid },
           });
           break;
 
-        case 'institution':
-          newRoleEntity = await tx.institution.create({
+        case 'institution': await tx.institution.create({
             data: { user_id: userData.uid },
           });
           break;
 
-        case 'partner':
-          newRoleEntity = await tx.partner.create({
+        case 'partner': await tx.partner.create({
             data: { user_id: userData.uid },
           });
           break;
 
-        case 'client':
-          newRoleEntity = await tx.client.create({
+        case 'client': await tx.client.create({
             data: {
               user_id: userData.uid,
               points: 0,
               streak: 0,
-              ...(userData.profile_picture && { profile_picture: userData.profile_picture }),
               ...(userData.phone && { phone: userData.phone }),
             },
           });
@@ -227,7 +233,7 @@ export const syncUserToPostgres = async (req, res) => {
       surname: registeredUser.surname,
       username: registeredUser.username || null,
       role: roleToAssign,
-      profile_picture: roleToAssign === 'client' && userData.profile_picture ? userData.profile_picture : null,
+      profile_picture: registeredUser.profile_picture || null,
       points: roleToAssign === 'client' ? 0 : 0,
       streak: roleToAssign === 'client' ? 0 : 0,
     };
@@ -559,259 +565,74 @@ export const updateUserProfile = async (req, res) => {
   // Extraer campos del body
   const { name, surname, username, address, phone, birth_date, description } = req.body;
 
-  // --- Validaciones críticas del backend Y preparación de datos ---
-  const errors = [];
-  const registeredUserData = {};
-  const clientData = {};
-
-  // name: si se envía, validar tipo y longitud máxima (BD constraint)
-  if (name !== undefined && name !== null) {
-    if (typeof name !== 'string' || name.trim().length === 0 || name.length > 80) {
-      errors.push({ field: 'name', message: 'El campo "name" debe ser un texto válido de máximo 80 caracteres.' });
-    } else {
-      registeredUserData.name = name.trim();
-    }
-  }
-
-  // surname: si se envía, validar longitud máxima
-  if (surname !== undefined && surname !== null) {
-    if (typeof surname !== 'string' || surname.length > 80) {
-      errors.push({ field: 'surname', message: 'El campo "surname" debe tener máximo 80 caracteres.' });
-    } else {
-      registeredUserData.surname = surname.trim();
-    }
-  }
-
-  // username: si se envía, validar formato y longitud
-  if (username !== undefined && username !== null) {
-    if (typeof username !== 'string' || username.trim().length === 0 || username.length > 30) {
-      errors.push({ field: 'username', message: 'El campo "username" debe tener máximo 30 caracteres.' });
-    } else if (!/^[a-zA-Z0-9_.]+$/.test(username)) {
-      errors.push({ field: 'username', message: 'El campo "username" solo puede contener letras, números, puntos y guiones bajos.' });
-    } else {
-      registeredUserData.username = username.trim();
-    }
-  }
-
-  // address: si se envía, validar longitud máxima
-  if (address !== undefined && address !== null) {
-    if (typeof address !== 'string' || address.length > 200) {
-      errors.push({ field: 'address', message: 'El campo "address" debe tener máximo 200 caracteres.' });
-    } else {
-      clientData.address = address.trim();
-    }
-  }
-
-  // phone: ya ha sido validado y normalizado por el middleware
-  if (phone !== undefined && phone !== null) clientData.phone = phone;
-
-  // birth_date: si se envía, validar formato ISO y que sea fecha válida
-  if (birth_date !== undefined && birth_date !== null) {
-    if (typeof birth_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(birth_date)) {
-      errors.push({ field: 'birth_date', message: 'El campo "birth_date" debe estar en formato YYYY-MM-DD.' });
-    } else {
-      const parsedDate = new Date(birth_date);
-      if (isNaN(parsedDate.getTime())) {
-        errors.push({ field: 'birth_date', message: 'El campo "birth_date" no es una fecha válida.' });
-      } else if (parsedDate > new Date()) {
-        errors.push({ field: 'birth_date', message: 'El campo "birth_date" no puede ser una fecha futura.' });
-      } else {
-        clientData.birth_date = parsedDate;
-      }
-    }
-  }
-
-  // description: si se envía, validar longitud máxima
-  if (description !== undefined && description !== null) {
-    if (typeof description !== 'string' || description.length > 1000) {
-      errors.push({ field: 'description', message: 'El campo "description" debe tener máximo 1000 caracteres.' });
-    } else {
-      clientData.description = description.trim();
-    }
-  }
-
-  // Si hay errores de validación, devolverlos
-  if (errors.length > 0) {
-    dbg('Errores de validación:', errors);
-    return res.status(400).json({
-      success: false,
-      message: 'Errores de validación en los campos enviados.',
-      code: 'VALIDATION_ERROR',
-      errors,
-    });
-  }
-
   try {
-    // Si no hay nada que actualizar, retornar el perfil actual sin cambios
-    if (Object.keys(registeredUserData).length === 0 && Object.keys(clientData).length === 0) {
-      dbg('No hay campos para actualizar, devolviendo perfil actual');
-      const userProfile = await prisma.registered_user.findUnique({
-        where: { user_id: uid },
-        select: {
-          user_id: true,
-          email: true,
-          name: true,
-          surname: true,
-          username: true,
-          dni: true,
-          app_language: true,
-          client: {
-            select: {
-              address: true,
-              phone: true,
-              birth_date: true,
-              description: true,
-              points: true,
-              streak: true,
-            },
-          },
-          admin: true,
-          institution: true,
-        },
-      });
+    const dataToUpdate = {};
 
-      if (!userProfile) {
-        return res.status(404).json({
-          success: false,
-          message: 'Usuario no encontrado.',
-          code: 'USER_NOT_FOUND',
+    if(req.file) {
+      try {
+        const s3Url = await uploadToS3(req.file);
+        dataToUpdate.profile_picture = s3Url;
+        dbg('Actualizando foto de perfil a:', s3Url);
+      } catch (err) {
+        console.error('Error subiendo imagen en update:', err);
+        return res.status(500).json({ 
+          success: false, 
+          message: 'Error al subir la imagen de perfil.',
         });
       }
-
-      let role = 'client';
-      if (userProfile.admin) role = 'admin';
-      if (userProfile.institution) role = 'institution';
-
-      const responseData = {
-        uid: userProfile.user_id,
-        email: userProfile.email,
-        name: userProfile.name,
-        surname: userProfile.surname,
-        username: userProfile.username,
-        dni: userProfile.dni,
-        profile_picture: userProfile.client?.profile_picture || null,
-        app_language: userProfile.app_language,
-        address: userProfile.client?.address || null,
-        phone: userProfile.client?.phone || null,
-        birth_date: userProfile.client?.birth_date ? userProfile.client.birth_date.toISOString().split('T')[0] : null,
-        description: userProfile.client?.description || null,
-        role,
-        points: userProfile.client?.points || 0,
-        streak: userProfile.client?.streak || 0,
-      };
-
-      return res.status(200).json({
-        success: true,
-        message: 'Perfil sin cambios',
-        data: responseData,
-      });
     }
 
-    dbg('Datos a actualizar:', { registeredUserData, clientData });
+    if (name) dataToUpdate.name = name;
+    if (surname) dataToUpdate.surname = surname;
+    if (username) dataToUpdate.username = username;
+    if (address) dataToUpdate.address = address;
+    if (phone) dataToUpdate.phone = phone;
+    if (birth_date) dataToUpdate.birth_date = birth_date;
+    if (description) dataToUpdate.description = description;
 
-    // Actualizar en transacción
-    await prisma.$transaction(async (tx) => {
-      // Actualizar registered_user si hay datos
-      if (Object.keys(registeredUserData).length > 0) {
-        await tx.registered_user.update({
-          where: { user_id: uid },
-          data: registeredUserData,
-        });
-        dbg('registered_user actualizado');
-      }
-
-      // Actualizar client si hay datos
-      if (Object.keys(clientData).length > 0) {
-        await tx.client.update({
-          where: { user_id: uid },
-          data: clientData,
-        });
-        dbg('client actualizado');
-      }
-    });
-
-    dbg('Transacción completada con éxito');
-
-    // Obtener el perfil completo actualizado
-    const userProfile = await prisma.registered_user.findUnique({
+    if (Object.keys(dataToUpdate).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No se enviaron datos para actualizar.'
+      });
+    }
+    
+    const updatedUser = await prisma.registered_user.update({
       where: { user_id: uid },
-      select: {
-        user_id: true,
-        email: true,
-        name: true,
-        surname: true,
-        username: true,
-        dni: true,
-        app_language: true,
-        client: {
-          select: {
-            address: true,
-            phone: true,
-            birth_date: true,
-            description: true,
-            points: true,
-            streak: true,
-          },
-        },
+      data: dataToUpdate,
+      // Incluimos las relaciones para devolver el usuario completo si es necesario
+      include: {
+        client: true,
         admin: true,
         institution: true,
-      },
+        partner: true
+      }
     });
-
-    // Determinar el rol
-    let role = 'client';
-    if (userProfile.admin) role = 'admin';
-    if (userProfile.institution) role = 'institution';
-
-    // Formatear respuesta
-    const responseData = {
-      uid: userProfile.user_id,
-      email: userProfile.email,
-      name: userProfile.name,
-      surname: userProfile.surname,
-      username: userProfile.username,
-      dni: userProfile.dni,
-      profile_picture: userProfile.client?.profile_picture || null,
-      app_language: userProfile.app_language,
-      address: userProfile.client?.address || null,
-      phone: userProfile.client?.phone || null,
-      birth_date: userProfile.client?.birth_date ? userProfile.client.birth_date.toISOString().split('T')[0] : null,
-      description: userProfile.client?.description || null,
-      role,
-      points: userProfile.client?.points || 0,
-      streak: userProfile.client?.streak || 0,
-    };
 
     return res.status(200).json({
       success: true,
-      message: 'Perfil actualizado correctamente',
-      data: responseData,
+      message: 'Perfil actualizado correctamente.',
+      user: updatedUser,
+      new_profile_picture: updatedUser.profile_picture
     });
-  } catch (error) {
-    console.error('[updateUserProfile] Error:', error);
 
-    // Error de username duplicado (si se implementa unique constraint)
-    if (error.code === 'P2002' && error.meta?.target?.includes('username')) {
+  }
+
+  catch (error) {
+    console.error('Error actualizando perfil:', error);
+    
+    if (error.code === 'P2002') {
       return res.status(409).json({
         success: false,
         message: 'El nombre de usuario ya está en uso.',
-        code: 'USERNAME_TAKEN',
-      });
-    }
-
-    // Usuario no encontrado
-    if (error.code === 'P2025') {
-      return res.status(404).json({
-        success: false,
-        message: 'Usuario no encontrado.',
-        code: 'USER_NOT_FOUND',
+        code: 'USERNAME_TAKEN'
       });
     }
 
     return res.status(500).json({
       success: false,
-      message: 'Error al actualizar el perfil.',
-      code: 'PROFILE_UPDATE_ERROR',
+      message: 'Error interno al actualizar el perfil.',
+      code: 'SERVER_ERROR'
     });
   }
 };
