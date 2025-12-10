@@ -12,11 +12,9 @@ const PARTNER_SECRET_KEY = process.env.PARTNER_SECRET_KEY;
  */
 export const requireRoleSecret = (req, res, next) => {
   const { role: requestRole } = req.body;
-  
+
   // Validamos que el rol sea uno de los conocidos, si no, por defecto será 'client'
-  const roleToAssign = ['client', 'admin', 'institution', 'partner'].includes(requestRole)
-    ? requestRole
-    : 'client';
+  const roleToAssign = ['client', 'admin', 'institution', 'partner'].includes(requestRole) ? requestRole : 'client';
 
   // 1. Si es 'client', es público. Pasamos directamente.
   if (roleToAssign === 'client') {

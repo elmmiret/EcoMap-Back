@@ -51,10 +51,10 @@ export const syncUserToPostgres = async (req, res) => {
       }
 
       // Determinar el rol del usuario
-      let currentRole  = 'client';
+      let currentRole = 'client';
       if (existingUser.admin) currentRole = 'admin';
       else if (existingUser.institution) currentRole = 'institution';
-      else if(existingUser.partner) currentRole = 'partner';
+      else if (existingUser.partner) currentRole = 'partner';
 
       // Generar y guardar nuevo JWT
       const jwtPayload = {
@@ -85,7 +85,7 @@ export const syncUserToPostgres = async (req, res) => {
         message: 'Inicio de sesión correcto.',
         jwt: token,
         expiryDate: expiryDate.toISOString(),
-        role: currentRole
+        role: currentRole,
       });
     }
 
@@ -185,22 +185,22 @@ export const syncUserToPostgres = async (req, res) => {
       switch (roleToAssign) {
         case 'admin':
           newRoleEntity = await tx.admin.create({
-            data: { user_id: userData.uid }
+            data: { user_id: userData.uid },
           });
           break;
 
         case 'institution':
           newRoleEntity = await tx.institution.create({
-            data: { user_id: userData.uid }
+            data: { user_id: userData.uid },
           });
           break;
-        
+
         case 'partner':
           newRoleEntity = await tx.partner.create({
-            data: { user_id: userData.uid }
+            data: { user_id: userData.uid },
           });
           break;
-        
+
         case 'client':
           newRoleEntity = await tx.client.create({
             data: {
@@ -227,9 +227,9 @@ export const syncUserToPostgres = async (req, res) => {
       surname: registeredUser.surname,
       username: registeredUser.username || null,
       role: roleToAssign,
-      profile_picture: (roleToAssign === 'client' && userData.profile_picture) ? userData.profile_picture: null,
-      points: (roleToAssign === 'client') ? 0 : 0,
-      streak: (roleToAssign === 'client') ? 0 : 0,
+      profile_picture: roleToAssign === 'client' && userData.profile_picture ? userData.profile_picture : null,
+      points: roleToAssign === 'client' ? 0 : 0,
+      streak: roleToAssign === 'client' ? 0 : 0,
     };
     const { token, expiryDate } = signUserJWT(jwtPayload);
 
@@ -247,9 +247,8 @@ export const syncUserToPostgres = async (req, res) => {
       message: `Usuario registrado como ${roleToAssign} correctamente.`,
       jwt: token,
       expiryDate: expiryDate.toISOString(),
-      role: roleToAssign
+      role: roleToAssign,
     });
-      
   } catch (error) {
     console.error('Error en syncUserToPostgres:', error);
     dbg('Detalles del error:', {
