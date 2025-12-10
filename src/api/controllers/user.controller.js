@@ -249,7 +249,7 @@ export const syncUserToPostgres = async (req, res) => {
       expiryDate: expiryDate.toISOString(),
       role: roleToAssign
     });
-    
+      
   } catch (error) {
     console.error('Error en syncUserToPostgres:', error);
     dbg('Detalles del error:', {

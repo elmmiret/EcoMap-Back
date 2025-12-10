@@ -2,6 +2,7 @@
 import express from 'express';
 const router = express.Router();
 
+import { requireRoleSecret } from '#middlewares/role.middleware.js';
 import { authenticateUser, authenticateBackendJWT } from '#middlewares/auth.middleware.js';
 import { validatePhone } from '#middlewares/validation.middleware.js';
 import {
@@ -29,7 +30,7 @@ import {
  * @description Sincroniza un usuario autenticado desde Firebase con PostgreSQL.
  * @access Protegido (requiere autenticación con token de Firebase)
  */
-router.post('/sync', authenticateUser, syncUserToPostgres);
+router.post('/sync', authenticateUser, requireRoleSecret, syncUserToPostgres);
 
 /**
  * @route GET /api/users/me
