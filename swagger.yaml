@@ -53,7 +53,10 @@ components:
           nullable: true
         app_language:
           type: string
-          enum: [ca, es, en]
+          enum:
+            - ca
+            - es
+            - en
         address:
           type: string
           nullable: true
@@ -69,7 +72,10 @@ components:
           nullable: true
         role:
           type: string
-          enum: [client, admin, institution]
+          enum:
+            - client
+            - admin
+            - institution
         points:
           type: integer
         streak:
@@ -90,7 +96,9 @@ components:
           type: integer
         api_location:
           type: string
-          enum: [Navarra, Barcelona]
+          enum:
+            - Navarra
+            - Barcelona
         name:
           type: string
         latitude:
@@ -102,6 +110,18 @@ components:
         equipment_type:
           type: string
           description: Mapeado desde el enum equipment_type de la BD
+          enum:
+            - Recycling_center
+            - Batteries
+            - Medicines_and_packaging
+            - Garden_waste
+            - Clothing_and_footwear
+            - Bulky_waste
+            - Glass_containers
+            - Coffee_capsules
+            - Used_cooking_oil
+            - Household_construction_waste
+            - Community_composting
         distance_km:
           type: number
           description: Distancia en KM desde el punto de búsqueda. **Solo presente** si se aplica el filtro de proximidad (lat+lng+radius).
@@ -198,9 +218,18 @@ components:
           format: uuid
         item_state:
           type: string
-          enum: [New, Little_used, Widely_used, Bad_condition]
+          enum:
+            - New
+            - Little_used
+            - Widely_used
+            - Bad_condition
         points_price:
           type: integer
+          enum:
+            - 5
+            - 10
+            - 25
+            - 50
         created_at:
           type: string
           format: date-time
@@ -215,6 +244,11 @@ components:
           type: string
         points_price:
           type: integer
+          enum:
+            - 500
+            - 1000
+            - 2000
+            - 5000
         available:
           type: boolean
 
@@ -234,7 +268,10 @@ components:
           format: date-time
         publication_state:
           type: string
-          enum: [Pending, Completed, Cancelled]
+          enum:
+            - Pending
+            - Completed
+            - Cancelled
         client_id:
           type: string
           nullable: true
@@ -372,7 +409,12 @@ components:
           description: Cantidad de puntos (positivo = ganancia, negativo = gasto)
         source:
           type: string
-          enum: [ECO_TRADER_SALE, RECYCLING_ACTION, EVENT_ATTENDANCE, REWARD_REDEMPTION, ADMIN_ADJUSTMENT]
+          enum:
+            - ECO_TRADER_SALE
+            - RECYCLING_ACTION
+            - EVENT_ATTENDANCE
+            - REWARD_REDEMPTION
+            - ADMIN_ADJUSTMENT
         description:
           type: string
         created_at:
@@ -545,7 +587,11 @@ paths:
               properties:
                 newLanguage:
                   type: string
-                  enum: [ca, es, en]
+                  description: "Nuevo idioma para la aplicación. Valores permitidos: 'ca', 'es', 'en'."
+                  enum:
+                    - ca
+                    - es
+                    - en
       responses:
         '200':
           description: Idioma actualizado.
@@ -562,7 +608,9 @@ paths:
           required: true
           schema:
             type: string
-            enum: [navarra, barcelona]
+            enum:
+              - navarra
+              - barcelona
         # Filtros extraídos de recycling-points.controller.js
         - in: query
           name: api_id
@@ -575,24 +623,29 @@ paths:
             type: string
             # Enum extraído de schema.prisma y equipment-type-mapper.js
             enum:
-              [
-                Recycling_center,
-                Batteries,
-                Medicines_and_packaging,
-                Garden_waste,
-                Clothing_and_footwear,
-                Bulky_waste,
-                Glass_containers,
-                Coffee_capsules,
-                Used_cooking_oil,
-                Household_construction_waste,
-                Community_composting,
-              ]
+              - Recycling_center
+              - Batteries
+              - Medicines_and_packaging
+              - Garden_waste
+              - Clothing_and_footwear
+              - Bulky_waste
+              - Glass_containers
+              - Coffee_capsules
+              - Used_cooking_oil
+              - Household_construction_waste
+              - Community_composting
         - in: query
           name: wasteType
           schema:
             type: string
-            enum: [ElectricContainer, GlassContainer, OrganicContainer, PaperContainer, PlasticContainer, TextileContainer, Unrecyclable]
+            enum:
+              - ElectricContainer
+              - GlassContainer
+              - OrganicContainer
+              - PaperContainer
+              - PlasticContainer
+              - TextileContainer
+              - Unrecyclable
           description: Filtra puntos que tengan contenedores de este tipo.
         - in: query
           name: name
@@ -708,7 +761,11 @@ paths:
           schema:
             type: string
             default: driving-car
-            enum: [driving-car, cycling-regular, foot-walking, wheelchair]
+            enum:
+              - driving-car
+              - cycling-regular
+              - foot-walking
+              - wheelchair
       responses:
         '200':
           description: Datos de la ruta calculada.
@@ -758,6 +815,12 @@ paths:
   /api/gamification/grant:
     post:
       summary: Otorgar puntos manualmente (Admin/Institución)
+      description: |
+        Permite otorgar puntos manualmente a un usuario.
+        **Fuentes permitidas (`source`):**
+        - `RECYCLING_ACTION`: Acción de reciclaje.
+        - `EVENT_ATTENDANCE`: Asistencia a evento.
+        - `ADMIN_ADJUSTMENT`: Ajuste administrativo.
       tags: [Gamificación]
       security:
         - backendAuth: []
@@ -775,7 +838,11 @@ paths:
                   type: integer
                 source:
                   type: string
-                  enum: [RECYCLING_ACTION, EVENT_ATTENDANCE, ADMIN_ADJUSTMENT]
+                  description: "Fuente de los puntos. Valores permitidos: 'RECYCLING_ACTION', 'EVENT_ATTENDANCE', 'ADMIN_ADJUSTMENT'."
+                  enum:
+                    - RECYCLING_ACTION
+                    - EVENT_ATTENDANCE
+                    - ADMIN_ADJUSTMENT
                 description:
                   type: string
       responses:
@@ -795,6 +862,9 @@ paths:
   /api/publications/rewards:
     post:
       summary: Crear nueva recompensa (Solo Instituciones)
+      description: |
+        Crea una nueva recompensa disponible para canjear.
+        **Precios permitidos (`pointsPrice`):** 500, 1000, 2000, 5000.
       tags: [Publicaciones]
       security:
         - backendAuth: []
@@ -813,6 +883,12 @@ paths:
                   type: string
                 pointsPrice:
                   type: integer
+                  description: "Precio en puntos. Valores permitidos: 500, 1000, 2000, 5000."
+                  enum:
+                    - 500
+                    - 1000
+                    - 2000
+                    - 5000
                 mediaUrl:
                   type: string
       responses:
@@ -912,6 +988,10 @@ paths:
   /api/publications/trades:
     post:
       summary: Crear nuevo intercambio (Solo Clientes)
+      description: |
+        Crea una nueva publicación de intercambio.
+        **Estados permitidos (`itemState`):** `New`, `Little_used`, `Widely_used`, `Bad_condition`.
+        **Precios permitidos (`pointsPrice`):** 5, 10, 25, 50.
       tags: [Publicaciones]
       security:
         - backendAuth: []
@@ -928,9 +1008,20 @@ paths:
                   type: string
                 itemState:
                   type: string
-                  enum: [New, Little_used, Widely_used, Bad_condition]
+                  description: "Estado del artículo. Valores permitidos: 'New', 'Little_used', 'Widely_used', 'Bad_condition'."
+                  enum:
+                    - New
+                    - Little_used
+                    - Widely_used
+                    - Bad_condition
                 pointsPrice:
                   type: integer
+                  description: "Precio en puntos. Valores permitidos: 5, 10, 25, 50."
+                  enum:
+                    - 5
+                    - 10
+                    - 25
+                    - 50
                 mediaUrl:
                   type: string
       responses:
@@ -1157,7 +1248,11 @@ paths:
               properties:
                 state:
                   type: string
-                  enum: [Completed, Cancelled, Pending]
+                  description: "Nuevo estado. Valores permitidos: 'Completed', 'Cancelled', 'Pending'."
+                  enum:
+                    - Completed
+                    - Cancelled
+                    - Pending
       responses:
         '200':
           description: Estado actualizado.
@@ -1660,7 +1755,9 @@ paths:
                           $ref: '#/components/schemas/Valoration'
     post:
       summary: Crear valoración
-      description: Valorar la transacción finalizada (comprador a vendedor o viceversa).
+      description: |
+        Valorar la transacción finalizada (comprador a vendedor o viceversa).
+        **Puntuación (`score`):** Entero del 0 al 10.
       tags: [Reservas]
       security:
         - backendAuth: []
@@ -1679,8 +1776,19 @@ paths:
               properties:
                 score:
                   type: integer
-                  minimum: 0
-                  maximum: 10
+                  description: "Puntuación (0-10)."
+                  enum:
+                    - 0
+                    - 1
+                    - 2
+                    - 3
+                    - 4
+                    - 5
+                    - 6
+                    - 7
+                    - 8
+                    - 9
+                    - 10
                 comment:
                   type: string
       responses:
