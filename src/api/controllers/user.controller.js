@@ -194,22 +194,26 @@ export const syncUserToPostgres = async (req, res) => {
       dbg('Fila creada en tabla `registered_user`');
 
       switch (roleToAssign) {
-        case 'admin': await tx.admin.create({
+        case 'admin':
+          await tx.admin.create({
             data: { user_id: userData.uid },
           });
           break;
 
-        case 'institution': await tx.institution.create({
+        case 'institution':
+          await tx.institution.create({
             data: { user_id: userData.uid },
           });
           break;
 
-        case 'partner': await tx.partner.create({
+        case 'partner':
+          await tx.partner.create({
             data: { user_id: userData.uid },
           });
           break;
 
-        case 'client': await tx.client.create({
+        case 'client':
+          await tx.client.create({
             data: {
               user_id: userData.uid,
               points: 0,
@@ -568,15 +572,15 @@ export const updateUserProfile = async (req, res) => {
   try {
     const dataToUpdate = {};
 
-    if(req.file) {
+    if (req.file) {
       try {
         const s3Url = await uploadToS3(req.file);
         dataToUpdate.profile_picture = s3Url;
         dbg('Actualizando foto de perfil a:', s3Url);
       } catch (err) {
         console.error('Error subiendo imagen en update:', err);
-        return res.status(500).json({ 
-          success: false, 
+        return res.status(500).json({
+          success: false,
           message: 'Error al subir la imagen de perfil.',
         });
       }
@@ -593,10 +597,10 @@ export const updateUserProfile = async (req, res) => {
     if (Object.keys(dataToUpdate).length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'No se enviaron datos para actualizar.'
+        message: 'No se enviaron datos para actualizar.',
       });
     }
-    
+
     const updatedUser = await prisma.registered_user.update({
       where: { user_id: uid },
       data: dataToUpdate,
@@ -605,34 +609,31 @@ export const updateUserProfile = async (req, res) => {
         client: true,
         admin: true,
         institution: true,
-        partner: true
-      }
+        partner: true,
+      },
     });
 
     return res.status(200).json({
       success: true,
       message: 'Perfil actualizado correctamente.',
       user: updatedUser,
-      new_profile_picture: updatedUser.profile_picture
+      new_profile_picture: updatedUser.profile_picture,
     });
-
-  }
-
-  catch (error) {
+  } catch (error) {
     console.error('Error actualizando perfil:', error);
-    
+
     if (error.code === 'P2002') {
       return res.status(409).json({
         success: false,
         message: 'El nombre de usuario ya está en uso.',
-        code: 'USERNAME_TAKEN'
+        code: 'USERNAME_TAKEN',
       });
     }
 
     return res.status(500).json({
       success: false,
       message: 'Error interno al actualizar el perfil.',
-      code: 'SERVER_ERROR'
+      code: 'SERVER_ERROR',
     });
   }
 };
