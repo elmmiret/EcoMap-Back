@@ -20,7 +20,6 @@ model client {
   points                              Int
   birth_date                          DateTime?       @db.Date
   description                         String?
-  profile_picture                     String?
   streak                              Int
   valorations_score                   Float           @default(0.0)
   registered_user                     registered_user @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
@@ -52,6 +51,7 @@ model registered_user {
   surname      String?
   dni          String?
   email        String            @unique
+  profile_picture String?
   app_language app_language_type
   admin        admin?
   client       client?
