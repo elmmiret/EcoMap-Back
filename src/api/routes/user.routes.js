@@ -2,8 +2,10 @@
 import express from 'express';
 const router = express.Router();
 
+import { requireRoleSecret } from '#middlewares/role.middleware.js';
 import { authenticateUser, authenticateBackendJWT } from '#middlewares/auth.middleware.js';
 import { validatePhone } from '#middlewares/validation.middleware.js';
+import { uploadImageMiddleware } from '#middlewares/upload.middleware.js';
 import {
   syncUserToPostgres,
   changeAppLanguage,
@@ -29,7 +31,7 @@ import {
  * @description Sincroniza un usuario autenticado desde Firebase con PostgreSQL.
  * @access Protegido (requiere autenticación con token de Firebase)
  */
-router.post('/sync', authenticateUser, syncUserToPostgres);
+router.post('/sync', authenticateUser, uploadImageMiddleware, requireRoleSecret, syncUserToPostgres);
 
 /**
  * @route GET /api/users/me
@@ -57,7 +59,7 @@ router.get('/:id/private', authenticateBackendJWT, getUserPrivateData);
  * @description Actualiza el perfil del usuario autenticado.
  * @access Protegido (requiere autenticación con JWT del backend)
  */
-router.put('/me', authenticateBackendJWT, validatePhone, updateUserProfile);
+router.put('/me', authenticateBackendJWT, validatePhone, uploadImageMiddleware, updateUserProfile);
 
 /**
  * @route DELETE /api/users/me
