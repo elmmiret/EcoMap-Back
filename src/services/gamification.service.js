@@ -62,7 +62,13 @@ export const processPoints = async (userId, amount, source, description) => {
       throw new Error(`Saldo insuficiente. Tienes ${currentClient.points} EcoPoints y necesitas ${Math.abs(amount)}.`);
     }
 
-    // C. Actualizar el saldo del cliente
+    // C. Evitar superar el límite máximo de puntos al otorgar puntos
+    // (amount es positivo cuando se otorgan puntos)
+    if (amount > 0 && (currentClient.points + amount > MAX_USER_POINTS)) {
+      throw new Error(`Límite máximo de puntos alcanzado. El usuario tiene ${currentClient.points} EcoPoints y el límite es ${MAX_USER_POINTS}. No se pueden otorgar ${amount} puntos adicionales.`);
+    }
+
+    // D. Actualizar el saldo del cliente
     const updatedClient = await tx.client.update({
       where: { user_id: userId },
       data: {
@@ -72,7 +78,7 @@ export const processPoints = async (userId, amount, source, description) => {
       },
     });
 
-    // D. Registrar el movimiento en el historial
+    // E. Registrar el movimiento en el historial
     const historyLog = await tx.point_history.create({
       data: {
         user_id: userId,
