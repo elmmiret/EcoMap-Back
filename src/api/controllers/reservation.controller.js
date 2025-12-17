@@ -1,5 +1,5 @@
 import { prisma } from '#lib/prisma.js';
-import { processPoints } from '#services/gamification.service.js';
+import { processPoints, MAX_USER_POINTS } from '#services/gamification.service.js';
 
 /**
  * Crea una reserva para un 'trade'.
@@ -328,6 +328,7 @@ export const confirmReservation = async (req, res) => {
             publication: true, // necesario para acceder al client_id (dueño)
           },
         },
+        client: true, 
       },
     });
 
@@ -339,9 +340,13 @@ export const confirmReservation = async (req, res) => {
       });
     }
 
+    // Definimos las variables necesarias
+    const sellerId = reservation.trade.publication.client_id;
+    const buyerId = reservation.client_id;
+    const pointsCost = reservation.trade.points_price;
+
     // Verificar permisos: ¿Es el usuario el dueño del Trade?
-    // reservation.trade.publication.client_id es el dueño original
-    if (reservation.trade.publication.client_id !== uid) {
+    if (sellerId !== uid) {
       return res.status(403).json({
         success: false,
         message: 'No tienes permiso para confirmar esta reserva. Solo el propietario del artículo puede hacerlo.',
@@ -358,12 +363,23 @@ export const confirmReservation = async (req, res) => {
       });
     }
 
+    // Validar saldo del comprador
     if (reservation.client.points < pointsCost) {
       return res.status(402).json({ // 402 Payment Required
         success: false,
         message: `El comprador no tiene suficientes EcoPoints (${reservation.client.points}/${pointsCost}). No se puede completar la venta.`,
         code: 'BUYER_INSUFFICIENT_FUNDS',
       });
+    }
+
+    // Validar límite del vendedor (Necesitamos buscar sus puntos actuales primero)
+    const seller = await prisma.client.findUnique({
+      where: { user_id: sellerId },
+      select: { points: true }
+    });
+
+    if (!seller) {
+        return res.status(404).json({ success: false, message: 'Perfil de vendedor no encontrado.' });
     }
 
     if (seller.points + pointsCost > MAX_USER_POINTS) {
