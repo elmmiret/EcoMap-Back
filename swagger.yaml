@@ -76,6 +76,7 @@ components:
             - client
             - admin
             - institution
+            - partner
         points:
           type: integer
         streak:
@@ -457,10 +458,19 @@ paths:
   /api/users/sync:
     post:
       summary: Sincronizar usuario / Login / Registro
-      description: Intercambia un token de Firebase por un JWT del Backend y crea el usuario si no existe.
+      description: |
+        Intercambia un token de Firebase por un JWT del Backend y crea el usuario si no existe.
+        **Para crear un usuario con un rol específico (admin/institution/partner), se debe enviar el header `x-role-secret` con la clave correspondiente.**
       tags: [Usuarios]
       security:
         - firebaseAuth: []
+      parameters:
+        - in: header
+          name: x-role-secret
+          schema:
+            type: string
+          description: "Clave secreta para autorizar el registro de roles privilegiados (admin, institution, partner)."
+          required: false
       requestBody:
         description: Datos opcionales para registro manual.
         required: false
@@ -475,6 +485,14 @@ paths:
                   type: string
                 username:
                   type: string
+                role:
+                  type: string
+                  description: "Rol deseado. Valores: 'client', 'admin', 'institution', 'partner'. Si es distinto a 'client', requiere header `x-role-secret`."
+                  enum:
+                    - client
+                    - admin
+                    - institution
+                    - partner
       responses:
         '200':
           description: Login correcto o usuario creado.
@@ -491,6 +509,11 @@ paths:
                       expiryDate:
                         type: string
                         format: date-time
+                      role:
+                        type: string
+                        description: Rol asignado al usuario.
+        '403':
+          description: Clave secreta requerida o incorrecta para el rol solicitado.
 
   /api/users/me:
     get:
@@ -595,6 +618,308 @@ paths:
       responses:
         '200':
           description: Idioma actualizado.
+
+  # --- Endpoints de Información de Usuarios (IDs, Tipos, etc.) ---
+  /api/users/ids/all:
+    get:
+      summary: Obtener todos los IDs de usuarios
+      tags: [Usuarios - Admin/Info]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de todos los IDs.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  ids:
+                    type: array
+                    items:
+                      type: string
+                      format: uuid
+
+  /api/users/ids/clients:
+    get:
+      summary: Obtener IDs de clientes
+      tags: [Usuarios - Admin/Info]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de IDs de clientes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  ids:
+                    type: array
+                    items:
+                      type: string
+
+  /api/users/ids/institutions:
+    get:
+      summary: Obtener IDs de instituciones
+      tags: [Usuarios - Admin/Info]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de IDs de instituciones.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  ids:
+                    type: array
+                    items:
+                      type: string
+
+  /api/users/ids/admins:
+    get:
+      summary: Obtener IDs de administradores
+      tags: [Usuarios - Admin/Info]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de IDs de administradores.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  ids:
+                    type: array
+                    items:
+                      type: string
+
+  /api/users/{id}:
+    get:
+      summary: Obtener perfil público de usuario por ID
+      tags: [Usuarios]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Información del usuario.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserProfile'
+
+  /api/users/{id}/type:
+    get:
+      summary: Obtener tipo/rol de un usuario específico
+      tags: [Usuarios - Admin/Info]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Rol del usuario.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  role:
+                    type: string
+                    enum: [client, admin, institution, partner, unknown]
+
+  /api/users/{id}/public:
+    get:
+      summary: Obtener datos explícitamente públicos
+      tags: [Usuarios]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Datos públicos del usuario.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserProfile'
+
+  /api/users/{id}/private:
+    get:
+      summary: Obtener datos privados (Solo Admin o Propio usuario)
+      tags: [Usuarios]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Datos sensibles (email, dni, teléfono, etc.).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          email:
+                            type: string
+                          dni:
+                            type: string
+                          phone:
+                            type: string
+                          address:
+                            type: string
+                          birth_date:
+                            type: string
+
+  /api/users/{id}/valorations/made:
+    get:
+      summary: Obtener valoraciones hechas por el usuario
+      tags: [Usuarios - Valoraciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de valoraciones escritas.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Valoration'
+
+  /api/users/{id}/valorations/received:
+    get:
+      summary: Obtener valoraciones recibidas por el usuario
+      tags: [Usuarios - Valoraciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de valoraciones recibidas y puntuación media.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  average_score:
+                    type: number
+                    format: float
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Valoration'
+
+  /api/users/{id}/score:
+    get:
+      summary: Obtener puntuación media de un usuario
+      tags: [Usuarios - Valoraciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Puntuación media.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  score:
+                    type: number
+                    format: float
 
   # --- Puntos de Reciclaje ---
   /api/recycling-points/{region}:
