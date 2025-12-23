@@ -10,7 +10,6 @@ export const getMyGamificationProfile = async (req, res) => {
   const { uid } = req.user;
 
   try {
-    // Ejecutamos ambas consultas en paralelo para mejorar el rendimiento
     const [balance, history] = await Promise.all([
       gamificationService.getBalance(uid),
       gamificationService.getHistory(uid)
@@ -20,10 +19,9 @@ export const getMyGamificationProfile = async (req, res) => {
       success: true,
       data: {
         balance,
-        // Enviamos también las reglas para que el Front sepa cuántos puntos da cada cosa
+        history,
         rules: gamificationService.POINTS_RULES, 
-        limit: gamificationService.MAX_USER_POINTS,
-        history
+        limit: gamificationService.MAX_USER_POINTS
       }
     });
   } catch (error) {
@@ -47,7 +45,6 @@ export const grantPoints = async (req, res) => {
   // source: 'RECYCLING_ACTION' | 'EVENT_ATTENDANCE'
   const { targetUserId, amount, source, description } = req.body;
 
-  // 1. Validaciones básicas de entrada
   if (!targetUserId || !amount || !source) {
     return res.status(400).json({
       success: false,
@@ -56,8 +53,6 @@ export const grantPoints = async (req, res) => {
     });
   }
 
-  // Solo permitimos fuentes "manuales" a través de este endpoint
-  // ECO_TRADER_SALE se gestiona automáticamente en el reservation.controller
   const ALLOWED_MANUAL_SOURCES = ['RECYCLING_ACTION', 'EVENT_ATTENDANCE', 'ADMIN_ADJUSTMENT'];
   
   if (!ALLOWED_MANUAL_SOURCES.includes(source)) {
@@ -69,7 +64,7 @@ export const grantPoints = async (req, res) => {
   }
 
   try {
-    // 2. Procesar los puntos llamando al servicio
+    // Procesar los puntos llamando al servicio
     const result = await gamificationService.processPoints(
       targetUserId, 
       Number(amount), 
