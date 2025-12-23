@@ -5,11 +5,11 @@ export const MAX_USER_POINTS = 20000;
 // --- CONSTANTES DE PUNTOS ---
 // Definimos los valores permitidos para cada tipo de acción para mantener la economía balanceada.
 export const POINTS_RULES = {
-  ECO_TRADER_SALE:   [5, 10, 25, 50],       // Vender/Donar objetos
-  RECYCLING_ACTION:  [5, 10, 25, 50],       // Reciclaje verificado
-  EVENT_ATTENDANCE:  [25, 50, 100],         // Asistencia a eventos
+  ECO_TRADER_SALE: [5, 10, 25, 50], // Vender/Donar objetos
+  RECYCLING_ACTION: [5, 10, 25, 50], // Reciclaje verificado
+  EVENT_ATTENDANCE: [25, 50, 100], // Asistencia a eventos
   REWARD_REDEMPTION: [500, 1000, 2000, 5000], // Coste de recompensas
-  ADMIN_ADJUSTMENT:  null                   // Flexible para correcciones de soporte
+  ADMIN_ADJUSTMENT: null, // Flexible para correcciones de soporte
 };
 
 /**
@@ -20,7 +20,7 @@ export const POINTS_RULES = {
  */
 export const isValidPointAmount = (source, amount) => {
   const allowedValues = POINTS_RULES[source];
-  
+
   // Si es ADMIN_ADJUSTMENT o no tiene reglas definidas, permitimos cualquier valor
   if (!allowedValues) return true;
 
@@ -49,7 +49,7 @@ export const processPoints = async (userId, amount, source, description) => {
     // A. Obtener saldo actual para verificaciones
     const currentClient = await tx.client.findUnique({
       where: { user_id: userId },
-      select: { points: true }
+      select: { points: true },
     });
 
     if (!currentClient) {
@@ -58,14 +58,16 @@ export const processPoints = async (userId, amount, source, description) => {
 
     // B. Evitar saldo negativo si estamos gastando puntos
     // (amount es negativo en caso de gasto, ej: -500)
-    if (amount < 0 && (currentClient.points + amount < 0)) {
+    if (amount < 0 && currentClient.points + amount < 0) {
       throw new Error(`Saldo insuficiente. Tienes ${currentClient.points} EcoPoints y necesitas ${Math.abs(amount)}.`);
     }
 
     // C. Evitar superar el límite máximo de puntos al otorgar puntos
     // (amount es positivo cuando se otorgan puntos)
-    if (amount > 0 && (currentClient.points + amount > MAX_USER_POINTS)) {
-      throw new Error(`Límite máximo de puntos alcanzado. El usuario tiene ${currentClient.points} EcoPoints y el límite es ${MAX_USER_POINTS}. No se pueden otorgar ${amount} puntos adicionales.`);
+    if (amount > 0 && currentClient.points + amount > MAX_USER_POINTS) {
+      throw new Error(
+        `Límite máximo de puntos alcanzado. El usuario tiene ${currentClient.points} EcoPoints y el límite es ${MAX_USER_POINTS}. No se pueden otorgar ${amount} puntos adicionales.`
+      );
     }
 
     // D. Actualizar el saldo del cliente
@@ -88,16 +90,16 @@ export const processPoints = async (userId, amount, source, description) => {
       },
     });
 
-    return { 
-      newBalance: updatedClient.points, 
-      historyLog 
+    return {
+      newBalance: updatedClient.points,
+      historyLog,
     };
   });
 };
 
 /**
  * Obtiene el historial de puntos de un usuario paginado o limitado.
- * @param {string} userId 
+ * @param {string} userId
  * @returns {Promise<Array>}
  */
 export const getHistory = async (userId) => {
@@ -110,7 +112,7 @@ export const getHistory = async (userId) => {
 
 /**
  * Obtiene el saldo actual de puntos de un usuario.
- * @param {string} userId 
+ * @param {string} userId
  * @returns {Promise<number>}
  */
 export const getBalance = async (userId) => {

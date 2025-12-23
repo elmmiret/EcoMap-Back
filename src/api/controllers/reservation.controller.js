@@ -328,7 +328,7 @@ export const confirmReservation = async (req, res) => {
             publication: true, // necesario para acceder al client_id (dueño)
           },
         },
-        client: true, 
+        client: true,
       },
     });
 
@@ -365,7 +365,8 @@ export const confirmReservation = async (req, res) => {
 
     // Validar saldo del comprador
     if (reservation.client.points < pointsCost) {
-      return res.status(402).json({ // 402 Payment Required
+      return res.status(402).json({
+        // 402 Payment Required
         success: false,
         message: `El comprador no tiene suficientes EcoPoints (${reservation.client.points}/${pointsCost}). No se puede completar la venta.`,
         code: 'BUYER_INSUFFICIENT_FUNDS',
@@ -375,11 +376,11 @@ export const confirmReservation = async (req, res) => {
     // Validar límite del vendedor (Necesitamos buscar sus puntos actuales primero)
     const seller = await prisma.client.findUnique({
       where: { user_id: sellerId },
-      select: { points: true }
+      select: { points: true },
     });
 
     if (!seller) {
-        return res.status(404).json({ success: false, message: 'Perfil de vendedor no encontrado.' });
+      return res.status(404).json({ success: false, message: 'Perfil de vendedor no encontrado.' });
     }
 
     if (seller.points + pointsCost > MAX_USER_POINTS) {
@@ -393,26 +394,26 @@ export const confirmReservation = async (req, res) => {
     // 4. Ejecutar la lógica en transacción (Todo o nada)
     const result = await prisma.$transaction(async (tx) => {
       // --- A. Gestión de Puntos ---
-      
+
       // 1. Restar al Comprador
       await tx.client.update({
         where: { user_id: buyerId },
-        data: { points: { decrement: pointsCost } }
+        data: { points: { decrement: pointsCost } },
       });
-      
+
       await tx.point_history.create({
         data: {
           user_id: buyerId,
           amount: -pointsCost, // Negativo
           source: 'ECO_TRADER_SALE',
           description: `Compra en EcoTrader: ${reservation.trade.publication.title}`,
-        }
+        },
       });
 
       // 2. Sumar al Vendedor
       await tx.client.update({
         where: { user_id: sellerId },
-        data: { points: { increment: pointsCost } }
+        data: { points: { increment: pointsCost } },
       });
 
       await tx.point_history.create({
@@ -421,7 +422,7 @@ export const confirmReservation = async (req, res) => {
           amount: pointsCost, // Positivo
           source: 'ECO_TRADER_SALE',
           description: `Venda en EcoTrader: ${reservation.trade.publication.title}`,
-        }
+        },
       });
 
       // --- B. Gestión de Estados ---

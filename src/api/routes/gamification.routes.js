@@ -11,9 +11,6 @@ router.use(authenticateBackendJWT);
 router.get('/me', gamificationController.getMyGamificationProfile);
 
 // POST /api/gamification/grant -> Otorgar puntos (Solo Admin o Institución)
-router.post('/grant', 
-  requireAdminOrInstitution, 
-  gamificationController.grantPoints
-);
+router.post('/grant', requireAdminOrInstitution, gamificationController.grantPoints);
 
 export default router;

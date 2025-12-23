@@ -469,7 +469,7 @@ paths:
           name: x-role-secret
           schema:
             type: string
-          description: "Clave secreta para autorizar el registro de roles privilegiados (admin, institution, partner)."
+          description: 'Clave secreta para autorizar el registro de roles privilegiados (admin, institution, partner).'
           required: false
       requestBody:
         description: Datos opcionales para registro manual.
@@ -1208,7 +1208,7 @@ paths:
                   type: string
                 pointsPrice:
                   type: integer
-                  description: "Precio en puntos. Valores permitidos: 500, 1000, 2000, 5000."
+                  description: 'Precio en puntos. Valores permitidos: 500, 1000, 2000, 5000.'
                   enum:
                     - 500
                     - 1000
@@ -1341,7 +1341,7 @@ paths:
                     - Bad_condition
                 pointsPrice:
                   type: integer
-                  description: "Precio en puntos. Valores permitidos: 5, 10, 25, 50."
+                  description: 'Precio en puntos. Valores permitidos: 5, 10, 25, 50.'
                   enum:
                     - 5
                     - 10
@@ -2101,7 +2101,7 @@ paths:
               properties:
                 score:
                   type: integer
-                  description: "Puntuación (0-10)."
+                  description: 'Puntuación (0-10).'
                   enum:
                     - 0
                     - 1
