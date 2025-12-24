@@ -1,6 +1,6 @@
 // src/api/controllers/publication.controller.js
 import { prisma } from '#lib/prisma.js';
-import { uploadToS3 } from '#services/storage.service.js';
+import { uploadToS3, deleteFromS3 } from '#services/storage.service.js';
 
 /**
  * Crea una nueva publicación para un usuario (cliente).
@@ -330,6 +330,7 @@ export const deletePublication = async (req, res) => {
   try {
     const publication = await prisma.publication.findUnique({
       where: { publication_id: id },
+      include: { publication_media: true }, 
     });
 
     if (!publication) return res.status(404).json({ success: false, message: 'No encontrada' });
@@ -341,6 +342,12 @@ export const deletePublication = async (req, res) => {
       return res.status(403).json({ success: false, message: 'No autorizado para eliminar.' });
     }
 
+    // Si tiene imagen asociada, la eliminamos de S3
+    if (publication.publication_media && publication.publication_media.media_url) {
+      await deleteFromS3(publication.publication_media.media_url);
+    }
+
+    // Eliminamos de la base de datos
     await prisma.publication.delete({ where: { publication_id: id } });
 
     return res.status(200).json({ success: true, message: 'Publicación eliminada.' });
@@ -753,13 +760,13 @@ export const updateTradeBody = async (req, res) => {
   const { id } = req.params;
   const { uid } = req.user;
   const { title, description } = req.body;
-  const imageFile = req.file; // Archivo subido (opcional)
+  const imageFile = req.file;
 
   try {
     // buscar la publicación
     const publication = await prisma.publication.findUnique({
       where: { publication_id: id },
-      include: { trade: true }, // Verificar que sea un Trade
+      include: { trade: true, publication_media: true }, // Verificar que sea un trade 
     });
 
     if (!publication) {
@@ -800,12 +807,18 @@ export const updateTradeBody = async (req, res) => {
       });
 
       // si hay nueva imagen, la añadimos a la galería
-      // (Opcional: si quisieras REEMPLAZAR, harías un deleteMany antes)
       if (mediaUrl) {
+        // borramos la imagen antigua de S3 si existe
+        if (publication.publication_media && publication.publication_media.media_url) {
+          await deleteFromS3(publication.publication_media.media_url);
+        }
+
+        // borramos ref. en la base de datos
         await tx.publication_media.deleteMany({
           where: { publication_id: id },
         });
 
+        // creamos nueva ref.
         await tx.publication_media.create({
           data: {
             media_url: mediaUrl,
