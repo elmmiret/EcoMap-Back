@@ -3,6 +3,7 @@
 import { prisma } from '#lib/prisma.js';
 import { signUserJWT } from '#lib/jwt.js';
 import { getAuth } from '#services/auth.service.js';
+import { uploadToS3, deleteFromS3 } from '#services/storage.service.js';
 
 // Debug helper to keep logs consistent
 const dbg = (...args) => console.log('[syncUserToPostgres]', ...args);
@@ -377,13 +378,28 @@ export const deleteUser = async (req, res) => {
   dbg('Autenticación reciente verificada.');
 
   try {
-    // 2. Eliminar al usuario de Firebase Authentication
+    // Buscamos la URL de la imagen antes de que el usuario sea borrado
+    const userToDelete = await prisma.registered_user.findUnique({
+      where: { user_id: uid },
+      select: { profile_picture: true },
+    });
+
+    if (userToDelete?.profile_picture) {
+      dbg(`Imagen de perfil encontrada, eliminando de S3: ${userToDelete.profile_picture}`);
+      try {
+        await deleteFromS3(userToDelete.profile_picture);
+      } catch (s3Error) {
+        console.error('Error al borrar imagen de S3, continuando con eliminación de cuenta:', s3Error);
+      }
+    }
+
+    // Eliminar al usuario de Firebase Authentication
     dbg(`Iniciando borrado en Firebase Auth para UID: ${uid}`);
     const auth = getAuth();
     await auth.deleteUser(uid);
     dbg(`Usuario ${uid} eliminado de Firebase Authentication.`);
 
-    // 3. Si el borrado en Firebase fue exitoso, eliminar de la BD local
+    // Si el borrado en Firebase fue exitoso, eliminar de la BD local
     // Gracias a ON DELETE CASCADE, se borrarán todas las referencias.
     dbg(`Iniciando borrado en BD para user_id: ${uid}`);
     await prisma.user.delete({
@@ -391,7 +407,7 @@ export const deleteUser = async (req, res) => {
     });
     dbg(`Usuario ${uid} eliminado de la base de datos.`);
 
-    // 4. Enviar respuesta de éxito
+    // Enviar respuesta de éxito
     return res.status(200).json({
       success: true,
       message: 'Tu cuenta ha sido eliminada permanentemente.',
@@ -514,8 +530,9 @@ export const getUserProfile = async (req, res) => {
 };
 
 /**
- * Actualiza el perfil del usuario autenticado.
- * Soporta actualización parcial de campos.
+ * @route PUT /api/users/me
+ * @description Actualiza el perfil del usuario autenticado.
+ * Soporta actualización de imagen (borrando la anterior) y datos de texto.
  */
 export const updateUserProfile = async (req, res) => {
   const { uid } = req.user;
@@ -529,6 +546,37 @@ export const updateUserProfile = async (req, res) => {
   const errors = [];
   const registeredUserData = {};
   const clientData = {};
+
+  if (req.file) {
+    try {
+      dbg('Procesando nueva imagen de perfil...');
+
+      // Buscar el usuario actual para obtener la URL de la imagen VIEJA
+      const currentUser = await prisma.registered_user.findUnique({
+        where: { user_id: uid },
+        select: { profile_picture: true },
+      });
+
+      // Si tenía foto anterior, borrarla de S3
+      if (currentUser?.profile_picture) {
+        await deleteFromS3(currentUser.profile_picture);
+        dbg('Imagen antigua eliminada de S3');
+      }
+
+      // Subir la nueva imagen y guardar la URL
+      const newImageUrl = await uploadToS3(req.file);
+      registeredUserData.profile_picture = newImageUrl;
+      dbg('Nueva imagen subida:', newImageUrl);
+
+    } catch (err) {
+      console.error('Error gestionando imagen en update:', err);
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Error al procesar la imagen de perfil.',
+        code: 'IMAGE_PROCESSING_ERROR'
+      });
+    }
+  }
 
   // name: si se envía, validar tipo y longitud máxima (BD constraint)
   if (name !== undefined && name !== null) {
@@ -620,6 +668,7 @@ export const updateUserProfile = async (req, res) => {
           surname: true,
           username: true,
           dni: true,
+          profile_picture: true,
           app_language: true,
           client: {
             select: {
@@ -655,7 +704,7 @@ export const updateUserProfile = async (req, res) => {
         surname: userProfile.surname,
         username: userProfile.username,
         dni: userProfile.dni,
-        profile_picture: userProfile.client?.profile_picture || null,
+        profile_picture: userProfile.profile_picture || null,
         app_language: userProfile.app_language,
         address: userProfile.client?.address || null,
         phone: userProfile.client?.phone || null,
@@ -709,6 +758,7 @@ export const updateUserProfile = async (req, res) => {
         username: true,
         dni: true,
         app_language: true,
+        profile_picture: true,
         client: {
           select: {
             address: true,
@@ -737,7 +787,7 @@ export const updateUserProfile = async (req, res) => {
       surname: userProfile.surname,
       username: userProfile.username,
       dni: userProfile.dni,
-      profile_picture: userProfile.client?.profile_picture || null,
+      profile_picture: userProfile.profile_picture || null,
       app_language: userProfile.app_language,
       address: userProfile.client?.address || null,
       phone: userProfile.client?.phone || null,

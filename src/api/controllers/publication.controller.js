@@ -815,7 +815,7 @@ export const updateTradeBody = async (req, res) => {
 
         // borramos ref. en la base de datos
         await tx.publication_media.deleteMany({
-          where: { publication_id: id },
+          where: { publication_id: id },  
         });
 
         // creamos nueva ref.
