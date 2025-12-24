@@ -1,6 +1,7 @@
 // src/api/controllers/publication.controller.js
 import { prisma } from '#lib/prisma.js';
 import { uploadToS3 } from '#services/storage.service.js';
+import * as gamificationService from '#services/gamification.service.js';
 
 /**
  * Crea una nueva publicación para un usuario (cliente).
@@ -34,6 +35,16 @@ export const createTrade = async (req, res) => {
       success: false,
       message: `Estado del objeto inválido. Valores permitidos: ${validItemStates.join(', ')}`,
       code: 'INVALID_ITEM_STATE',
+    });
+  }
+
+  // Validar que el precio de puntos sea uno de los valores permitidos
+  const allowedPointsPrices = gamificationService.POINTS_RULES.ECO_TRADER_SALE || [5, 10, 25, 50];
+  if (!allowedPointsPrices.includes(Number(pointsPrice))) {
+    return res.status(400).json({
+      success: false,
+      message: `Precio de puntos inválido. Valores permitidos: ${allowedPointsPrices.join(', ')}`,
+      code: 'INVALID_POINTS_PRICE',
     });
   }
 

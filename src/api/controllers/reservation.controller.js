@@ -1,4 +1,5 @@
 import { prisma } from '#lib/prisma.js';
+import { processPoints, MAX_USER_POINTS } from '#services/gamification.service.js';
 
 /**
  * Crea una reserva para un 'trade'.
@@ -298,6 +299,7 @@ export const deleteReservation = async (req, res) => {
  * - Pone 'confirmed' a true.
  * - Crea la entrada en 'reservation_ended'.
  * - Actualiza el estado de la publicación a 'Completed'.
+ * - Otorga EcoPoints al dueño del trade.
  * * Permisos: Solo el propietario del 'trade' puede confirmar.
  * Endpoint: PATCH /api/reservations/:reservationId
  */
@@ -326,6 +328,7 @@ export const confirmReservation = async (req, res) => {
             publication: true, // necesario para acceder al client_id (dueño)
           },
         },
+        client: true,
       },
     });
 
@@ -337,9 +340,13 @@ export const confirmReservation = async (req, res) => {
       });
     }
 
+    // Definimos las variables necesarias
+    const sellerId = reservation.trade.publication.client_id;
+    const buyerId = reservation.client_id;
+    const pointsCost = reservation.trade.points_price;
+
     // Verificar permisos: ¿Es el usuario el dueño del Trade?
-    // reservation.trade.publication.client_id es el dueño original
-    if (reservation.trade.publication.client_id !== uid) {
+    if (sellerId !== uid) {
       return res.status(403).json({
         success: false,
         message: 'No tienes permiso para confirmar esta reserva. Solo el propietario del artículo puede hacerlo.',
@@ -356,23 +363,82 @@ export const confirmReservation = async (req, res) => {
       });
     }
 
+    // Validar saldo del comprador
+    if (reservation.client.points < pointsCost) {
+      return res.status(402).json({
+        // 402 Payment Required
+        success: false,
+        message: `El comprador no tiene suficientes EcoPoints (${reservation.client.points}/${pointsCost}). No se puede completar la venta.`,
+        code: 'BUYER_INSUFFICIENT_FUNDS',
+      });
+    }
+
+    // Validar límite del vendedor (Necesitamos buscar sus puntos actuales primero)
+    const seller = await prisma.client.findUnique({
+      where: { user_id: sellerId },
+      select: { points: true },
+    });
+
+    if (!seller) {
+      return res.status(404).json({ success: false, message: 'Perfil de vendedor no encontrado.' });
+    }
+
+    if (seller.points + pointsCost > MAX_USER_POINTS) {
+      return res.status(409).json({
+        success: false,
+        message: `La venta excedería tu límite máximo de EcoPoints (${MAX_USER_POINTS}). ¡Gasta puntos antes de ganar más!`,
+        code: 'SELLER_MAX_POINTS_REACHED',
+      });
+    }
+
     // 4. Ejecutar la lógica en transacción (Todo o nada)
     const result = await prisma.$transaction(async (tx) => {
-      // actualizar la reserva a confirmed: true
+      // --- A. Gestión de Puntos ---
+
+      // 1. Restar al Comprador
+      await tx.client.update({
+        where: { user_id: buyerId },
+        data: { points: { decrement: pointsCost } },
+      });
+
+      await tx.point_history.create({
+        data: {
+          user_id: buyerId,
+          amount: -pointsCost, // Negativo
+          source: 'ECO_TRADER_SALE',
+          description: `Compra en EcoTrader: ${reservation.trade.publication.title}`,
+        },
+      });
+
+      // 2. Sumar al Vendedor
+      await tx.client.update({
+        where: { user_id: sellerId },
+        data: { points: { increment: pointsCost } },
+      });
+
+      await tx.point_history.create({
+        data: {
+          user_id: sellerId,
+          amount: pointsCost, // Positivo
+          source: 'ECO_TRADER_SALE',
+          description: `Venda en EcoTrader: ${reservation.trade.publication.title}`,
+        },
+      });
+
+      // --- B. Gestión de Estados ---
+
+      // 3. Confirmar Reserva
       const updatedRes = await tx.reservation.update({
         where: { reservation_id: reservationId },
         data: { confirmed: true },
       });
 
-      // crear la entrada en reservation_ended
+      // 4. Crear registro de finalización
       const endedRes = await tx.reservation_ended.create({
-        data: {
-          reservation_id: reservationId,
-          // ended_at se pone solo con default(now())
-        },
+        data: { reservation_id: reservationId },
       });
 
-      // cerrar la publicación original del trade (poner estado 'Completed')
+      // 5. Cerrar publicación
       await tx.publication.update({
         where: { publication_id: reservation.trade.publication_id },
         data: { publication_state: 'Completed' },
