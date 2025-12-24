@@ -35,31 +35,17 @@ const app = express();
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 3000;
 
-// Configuración de Swagger según el entorno
 const isProduction = process.env.NODE_ENV === 'production';
 
-// /api-docs siempre muestra la documentación pública (swagger-public.yaml)
-let publicSwaggerDoc;
-try {
-  const publicPath = path.join(__dirname, '../swagger-public.yaml');
-  publicSwaggerDoc = yaml.load(publicPath);
-} catch (err) {
-  log.error('Error loading public swagger:', err.message);
-  publicSwaggerDoc = { info: { title: 'Error loading public docs' } };
-}
-
 // /api-docs-private siempre muestra la documentación completa (swagger.yaml) - requiere autenticación admin
-let privateSwaggerDoc;
+let swaggerDoc;
 try {
   const privatePath = path.join(__dirname, '../swagger.yaml');
-  privateSwaggerDoc = yaml.load(privatePath);
+  swaggerDoc = yaml.load(privatePath);
 } catch (err) {
-  log.error('Error loading private swagger:', err.message);
-  privateSwaggerDoc = { info: { title: 'Error loading private docs' } };
+  log.error('Error loading swagger:', err.message);
+  swaggerDoc = { info: { title: 'Error loading private docs' } };
 }
-
-const swaggerTitle = isProduction ? 'PESkaos AI Detection API - Public' : 'PESkaos API - Public Documentation';
-
 // --- INICIALIZACION de Firebase Admin SDK ---
 initializeFirebaseAdmin();
 
@@ -69,19 +55,11 @@ app.use(express.urlencoded({ extended: true }));
 
 // Servir Swagger UI assets (CSS, JS, etc.)
 app.use('/api-docs', swaggerUi.serve);
-app.use('/api-docs-private', swaggerUi.serve);
 
 // Ruta para la documentación de la API pública
 app.get('/api-docs', (req, res, next) => {
-  return swaggerUi.setup(publicSwaggerDoc, {
-    customSiteTitle: swaggerTitle,
-  })(req, res, next);
-});
-
-// Ruta para la documentación de la API privada (requiere autenticación de Admin)
-app.get('/api-docs-private', authenticateBackendJWT, requireAdmin, (req, res, next) => {
-  return swaggerUi.setup(privateSwaggerDoc, {
-    customSiteTitle: 'PESkaos API - Private Admin Documentation',
+  return swaggerUi.setup(swaggerDoc, {
+    customSiteTitle: 'PESkaos API - Public Documentation',
   })(req, res, next);
 });
 
