@@ -320,8 +320,9 @@ export const updateRewardAvailability = async (req, res) => {
   }
 };
 
-/** Elimina una publicación de tipo trade o reward verificando permisos.
- *  Endpoint: DELETE /api/publications/:id
+
+/** Elimina una publicación de tipo trade o reward verificando permisos y estado.
+ * Endpoint: DELETE /api/publications/:id
  */
 export const deletePublication = async (req, res) => {
   const { id } = req.params;
@@ -335,25 +336,36 @@ export const deletePublication = async (req, res) => {
 
     if (!publication) return res.status(404).json({ success: false, message: 'No encontrada' });
 
-    // Verificar si es dueño (cliente o institución)
+    // verificamos roles
     const isOwner = publication.client_id === uid || publication.institution_id === uid;
+    const isAdmin = await prisma.admin.findUnique({ where: { user_id: uid } });
 
-    if (!isOwner) {
-      const isAdmin = await prisma.admin.findUnique({
-        where: { user_id: uid },
-      });
-
-      if (!isAdmin) {
-        return res.status(403).json({ success: false, message: 'No autorizado para eliminar.' });
+    // lógica de permisos
+    if (isAdmin) {
+      // un 'admin' tiene permiso absoluto (puede borrar incluso si está 'Completed'),
+      // así que aquí no hacemos nada
+    } else if (isOwner) {
+      // el 'dueño' tiene permiso condicional,
+      // solo puede borrar si NO está completada
+      if (publication.publication_state === 'Completed') {
+        return res.status(409).json({ 
+          success: false, 
+          message: 'No puedes eliminar una publicación que ya ha sido completada/finalizada.' 
+        });
       }
+    } else {
+      // ni dueño ni admin
+      return res.status(403).json({ success: false, message: 'No autorizado para eliminar.' });
     }
 
-    // Si tiene imagen asociada, la eliminamos de S3
+    // borramos
+
+    // si tiene imagen asociada, la eliminamos de S3
     if (publication.publication_media && publication.publication_media.media_url) {
       await deleteFromS3(publication.publication_media.media_url);
     }
 
-    // Eliminamos de la base de datos
+    // eliminamos de la base de datos
     await prisma.publication.delete({ where: { publication_id: id } });
 
     return res.status(200).json({ success: true, message: 'Publicación eliminada.' });
