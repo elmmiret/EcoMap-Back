@@ -339,7 +339,13 @@ export const deletePublication = async (req, res) => {
     const isOwner = publication.client_id === uid || publication.institution_id === uid;
 
     if (!isOwner) {
-      return res.status(403).json({ success: false, message: 'No autorizado para eliminar.' });
+      const isAdmin = await prisma.admin.findUnique({
+        where: { user_id: uid },
+      });
+
+      if (!isAdmin) {
+        return res.status(403).json({ success: false, message: 'No autorizado para eliminar.' });
+      }
     }
 
     // Si tiene imagen asociada, la eliminamos de S3

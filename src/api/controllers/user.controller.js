@@ -660,7 +660,7 @@ export const updateUserProfile = async (req, res) => {
     // actualizamos
     if (hasUpdates) {
       dbg('Datos a actualizar:', { registeredUserData, clientData });
-      
+
       await prisma.$transaction(async (tx) => {
         if (Object.keys(registeredUserData).length > 0) {
           await tx.registered_user.update({
@@ -675,7 +675,7 @@ export const updateUserProfile = async (req, res) => {
           });
         }
       });
-      
+
       responseMessage = 'Perfil actualizado correctamente';
       dbg('Transacción completada con éxito');
     } else {
@@ -744,7 +744,6 @@ export const updateUserProfile = async (req, res) => {
       message: responseMessage, // Mensaje dinámico según si hubo cambios o no
       data: responseData,
     });
-
   } catch (error) {
     console.error('[updateUserProfile] Error:', error);
 
