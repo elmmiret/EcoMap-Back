@@ -297,7 +297,7 @@ export const updateRewardAvailability = async (req, res) => {
     }
 
     const isOwner = publication.institution_id === uid;
-    
+
     // Si no es el dueño, comprobamos si es admin
     let isAdmin = false;
     if (!isOwner) {
@@ -317,7 +317,6 @@ export const updateRewardAvailability = async (req, res) => {
 
     // inicio de la transacción
     const result = await prisma.$transaction(async (tx) => {
-      
       // actualizar la disponibilidad en la tabla Reward
       const updatedReward = await tx.reward.update({
         where: { publication_id: id },
@@ -341,9 +340,9 @@ export const updateRewardAvailability = async (req, res) => {
       });
 
       // Retornamos los datos combinados para la respuesta
-      return { 
-        ...updatedPublication, 
-        reward: updatedReward 
+      return {
+        ...updatedPublication,
+        reward: updatedReward,
       };
     });
 
@@ -352,7 +351,6 @@ export const updateRewardAvailability = async (req, res) => {
       message: `Disponibilidad actualizada a ${available} (Estado: ${result.publication_state}).`,
       data: result,
     });
-
   } catch (error) {
     console.error('Error actualizando disponibilidad:', error);
     return res.status(500).json({ success: false, message: 'Error interno.' });
@@ -414,7 +412,6 @@ export const updateRewardBody = async (req, res) => {
 
     // transacción de actualización
     const updatedResult = await prisma.$transaction(async (tx) => {
-      
       // A. Actualizar tabla base 'publication'
       const updatedPub = await tx.publication.update({
         where: { publication_id: id },
@@ -472,7 +469,6 @@ export const updateRewardBody = async (req, res) => {
       message: 'Reward actualizado correctamente.',
       data: finalReward,
     });
-
   } catch (error) {
     console.error('Error actualizando reward:', error);
     return res.status(500).json({ success: false, message: 'Error interno al actualizar.' });
@@ -506,9 +502,9 @@ export const deletePublication = async (req, res) => {
       // el 'dueño' tiene permiso condicional,
       // solo puede borrar si NO está completada
       if (publication.publication_state === 'Completed') {
-        return res.status(409).json({ 
-          success: false, 
-          message: 'No puedes eliminar una publicación que ya ha sido completada/finalizada.' 
+        return res.status(409).json({
+          success: false,
+          message: 'No puedes eliminar una publicación que ya ha sido completada/finalizada.',
         });
       }
     } else {
