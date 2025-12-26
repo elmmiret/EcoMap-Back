@@ -330,7 +330,7 @@ export const deletePublication = async (req, res) => {
   try {
     const publication = await prisma.publication.findUnique({
       where: { publication_id: id },
-      include: { publication_media: true }, 
+      include: { publication_media: true },
     });
 
     if (!publication) return res.status(404).json({ success: false, message: 'No encontrada' });
@@ -766,7 +766,7 @@ export const updateTradeBody = async (req, res) => {
     // buscar la publicación
     const publication = await prisma.publication.findUnique({
       where: { publication_id: id },
-      include: { trade: true, publication_media: true }, // Verificar que sea un trade 
+      include: { trade: true, publication_media: true }, // Verificar que sea un trade
     });
 
     if (!publication) {
@@ -815,7 +815,7 @@ export const updateTradeBody = async (req, res) => {
 
         // borramos ref. en la base de datos
         await tx.publication_media.deleteMany({
-          where: { publication_id: id },  
+          where: { publication_id: id },
         });
 
         // creamos nueva ref.

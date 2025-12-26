@@ -36,13 +36,12 @@ export const uploadToS3 = async (file) => {
   return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
 };
 
-
 /**
  * Elimina un archivo de S3 dado su URL público
  * @param {string} fileUrl - URL completa de la imagen S3
  */
 export const deleteFromS3 = async (fileUrl) => {
-  if(!fileUrl) return;
+  if (!fileUrl) return;
 
   try {
     // Extraer el nombre del arhivo (key) de la URL

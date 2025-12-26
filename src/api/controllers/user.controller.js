@@ -567,13 +567,12 @@ export const updateUserProfile = async (req, res) => {
       const newImageUrl = await uploadToS3(req.file);
       registeredUserData.profile_picture = newImageUrl;
       dbg('Nueva imagen subida:', newImageUrl);
-
     } catch (err) {
       console.error('Error gestionando imagen en update:', err);
-      return res.status(500).json({ 
-        success: false, 
+      return res.status(500).json({
+        success: false,
         message: 'Error al procesar la imagen de perfil.',
-        code: 'IMAGE_PROCESSING_ERROR'
+        code: 'IMAGE_PROCESSING_ERROR',
       });
     }
   }
