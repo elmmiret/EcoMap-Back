@@ -267,7 +267,9 @@ export const getInstitutionRewards = async (req, res) => {
 
 /**
  * Actualiza la disponibilidad de un reward (available: true/false).
- * Solo la institución creadora puede hacerlo.
+ * Si available pasa a false -> La publicación pasa a 'Completed'.
+ * Si available pasa a true  -> La publicación pasa a 'Pending' (para que vuelva a ser visible).
+ * Permisos: Institución creadora O Administrador.
  * Endpoint: PATCH /api/publications/rewards/:id/availability
  */
 export const updateRewardAvailability = async (req, res) => {
@@ -284,7 +286,7 @@ export const updateRewardAvailability = async (req, res) => {
   }
 
   try {
-    // buscar publicación y verificar que es un reward
+    // Buscar publicación y verificar que es un reward
     const publication = await prisma.publication.findUnique({
       where: { publication_id: id },
       include: { reward: true },
@@ -294,8 +296,18 @@ export const updateRewardAvailability = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Reward no encontrado.' });
     }
 
-    // verificar propiedad (solo la institución dueña)
-    if (publication.institution_id !== uid) {
+    const isOwner = publication.institution_id === uid;
+    
+    // Si no es el dueño, comprobamos si es admin
+    let isAdmin = false;
+    if (!isOwner) {
+      const adminUser = await prisma.admin.findUnique({
+        where: { user_id: uid },
+      });
+      if (adminUser) isAdmin = true;
+    }
+
+    if (!isOwner && !isAdmin) {
       return res.status(403).json({
         success: false,
         message: 'No tienes permiso para modificar este reward.',
@@ -303,23 +315,169 @@ export const updateRewardAvailability = async (req, res) => {
       });
     }
 
-    // actualizar disponibilidad
-    await prisma.reward.update({
-      where: { publication_id: id },
-      data: { available: available },
+    // inicio de la transacción
+    const result = await prisma.$transaction(async (tx) => {
+      
+      // actualizar la disponibilidad en la tabla Reward
+      const updatedReward = await tx.reward.update({
+        where: { publication_id: id },
+        data: { available: available },
+      });
+
+      // actualizar el estado en la tabla Publication según la disponibilidad
+      let newState = publication.publication_state;
+
+      if (available === false) {
+        // Si NO está disponible, la damos por finalizada/completada
+        newState = 'Completed';
+      } else {
+        // Si vuelve a estar disponible, la ponemos en Pendiente (visible)
+        newState = 'Pending';
+      }
+
+      const updatedPublication = await tx.publication.update({
+        where: { publication_id: id },
+        data: { publication_state: newState },
+      });
+
+      // Retornamos los datos combinados para la respuesta
+      return { 
+        ...updatedPublication, 
+        reward: updatedReward 
+      };
     });
 
     return res.status(200).json({
       success: true,
-      message: `Disponibilidad actualizada a ${available}.`,
-      data: { ...publication, reward: { ...publication.reward, available } },
+      message: `Disponibilidad actualizada a ${available} (Estado: ${result.publication_state}).`,
+      data: result,
     });
+
   } catch (error) {
     console.error('Error actualizando disponibilidad:', error);
     return res.status(500).json({ success: false, message: 'Error interno.' });
   }
 };
 
+/**
+ * Actualiza el contenido de un Reward.
+ * Permite editar título, descripción, contenido, precio y estado (solo a Cancelled).
+ * Gestiona el reemplazo de la imagen en S3 y BD.
+ * Endpoint: PATCH /api/publications/rewards/:id/body
+ */
+export const updateRewardBody = async (req, res) => {
+  const { id } = req.params;
+  const { uid } = req.user;
+  const { title, description, state, content, pointsPrice } = req.body;
+  const imageFile = req.file;
+
+  try {
+    // obtenemos la publicación actual con sus relaciones
+    const publication = await prisma.publication.findUnique({
+      where: { publication_id: id },
+      include: { reward: true, publication_media: true },
+    });
+
+    if (!publication) {
+      return res.status(404).json({ success: false, message: 'Publicación no encontrada.' });
+    }
+
+    // verificamos que es un Reward
+    if (!publication.reward) {
+      return res.status(400).json({ success: false, message: 'Esta publicación no es un Reward.' });
+    }
+
+    // verificamos permisos (solo la institución creadora)
+    if (publication.institution_id !== uid) {
+      return res.status(403).json({ success: false, message: 'No tienes permiso para editar este reward.' });
+    }
+
+    // validamos el cambio de estado (solo permitido 'Cancelled' por esta vía)
+    if (state && state !== 'Cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'Por este endpoint solo puedes cambiar el estado a "Cancelled".',
+        code: 'INVALID_STATE_UPDATE',
+      });
+    }
+
+    // gestión de la magen (subida a S3)
+    let newMediaUrl = null;
+    if (imageFile) {
+      try {
+        newMediaUrl = await uploadToS3(imageFile);
+      } catch (err) {
+        console.error('Error subiendo la imagen:', err);
+        return res.status(500).json({ success: false, message: 'Error al subir la nueva imagen.' });
+      }
+    }
+
+    // transacción de actualización
+    const updatedResult = await prisma.$transaction(async (tx) => {
+      
+      // A. Actualizar tabla base 'publication'
+      const updatedPub = await tx.publication.update({
+        where: { publication_id: id },
+        data: {
+          ...(title && { title }),
+          ...(description && { description }),
+          // Solo actualizamos el estado si se proporcionó y pasó la validación
+          ...(state && { publication_state: state }),
+        },
+      });
+
+      // B. Actualizar tabla específica 'reward'
+      if (content || pointsPrice !== undefined) {
+        await tx.reward.update({
+          where: { publication_id: id },
+          data: {
+            ...(content && { content }),
+            ...(pointsPrice !== undefined && { points_price: Number(pointsPrice) }),
+          },
+        });
+      }
+
+      // C. Gestión de Imagen (Borrado antiguo e inserción nueva)
+      if (newMediaUrl) {
+        // 1. Borrar imagen vieja de S3 si existe
+        if (publication.publication_media && publication.publication_media.media_url) {
+          await deleteFromS3(publication.publication_media.media_url);
+        }
+
+        // 2. Borrar referencia vieja en BD (para asegurar unicidad o limpieza)
+        await tx.publication_media.deleteMany({
+          where: { publication_id: id },
+        });
+
+        // 3. Crear nueva referencia
+        await tx.publication_media.create({
+          data: {
+            media_url: newMediaUrl,
+            publication_id: id,
+          },
+        });
+      }
+
+      return updatedPub;
+    });
+
+    // 7. Retornar el objeto actualizado completo
+    const finalReward = await prisma.publication.findUnique({
+      where: { publication_id: id },
+      include: { reward: true, publication_media: true },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Reward actualizado correctamente.',
+      data: finalReward,
+    });
+
+  } catch (error) {
+    console.error('Error actualizando reward:', error);
+    return res.status(500).json({ success: false, message: 'Error interno al actualizar.' });
+  }
+};
 
 /** Elimina una publicación de tipo trade o reward verificando permisos y estado.
  * Endpoint: DELETE /api/publications/:id

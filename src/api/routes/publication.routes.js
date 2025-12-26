@@ -5,6 +5,7 @@ import {
   createTrade,
   createReward,
   updateRewardAvailability,
+  updateRewardBody,
   getAllRewards,
   getInstitutionRewards,
   deletePublication,
@@ -42,7 +43,6 @@ router.get('/rewards', authenticateBackendJWT, getAllRewards);
 /**
  * @route GET /api/publications/rewards/institution/:institutionId
  * @description Obtiene todos los rewards de una institución específica.
- * CAMBIO: Añadido prefix '/institution' para no confundir con ID de publicación.
  */
 router.get('/rewards/institution/:institutionId', authenticateBackendJWT, getInstitutionRewards);
 
@@ -51,6 +51,14 @@ router.get('/rewards/institution/:institutionId', authenticateBackendJWT, getIns
  * @description Actualiza la disponibilidad de un reward.
  */
 router.patch('/rewards/:id/availability', authenticateBackendJWT, updateRewardAvailability);
+
+/**
+ * @route PATCH /api/publications/rewards/:id/body
+ * @description Actualiza el contenido (título, descripción, imagen, precio, contenido) de un Reward.
+ * También permite cancelar la publicación enviando state: "Cancelled".
+ * @access Protegido (Solo institución creadora)
+ */
+router.patch('/rewards/:id/body', authenticateBackendJWT, uploadImageMiddleware, updateRewardBody);
 
 // ==========================================
 //                  TRADES
