@@ -542,15 +542,15 @@ export const updateUserProfile = async (req, res) => {
   // Extraer campos del body
   const { name, surname, username, address, phone, birth_date, description } = req.body;
 
-  // --- Validaciones críticas del backend Y preparación de datos ---
+  // --- Validaciones críticas y preparación de datos ---
   const errors = [];
   const registeredUserData = {};
   const clientData = {};
 
+  // lógica de imágen
   if (req.file) {
     try {
       dbg('Procesando nueva imagen de perfil...');
-
       // Buscar el usuario actual para obtener la URL de la imagen VIEJA
       const currentUser = await prisma.registered_user.findUnique({
         where: { user_id: uid },
@@ -577,7 +577,8 @@ export const updateUserProfile = async (req, res) => {
     }
   }
 
-  // name: si se envía, validar tipo y longitud máxima (BD constraint)
+  // validaciones de texto
+  // name
   if (name !== undefined && name !== null) {
     if (typeof name !== 'string' || name.trim().length === 0 || name.length > 80) {
       errors.push({ field: 'name', message: 'El campo "name" debe ser un texto válido de máximo 80 caracteres.' });
@@ -586,7 +587,7 @@ export const updateUserProfile = async (req, res) => {
     }
   }
 
-  // surname: si se envía, validar longitud máxima
+  // surname
   if (surname !== undefined && surname !== null) {
     if (typeof surname !== 'string' || surname.length > 80) {
       errors.push({ field: 'surname', message: 'El campo "surname" debe tener máximo 80 caracteres.' });
@@ -595,7 +596,7 @@ export const updateUserProfile = async (req, res) => {
     }
   }
 
-  // username: si se envía, validar formato y longitud
+  // username
   if (username !== undefined && username !== null) {
     if (typeof username !== 'string' || username.trim().length === 0 || username.length > 30) {
       errors.push({ field: 'username', message: 'El campo "username" debe tener máximo 30 caracteres.' });
@@ -606,7 +607,7 @@ export const updateUserProfile = async (req, res) => {
     }
   }
 
-  // address: si se envía, validar longitud máxima
+  // address
   if (address !== undefined && address !== null) {
     if (typeof address !== 'string' || address.length > 200) {
       errors.push({ field: 'address', message: 'El campo "address" debe tener máximo 200 caracteres.' });
@@ -615,10 +616,10 @@ export const updateUserProfile = async (req, res) => {
     }
   }
 
-  // phone: ya ha sido validado y normalizado por el middleware
+  // phone
   if (phone !== undefined && phone !== null) clientData.phone = phone;
 
-  // birth_date: si se envía, validar formato ISO y que sea fecha válida
+  // birth_date
   if (birth_date !== undefined && birth_date !== null) {
     if (typeof birth_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(birth_date)) {
       errors.push({ field: 'birth_date', message: 'El campo "birth_date" debe estar en formato YYYY-MM-DD.' });
@@ -634,7 +635,7 @@ export const updateUserProfile = async (req, res) => {
     }
   }
 
-  // description: si se envía, validar longitud máxima
+  // description
   if (description !== undefined && description !== null) {
     if (typeof description !== 'string' || description.length > 1000) {
       errors.push({ field: 'description', message: 'El campo "description" debe tener máximo 1000 caracteres.' });
@@ -643,9 +644,7 @@ export const updateUserProfile = async (req, res) => {
     }
   }
 
-  // Si hay errores de validación, devolverlos
   if (errors.length > 0) {
-    dbg('Errores de validación:', errors);
     return res.status(400).json({
       success: false,
       message: 'Errores de validación en los campos enviados.',
@@ -655,98 +654,35 @@ export const updateUserProfile = async (req, res) => {
   }
 
   try {
-    // Si no hay nada que actualizar, retornar el perfil actual sin cambios
-    if (Object.keys(registeredUserData).length === 0 && Object.keys(clientData).length === 0) {
-      dbg('No hay campos para actualizar, devolviendo perfil actual');
-      const userProfile = await prisma.registered_user.findUnique({
-        where: { user_id: uid },
-        select: {
-          user_id: true,
-          email: true,
-          name: true,
-          surname: true,
-          username: true,
-          dni: true,
-          profile_picture: true,
-          app_language: true,
-          client: {
-            select: {
-              address: true,
-              phone: true,
-              birth_date: true,
-              description: true,
-              points: true,
-              streak: true,
-            },
-          },
-          admin: true,
-          institution: true,
-        },
+    const hasUpdates = Object.keys(registeredUserData).length > 0 || Object.keys(clientData).length > 0;
+    let responseMessage = 'Perfil sin cambios';
+
+    // actualizamos
+    if (hasUpdates) {
+      dbg('Datos a actualizar:', { registeredUserData, clientData });
+      
+      await prisma.$transaction(async (tx) => {
+        if (Object.keys(registeredUserData).length > 0) {
+          await tx.registered_user.update({
+            where: { user_id: uid },
+            data: registeredUserData,
+          });
+        }
+        if (Object.keys(clientData).length > 0) {
+          await tx.client.update({
+            where: { user_id: uid },
+            data: clientData,
+          });
+        }
       });
-
-      if (!userProfile) {
-        return res.status(404).json({
-          success: false,
-          message: 'Usuario no encontrado.',
-          code: 'USER_NOT_FOUND',
-        });
-      }
-
-      let role = 'client';
-      if (userProfile.admin) role = 'admin';
-      if (userProfile.institution) role = 'institution';
-
-      const responseData = {
-        uid: userProfile.user_id,
-        email: userProfile.email,
-        name: userProfile.name,
-        surname: userProfile.surname,
-        username: userProfile.username,
-        dni: userProfile.dni,
-        profile_picture: userProfile.profile_picture || null,
-        app_language: userProfile.app_language,
-        address: userProfile.client?.address || null,
-        phone: userProfile.client?.phone || null,
-        birth_date: userProfile.client?.birth_date ? userProfile.client.birth_date.toISOString().split('T')[0] : null,
-        description: userProfile.client?.description || null,
-        role,
-        points: userProfile.client?.points || 0,
-        streak: userProfile.client?.streak || 0,
-      };
-
-      return res.status(200).json({
-        success: true,
-        message: 'Perfil sin cambios',
-        data: responseData,
-      });
+      
+      responseMessage = 'Perfil actualizado correctamente';
+      dbg('Transacción completada con éxito');
+    } else {
+      dbg('No hay campos para actualizar, se devolverá el perfil actual.');
     }
 
-    dbg('Datos a actualizar:', { registeredUserData, clientData });
-
-    // Actualizar en transacción
-    await prisma.$transaction(async (tx) => {
-      // Actualizar registered_user si hay datos
-      if (Object.keys(registeredUserData).length > 0) {
-        await tx.registered_user.update({
-          where: { user_id: uid },
-          data: registeredUserData,
-        });
-        dbg('registered_user actualizado');
-      }
-
-      // Actualizar client si hay datos
-      if (Object.keys(clientData).length > 0) {
-        await tx.client.update({
-          where: { user_id: uid },
-          data: clientData,
-        });
-        dbg('client actualizado');
-      }
-    });
-
-    dbg('Transacción completada con éxito');
-
-    // Obtener el perfil completo actualizado
+    // obtenemos el perfil unificado
     const userProfile = await prisma.registered_user.findUnique({
       where: { user_id: uid },
       select: {
@@ -756,8 +692,8 @@ export const updateUserProfile = async (req, res) => {
         surname: true,
         username: true,
         dni: true,
-        app_language: true,
         profile_picture: true,
+        app_language: true,
         client: {
           select: {
             address: true,
@@ -773,12 +709,18 @@ export const updateUserProfile = async (req, res) => {
       },
     });
 
-    // Determinar el rol
+    if (!userProfile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
     let role = 'client';
     if (userProfile.admin) role = 'admin';
     if (userProfile.institution) role = 'institution';
 
-    // Formatear respuesta
     const responseData = {
       uid: userProfile.user_id,
       email: userProfile.email,
@@ -799,13 +741,13 @@ export const updateUserProfile = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Perfil actualizado correctamente',
+      message: responseMessage, // Mensaje dinámico según si hubo cambios o no
       data: responseData,
     });
+
   } catch (error) {
     console.error('[updateUserProfile] Error:', error);
 
-    // Error de username duplicado (si se implementa unique constraint)
     if (error.code === 'P2002' && error.meta?.target?.includes('username')) {
       return res.status(409).json({
         success: false,
@@ -814,7 +756,6 @@ export const updateUserProfile = async (req, res) => {
       });
     }
 
-    // Usuario no encontrado
     if (error.code === 'P2025') {
       return res.status(404).json({
         success: false,
@@ -827,78 +768,6 @@ export const updateUserProfile = async (req, res) => {
       success: false,
       message: 'Error al actualizar el perfil.',
       code: 'PROFILE_UPDATE_ERROR',
-    });
-  }
-};
-
-/**
- * Obtiene la información pública de un usuario por su ID.
- * Endpoint: GET /api/users/:id
- */
-export const getUserById = async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const user = await prisma.registered_user.findUnique({
-      where: { user_id: id },
-      select: {
-        user_id: true,
-        username: true,
-        name: true,
-        surname: true,
-        // Seleccionamos datos del perfil de cliente si existen
-        client: {
-          select: {
-            description: true,
-            points: true,
-            streak: true,
-            valorations_score: true,
-          },
-        },
-        // Incluimos tablas de roles para determinar el tipo de usuario
-        admin: true,
-        institution: true,
-      },
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'Usuario no encontrado.',
-        code: 'USER_NOT_FOUND',
-      });
-    }
-
-    // Determinar el rol (lógica similar a getUserProfile)
-    let role = 'client';
-    if (user.admin) role = 'admin';
-    if (user.institution) role = 'institution';
-
-    // Construir respuesta con datos públicos
-    const userData = {
-      uid: user.user_id,
-      username: user.username,
-      name: user.name,
-      surname: user.surname,
-      profile_picture: user.client?.profile_picture || null,
-      description: user.client?.description || null,
-      points: user.client?.points || 0,
-      streak: user.client?.streak || 0,
-      valorations_score: user.client?.valorations_score || 0,
-      role,
-    };
-
-    return res.status(200).json({
-      success: true,
-      message: 'Información de usuario obtenida correctamente.',
-      data: userData,
-    });
-  } catch (error) {
-    console.error('Error en getUserById:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Error interno al obtener el usuario.',
-      code: 'GET_USER_ERROR',
     });
   }
 };
