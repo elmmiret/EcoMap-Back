@@ -8,6 +8,7 @@ import {
   updateRewardBody,
   getAllRewards,
   getInstitutionRewards,
+  getRewardById,
   deletePublication,
   getAllTrades,
   getUserTrades,
@@ -59,6 +60,12 @@ router.patch('/rewards/:id/availability', authenticateBackendJWT, updateRewardAv
  * @access Protegido (Solo institución creadora)
  */
 router.patch('/rewards/:id/body', authenticateBackendJWT, uploadImageMiddleware, updateRewardBody);
+
+/**
+ * @route GET /api/publications/rewards/:id
+ * @description Obtiene el detalle de un Reward específico por su ID.
+ */
+router.get('/rewards/:id', authenticateBackendJWT, getRewardById);
 
 // ==========================================
 //                  TRADES

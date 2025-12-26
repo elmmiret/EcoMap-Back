@@ -674,6 +674,70 @@ export const getTradeById = async (req, res) => {
 };
 
 /**
+ * Obtiene el detalle completo de un Reward por su ID.
+ * Incluye datos de la publicación, datos específicos del reward, imagen y datos de la institución.
+ * Endpoint: GET /api/publications/rewards/:id
+ */
+export const getRewardById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const publication = await prisma.publication.findUnique({
+      where: { publication_id: id },
+      include: {
+        // Incluimos la parte específica de Reward
+        reward: true,
+        // Incluimos la imagen si tiene
+        publication_media: true,
+        // Incluimos datos de la institución creadora (nombre, username, etc.)
+        institution: {
+          include: {
+            registered_user: {
+              select: {
+                name: true,
+                username: true,
+                profile_picture: true, // Por si la institución tiene logo
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // verificar si existe la publicación
+    if (!publication) {
+      return res.status(404).json({
+        success: false,
+        message: 'Publicación no encontrada.',
+        code: 'PUBLICATION_NOT_FOUND',
+      });
+    }
+
+    // verificar si es realmente un Reward
+    if (!publication.reward) {
+      return res.status(404).json({
+        success: false,
+        message: 'Esta publicación existe pero no es una Recompensa (Reward).',
+        code: 'NOT_A_REWARD',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Recompensa obtenida correctamente.',
+      data: publication,
+    });
+  } catch (error) {
+    console.error(`Error al obtener el reward ${id}:`, error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al obtener el detalle de la recompensa.',
+      code: 'GET_REWARD_ERROR',
+    });
+  }
+};
+
+/**
  * Obtiene todas las publicaciones con estado 'Completed'.
  * Endpoint: /api/publications/all/completed
  */
