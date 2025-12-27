@@ -3,7 +3,7 @@
 import { prisma } from '#lib/prisma.js';
 import { signUserJWT } from '#lib/jwt.js';
 import { getAuth } from '#services/auth.service.js';
-import { uploadToS3 } from '#services/storage.service.js';
+import { uploadToS3, deleteFromS3 } from '#services/storage.service.js';
 import { describe } from 'vitest';
 
 // Debug helper to keep logs consistent
@@ -421,13 +421,28 @@ export const deleteUser = async (req, res) => {
   dbg('Autenticación reciente verificada.');
 
   try {
-    // 2. Eliminar al usuario de Firebase Authentication
+    // Buscamos la URL de la imagen antes de que el usuario sea borrado
+    const userToDelete = await prisma.registered_user.findUnique({
+      where: { user_id: uid },
+      select: { profile_picture: true },
+    });
+
+    if (userToDelete?.profile_picture) {
+      dbg(`Imagen de perfil encontrada, eliminando de S3: ${userToDelete.profile_picture}`);
+      try {
+        await deleteFromS3(userToDelete.profile_picture);
+      } catch (s3Error) {
+        console.error('Error al borrar imagen de S3, continuando con eliminación de cuenta:', s3Error);
+      }
+    }
+
+    // Eliminar al usuario de Firebase Authentication
     dbg(`Iniciando borrado en Firebase Auth para UID: ${uid}`);
     const auth = getAuth();
     await auth.deleteUser(uid);
     dbg(`Usuario ${uid} eliminado de Firebase Authentication.`);
 
-    // 3. Si el borrado en Firebase fue exitoso, eliminar de la BD local
+    // Si el borrado en Firebase fue exitoso, eliminar de la BD local
     // Gracias a ON DELETE CASCADE, se borrarán todas las referencias.
     dbg(`Iniciando borrado en BD para user_id: ${uid}`);
     await prisma.user.delete({
@@ -435,7 +450,7 @@ export const deleteUser = async (req, res) => {
     });
     dbg(`Usuario ${uid} eliminado de la base de datos.`);
 
-    // 4. Enviar respuesta de éxito
+    // Enviar respuesta de éxito
     return res.status(200).json({
       success: true,
       message: 'Tu cuenta ha sido eliminada permanentemente.',
@@ -558,8 +573,9 @@ export const getUserProfile = async (req, res) => {
 };
 
 /**
- * Actualiza el perfil del usuario autenticado.
- * Soporta actualización parcial de campos.
+ * @route PUT /api/users/me
+ * @description Actualiza el perfil del usuario autenticado.
+ * Soporta actualización de imagen (borrando la anterior) y datos de texto.
  */
 export const updateUserProfile = async (req, res) => {
   const { uid } = req.user;
@@ -569,106 +585,175 @@ export const updateUserProfile = async (req, res) => {
   // Extraer campos del body
   const { name, surname, username, address, phone, birth_date, description } = req.body;
 
-  try {
-    const dataToUpdate = {};
+  // --- Validaciones críticas y preparación de datos ---
+  const errors = [];
+  const registeredUserData = {};
+  const clientData = {};
 
-    if (req.file) {
-      try {
-        const s3Url = await uploadToS3(req.file);
-        dataToUpdate.profile_picture = s3Url;
-        dbg('Actualizando foto de perfil a:', s3Url);
-      } catch (err) {
-        console.error('Error subiendo imagen en update:', err);
-        return res.status(500).json({
-          success: false,
-          message: 'Error al subir la imagen de perfil.',
-        });
+  // lógica de imágen
+  if (req.file) {
+    try {
+      dbg('Procesando nueva imagen de perfil...');
+      // Buscar el usuario actual para obtener la URL de la imagen VIEJA
+      const currentUser = await prisma.registered_user.findUnique({
+        where: { user_id: uid },
+        select: { profile_picture: true },
+      });
+
+      // Si tenía foto anterior, borrarla de S3
+      if (currentUser?.profile_picture) {
+        await deleteFromS3(currentUser.profile_picture);
+        dbg('Imagen antigua eliminada de S3');
       }
-    }
 
-    if (name) dataToUpdate.name = name;
-    if (surname) dataToUpdate.surname = surname;
-    if (username) dataToUpdate.username = username;
-    if (address) dataToUpdate.address = address;
-    if (phone) dataToUpdate.phone = phone;
-    if (birth_date) dataToUpdate.birth_date = birth_date;
-    if (description) dataToUpdate.description = description;
-
-    if (Object.keys(dataToUpdate).length === 0) {
-      return res.status(400).json({
+      // Subir la nueva imagen y guardar la URL
+      const newImageUrl = await uploadToS3(req.file);
+      registeredUserData.profile_picture = newImageUrl;
+      dbg('Nueva imagen subida:', newImageUrl);
+    } catch (err) {
+      console.error('Error gestionando imagen en update:', err);
+      return res.status(500).json({
         success: false,
-        message: 'No se enviaron datos para actualizar.',
+        message: 'Error al procesar la imagen de perfil.',
+        code: 'IMAGE_PROCESSING_ERROR',
       });
     }
+  }
 
-    const updatedUser = await prisma.registered_user.update({
+  // validaciones de texto
+  // name
+  if (name !== undefined && name !== null) {
+    if (typeof name !== 'string' || name.trim().length === 0 || name.length > 80) {
+      errors.push({ field: 'name', message: 'El campo "name" debe ser un texto válido de máximo 80 caracteres.' });
+    } else {
+      registeredUserData.name = name.trim();
+    }
+  }
+
+  // surname
+  if (surname !== undefined && surname !== null) {
+    if (typeof surname !== 'string' || surname.length > 80) {
+      errors.push({ field: 'surname', message: 'El campo "surname" debe tener máximo 80 caracteres.' });
+    } else {
+      registeredUserData.surname = surname.trim();
+    }
+  }
+
+  // username
+  if (username !== undefined && username !== null) {
+    if (typeof username !== 'string' || username.trim().length === 0 || username.length > 30) {
+      errors.push({ field: 'username', message: 'El campo "username" debe tener máximo 30 caracteres.' });
+    } else if (!/^[a-zA-Z0-9_.]+$/.test(username)) {
+      errors.push({ field: 'username', message: 'El campo "username" solo puede contener letras, números, puntos y guiones bajos.' });
+    } else {
+      registeredUserData.username = username.trim();
+    }
+  }
+
+  // address
+  if (address !== undefined && address !== null) {
+    if (typeof address !== 'string' || address.length > 200) {
+      errors.push({ field: 'address', message: 'El campo "address" debe tener máximo 200 caracteres.' });
+    } else {
+      clientData.address = address.trim();
+    }
+  }
+
+  // phone
+  if (phone !== undefined && phone !== null) clientData.phone = phone;
+
+  // birth_date
+  if (birth_date !== undefined && birth_date !== null) {
+    if (typeof birth_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(birth_date)) {
+      errors.push({ field: 'birth_date', message: 'El campo "birth_date" debe estar en formato YYYY-MM-DD.' });
+    } else {
+      const parsedDate = new Date(birth_date);
+      if (isNaN(parsedDate.getTime())) {
+        errors.push({ field: 'birth_date', message: 'El campo "birth_date" no es una fecha válida.' });
+      } else if (parsedDate > new Date()) {
+        errors.push({ field: 'birth_date', message: 'El campo "birth_date" no puede ser una fecha futura.' });
+      } else {
+        clientData.birth_date = parsedDate;
+      }
+    }
+  }
+
+  // description
+  if (description !== undefined && description !== null) {
+    if (typeof description !== 'string' || description.length > 1000) {
+      errors.push({ field: 'description', message: 'El campo "description" debe tener máximo 1000 caracteres.' });
+    } else {
+      clientData.description = description.trim();
+    }
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'Errores de validación en los campos enviados.',
+      code: 'VALIDATION_ERROR',
+      errors,
+    });
+  }
+
+  try {
+    const hasUpdates = Object.keys(registeredUserData).length > 0 || Object.keys(clientData).length > 0;
+    let responseMessage = 'Perfil sin cambios';
+
+    // actualizamos
+    if (hasUpdates) {
+      dbg('Datos a actualizar:', { registeredUserData, clientData });
+
+      await prisma.$transaction(async (tx) => {
+        if (Object.keys(registeredUserData).length > 0) {
+          await tx.registered_user.update({
+            where: { user_id: uid },
+            data: registeredUserData,
+          });
+        }
+        if (Object.keys(clientData).length > 0) {
+          await tx.client.update({
+            where: { user_id: uid },
+            data: clientData,
+          });
+        }
+      });
+
+      responseMessage = 'Perfil actualizado correctamente';
+      dbg('Transacción completada con éxito');
+    } else {
+      dbg('No hay campos para actualizar, se devolverá el perfil actual.');
+    }
+
+    // obtenemos el perfil unificado
+    const userProfile = await prisma.registered_user.findUnique({
       where: { user_id: uid },
-      data: dataToUpdate,
-      // Incluimos las relaciones para devolver el usuario completo si es necesario
-      include: {
-        client: true,
+      select: {
+        user_id: true,
+        email: true,
+        name: true,
+        surname: true,
+        username: true,
+        dni: true,
+        profile_picture: true,
+        app_language: true,
+        client: {
+          select: {
+            address: true,
+            phone: true,
+            birth_date: true,
+            description: true,
+            points: true,
+            streak: true,
+          },
+        },
         admin: true,
         institution: true,
         partner: true,
       },
     });
 
-    return res.status(200).json({
-      success: true,
-      message: 'Perfil actualizado correctamente.',
-      user: updatedUser,
-      new_profile_picture: updatedUser.profile_picture,
-    });
-  } catch (error) {
-    console.error('Error actualizando perfil:', error);
-
-    if (error.code === 'P2002') {
-      return res.status(409).json({
-        success: false,
-        message: 'El nombre de usuario ya está en uso.',
-        code: 'USERNAME_TAKEN',
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: 'Error interno al actualizar el perfil.',
-      code: 'SERVER_ERROR',
-    });
-  }
-};
-
-/**
- * Obtiene la información pública de un usuario por su ID.
- * Endpoint: GET /api/users/:id
- */
-export const getUserById = async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const user = await prisma.registered_user.findUnique({
-      where: { user_id: id },
-      select: {
-        user_id: true,
-        username: true,
-        name: true,
-        surname: true,
-        // Seleccionamos datos del perfil de cliente si existen
-        client: {
-          select: {
-            description: true,
-            points: true,
-            streak: true,
-            valorations_score: true,
-          },
-        },
-        // Incluimos tablas de roles para determinar el tipo de usuario
-        admin: true,
-        institution: true,
-      },
-    });
-
-    if (!user) {
+    if (!userProfile) {
       return res.status(404).json({
         success: false,
         message: 'Usuario no encontrado.',
@@ -676,36 +761,56 @@ export const getUserById = async (req, res) => {
       });
     }
 
-    // Determinar el rol (lógica similar a getUserProfile)
     let role = 'client';
-    if (user.admin) role = 'admin';
-    if (user.institution) role = 'institution';
+    if (userProfile.admin) role = 'admin';
+    if (userProfile.institution) role = 'institution';
 
-    // Construir respuesta con datos públicos
-    const userData = {
-      uid: user.user_id,
-      username: user.username,
-      name: user.name,
-      surname: user.surname,
-      profile_picture: user.client?.profile_picture || null,
-      description: user.client?.description || null,
-      points: user.client?.points || 0,
-      streak: user.client?.streak || 0,
-      valorations_score: user.client?.valorations_score || 0,
+    const responseData = {
+      uid: userProfile.user_id,
+      email: userProfile.email,
+      name: userProfile.name,
+      surname: userProfile.surname,
+      username: userProfile.username,
+      dni: userProfile.dni,
+      profile_picture: userProfile.profile_picture || null,
+      app_language: userProfile.app_language,
+      address: userProfile.client?.address || null,
+      phone: userProfile.client?.phone || null,
+      birth_date: userProfile.client?.birth_date ? userProfile.client.birth_date.toISOString().split('T')[0] : null,
+      description: userProfile.client?.description || null,
       role,
+      points: userProfile.client?.points || 0,
+      streak: userProfile.client?.streak || 0,
     };
 
     return res.status(200).json({
       success: true,
-      message: 'Información de usuario obtenida correctamente.',
-      data: userData,
+      message: responseMessage, // Mensaje dinámico según si hubo cambios o no
+      data: responseData,
     });
   } catch (error) {
-    console.error('Error en getUserById:', error);
+    console.error('Error actualizando perfil:', error);
+
+    if (error.code === 'P2002' && error.meta?.target?.includes('username')) {
+      return res.status(409).json({
+        success: false,
+        message: 'El nombre de usuario ya está en uso.',
+        code: 'USERNAME_TAKEN',
+      });
+    }
+
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
     return res.status(500).json({
       success: false,
-      message: 'Error interno al obtener el usuario.',
-      code: 'GET_USER_ERROR',
+      message: 'Error interno al actualizar el perfil.',
+      code: 'SERVER_ERROR',
     });
   }
 };
