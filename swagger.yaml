@@ -53,7 +53,10 @@ components:
           nullable: true
         app_language:
           type: string
-          enum: [ca, es, en]
+          enum:
+            - ca
+            - es
+            - en
         address:
           type: string
           nullable: true
@@ -69,11 +72,19 @@ components:
           nullable: true
         role:
           type: string
-          enum: [client, admin, institution]
+          enum:
+            - client
+            - admin
+            - institution
+            - partner
         points:
           type: integer
         streak:
           type: integer
+        valorations_score:
+          type: number
+          format: float
+          description: Puntuación media de valoraciones (0-10)
 
     # Basado en el modelo 'recycling_point' de Prisma
     RecyclingPoint:
@@ -86,7 +97,9 @@ components:
           type: integer
         api_location:
           type: string
-          enum: [Navarra, Barcelona]
+          enum:
+            - Navarra
+            - Barcelona
         name:
           type: string
         latitude:
@@ -98,6 +111,18 @@ components:
         equipment_type:
           type: string
           description: Mapeado desde el enum equipment_type de la BD
+          enum:
+            - Recycling_center
+            - Batteries
+            - Medicines_and_packaging
+            - Garden_waste
+            - Clothing_and_footwear
+            - Bulky_waste
+            - Glass_containers
+            - Coffee_capsules
+            - Used_cooking_oil
+            - Household_construction_waste
+            - Community_composting
         distance_km:
           type: number
           description: Distancia en KM desde el punto de búsqueda. **Solo presente** si se aplica el filtro de proximidad (lat+lng+radius).
@@ -194,9 +219,18 @@ components:
           format: uuid
         item_state:
           type: string
-          enum: [New, Little_used, Widely_used, Bad_condition]
+          enum:
+            - New
+            - Little_used
+            - Widely_used
+            - Bad_condition
         points_price:
           type: integer
+          enum:
+            - 5
+            - 10
+            - 25
+            - 50
         created_at:
           type: string
           format: date-time
@@ -211,6 +245,11 @@ components:
           type: string
         points_price:
           type: integer
+          enum:
+            - 500
+            - 1000
+            - 2000
+            - 5000
         available:
           type: boolean
 
@@ -230,7 +269,10 @@ components:
           format: date-time
         publication_state:
           type: string
-          enum: [Pending, Completed, Cancelled]
+          enum:
+            - Pending
+            - Completed
+            - Cancelled
         client_id:
           type: string
           nullable: true
@@ -306,6 +348,7 @@ components:
             type: string
             format: uri
 
+    # --- Reservation Schemas ---
     Reservation:
       type: object
       properties:
@@ -340,6 +383,62 @@ components:
         reservation:
           $ref: '#/components/schemas/Reservation'
 
+    Valoration:
+      type: object
+      properties:
+        valoration_id:
+          type: string
+          format: uuid
+        score:
+          type: integer
+          minimum: 0
+          maximum: 10
+        comment:
+          type: string
+        author:
+          $ref: '#/components/schemas/UserProfile'
+
+    # --- Gamification Schemas ---
+    PointHistory:
+      type: object
+      properties:
+        history_id:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          description: Cantidad de puntos (positivo = ganancia, negativo = gasto)
+        source:
+          type: string
+          enum:
+            - ECO_TRADER_SALE
+            - RECYCLING_ACTION
+            - EVENT_ATTENDANCE
+            - REWARD_REDEMPTION
+            - ADMIN_ADJUSTMENT
+        description:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    GamificationProfile:
+      type: object
+      properties:
+        balance:
+          type: integer
+          description: Saldo actual de puntos
+        limit:
+          type: integer
+          description: Límite máximo de puntos permitidos
+        rules:
+          type: object
+          description: Reglas de puntos vigentes (acciones y valores permitidos)
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/PointHistory'
+
 paths:
   # --- Health Check ---
   /:
@@ -359,10 +458,19 @@ paths:
   /api/users/sync:
     post:
       summary: Sincronizar usuario / Login / Registro
-      description: Intercambia un token de Firebase por un JWT del Backend y crea el usuario si no existe.
+      description: |
+        Intercambia un token de Firebase por un JWT del Backend y crea el usuario si no existe.
+        **Para crear un usuario con un rol específico (admin/institution/partner), se debe enviar el header `x-role-secret` con la clave correspondiente.**
       tags: [Usuarios]
       security:
         - firebaseAuth: []
+      parameters:
+        - in: header
+          name: x-role-secret
+          schema:
+            type: string
+          description: 'Clave secreta para autorizar el registro de roles privilegiados (admin, institution, partner).'
+          required: false
       requestBody:
         description: Datos opcionales para registro manual.
         required: false
@@ -377,6 +485,14 @@ paths:
                   type: string
                 username:
                   type: string
+                role:
+                  type: string
+                  description: "Rol deseado. Valores: 'client', 'admin', 'institution', 'partner'. Si es distinto a 'client', requiere header `x-role-secret`."
+                  enum:
+                    - client
+                    - admin
+                    - institution
+                    - partner
       responses:
         '200':
           description: Login correcto o usuario creado.
@@ -393,6 +509,11 @@ paths:
                       expiryDate:
                         type: string
                         format: date-time
+                      role:
+                        type: string
+                        description: Rol asignado al usuario.
+        '403':
+          description: Clave secreta requerida o incorrecta para el rol solicitado.
 
   /api/users/me:
     get:
@@ -489,10 +610,316 @@ paths:
               properties:
                 newLanguage:
                   type: string
-                  enum: [ca, es, en]
+                  description: "Nuevo idioma para la aplicación. Valores permitidos: 'ca', 'es', 'en'."
+                  enum:
+                    - ca
+                    - es
+                    - en
       responses:
         '200':
           description: Idioma actualizado.
+
+  # --- Endpoints de Información de Usuarios (IDs, Tipos, etc.) ---
+  /api/users/ids/all:
+    get:
+      summary: Obtener todos los IDs de usuarios
+      tags: [Usuarios - Admin/Info]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de todos los IDs.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  ids:
+                    type: array
+                    items:
+                      type: string
+                      format: uuid
+
+  /api/users/ids/clients:
+    get:
+      summary: Obtener IDs de clientes
+      tags: [Usuarios - Admin/Info]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de IDs de clientes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  ids:
+                    type: array
+                    items:
+                      type: string
+
+  /api/users/ids/institutions:
+    get:
+      summary: Obtener IDs de instituciones
+      tags: [Usuarios - Admin/Info]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de IDs de instituciones.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  ids:
+                    type: array
+                    items:
+                      type: string
+
+  /api/users/ids/admins:
+    get:
+      summary: Obtener IDs de administradores
+      tags: [Usuarios - Admin/Info]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de IDs de administradores.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  ids:
+                    type: array
+                    items:
+                      type: string
+
+  /api/users/{id}:
+    get:
+      summary: Obtener perfil público de usuario por ID
+      tags: [Usuarios]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Información del usuario.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserProfile'
+
+  /api/users/{id}/type:
+    get:
+      summary: Obtener tipo/rol de un usuario específico
+      tags: [Usuarios - Admin/Info]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Rol del usuario.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  role:
+                    type: string
+                    enum: [client, admin, institution, partner, unknown]
+
+  /api/users/{id}/public:
+    get:
+      summary: Obtener datos explícitamente públicos
+      tags: [Usuarios]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Datos públicos del usuario.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserProfile'
+
+  /api/users/{id}/private:
+    get:
+      summary: Obtener datos privados (Solo Admin o Propio usuario)
+      tags: [Usuarios]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Datos sensibles (email, dni, teléfono, etc.).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          email:
+                            type: string
+                          dni:
+                            type: string
+                          phone:
+                            type: string
+                          address:
+                            type: string
+                          birth_date:
+                            type: string
+
+  /api/users/{id}/valorations/made:
+    get:
+      summary: Obtener valoraciones hechas por el usuario
+      tags: [Usuarios - Valoraciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de valoraciones escritas.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Valoration'
+
+  /api/users/{id}/valorations/received:
+    get:
+      summary: Obtener valoraciones recibidas por el usuario
+      tags: [Usuarios - Valoraciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de valoraciones recibidas y puntuación media.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  average_score:
+                    type: number
+                    format: float
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Valoration'
+
+  /api/users/{id}/score:
+    get:
+      summary: Obtener puntuación media de un usuario
+      tags: [Usuarios - Valoraciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Puntuación media.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  score:
+                    type: number
+                    format: float
 
   # --- Puntos de Reciclaje ---
   /api/recycling-points/{region}:
@@ -506,7 +933,9 @@ paths:
           required: true
           schema:
             type: string
-            enum: [navarra, barcelona]
+            enum:
+              - navarra
+              - barcelona
         # Filtros extraídos de recycling-points.controller.js
         - in: query
           name: api_id
@@ -519,24 +948,29 @@ paths:
             type: string
             # Enum extraído de schema.prisma y equipment-type-mapper.js
             enum:
-              [
-                Recycling_center,
-                Batteries,
-                Medicines_and_packaging,
-                Garden_waste,
-                Clothing_and_footwear,
-                Bulky_waste,
-                Glass_containers,
-                Coffee_capsules,
-                Used_cooking_oil,
-                Household_construction_waste,
-                Community_composting,
-              ]
+              - Recycling_center
+              - Batteries
+              - Medicines_and_packaging
+              - Garden_waste
+              - Clothing_and_footwear
+              - Bulky_waste
+              - Glass_containers
+              - Coffee_capsules
+              - Used_cooking_oil
+              - Household_construction_waste
+              - Community_composting
         - in: query
           name: wasteType
           schema:
             type: string
-            enum: [ElectricContainer, GlassContainer, OrganicContainer, PaperContainer, PlasticContainer, TextileContainer, Unrecyclable]
+            enum:
+              - ElectricContainer
+              - GlassContainer
+              - OrganicContainer
+              - PaperContainer
+              - PlasticContainer
+              - TextileContainer
+              - Unrecyclable
           description: Filtra puntos que tengan contenedores de este tipo.
         - in: query
           name: name
@@ -652,7 +1086,11 @@ paths:
           schema:
             type: string
             default: driving-car
-            enum: [driving-car, cycling-regular, foot-walking, wheelchair]
+            enum:
+              - driving-car
+              - cycling-regular
+              - foot-walking
+              - wheelchair
       responses:
         '200':
           description: Datos de la ruta calculada.
@@ -679,10 +1117,79 @@ paths:
                         items:
                           type: object
 
+  # --- Gamificación (EcoPoints) ---
+  /api/gamification/me:
+    get:
+      summary: Obtener perfil de gamificación (Puntos e Historial)
+      tags: [Gamificación]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Perfil de gamificación recuperado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GamificationProfile'
+
+  /api/gamification/grant:
+    post:
+      summary: Otorgar puntos manualmente (Admin/Institución)
+      description: |
+        Permite otorgar puntos manualmente a un usuario.
+        **Fuentes permitidas (`source`):**
+        - `RECYCLING_ACTION`: Acción de reciclaje.
+        - `EVENT_ATTENDANCE`: Asistencia a evento.
+        - `ADMIN_ADJUSTMENT`: Ajuste administrativo.
+      tags: [Gamificación]
+      security:
+        - backendAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                targetUserId:
+                  type: string
+                  format: uuid
+                amount:
+                  type: integer
+                source:
+                  type: string
+                  description: "Fuente de los puntos. Valores permitidos: 'RECYCLING_ACTION', 'EVENT_ATTENDANCE', 'ADMIN_ADJUSTMENT'."
+                  enum:
+                    - RECYCLING_ACTION
+                    - EVENT_ATTENDANCE
+                    - ADMIN_ADJUSTMENT
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Puntos otorgados.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object # Resultado del processPoints
+
   # --- Publicaciones (Rewards) ---
   /api/publications/rewards:
     post:
       summary: Crear nueva recompensa (Solo Instituciones)
+      description: |
+        Crea una nueva recompensa disponible para canjear.
+        **Precios permitidos (`pointsPrice`):** 500, 1000, 2000, 5000.
       tags: [Publicaciones]
       security:
         - backendAuth: []
@@ -701,6 +1208,12 @@ paths:
                   type: string
                 pointsPrice:
                   type: integer
+                  description: 'Precio en puntos. Valores permitidos: 500, 1000, 2000, 5000.'
+                  enum:
+                    - 500
+                    - 1000
+                    - 2000
+                    - 5000
                 mediaUrl:
                   type: string
       responses:
@@ -800,6 +1313,10 @@ paths:
   /api/publications/trades:
     post:
       summary: Crear nuevo intercambio (Solo Clientes)
+      description: |
+        Crea una nueva publicación de intercambio.
+        **Estados permitidos (`itemState`):** `New`, `Little_used`, `Widely_used`, `Bad_condition`.
+        **Precios permitidos (`pointsPrice`):** 5, 10, 25, 50.
       tags: [Publicaciones]
       security:
         - backendAuth: []
@@ -816,9 +1333,20 @@ paths:
                   type: string
                 itemState:
                   type: string
-                  enum: [New, Little_used, Widely_used, Bad_condition]
+                  description: "Estado del artículo. Valores permitidos: 'New', 'Little_used', 'Widely_used', 'Bad_condition'."
+                  enum:
+                    - New
+                    - Little_used
+                    - Widely_used
+                    - Bad_condition
                 pointsPrice:
                   type: integer
+                  description: 'Precio en puntos. Valores permitidos: 5, 10, 25, 50.'
+                  enum:
+                    - 5
+                    - 10
+                    - 25
+                    - 50
                 mediaUrl:
                   type: string
       responses:
@@ -1045,7 +1573,11 @@ paths:
               properties:
                 state:
                   type: string
-                  enum: [Completed, Cancelled, Pending]
+                  description: "Nuevo estado. Valores permitidos: 'Completed', 'Cancelled', 'Pending'."
+                  enum:
+                    - Completed
+                    - Cancelled
+                    - Pending
       responses:
         '200':
           description: Estado actualizado.
@@ -1083,6 +1615,93 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/Publication'
+
+  /api/publications/trades/{id}/body:
+    patch:
+      summary: Actualizar contenido de un intercambio
+      description: |
+        Actualiza el título, descripción, precio de puntos y/o imagen de un trade.
+        Todos los campos son opcionales. Solo se actualizarán los campos proporcionados.
+        **Precios permitidos (`pointsPrice`):** 5, 10, 25, 50.
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: ID de la publicación a actualizar
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  description: Nuevo título del trade
+                description:
+                  type: string
+                  description: Nueva descripción del trade
+                pointsPrice:
+                  type: integer
+                  description: 'Nuevo precio en puntos. Valores permitidos: 5, 10, 25, 50.'
+                  enum:
+                    - 5
+                    - 10
+                    - 25
+                    - 50
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                pointsPrice:
+                  type: integer
+                  enum:
+                    - 5
+                    - 10
+                    - 25
+                    - 50
+                image:
+                  type: string
+                  format: binary
+                  description: Nueva imagen del trade (reemplaza la anterior)
+      responses:
+        '200':
+          description: Trade actualizado exitosamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Publication'
+        '400':
+          description: Datos inválidos (precio de puntos fuera del rango permitido o no es un trade).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      code:
+                        type: string
+                        enum:
+                          - INVALID_POINTS_PRICE
+        '403':
+          description: No tienes permiso para editar esta publicación.
+        '404':
+          description: Publicación no encontrada.
 
   /api/publications/{id}:
     delete:
@@ -1334,7 +1953,8 @@ paths:
                       data:
                         $ref: '#/components/schemas/Reservation'
     patch:
-      summary: Confirmar reserva
+      summary: Confirmar reserva (y transferir EcoPoints)
+      description: Confirma la reserva, cierra la publicación y transfiere los puntos del comprador al vendedor.
       tags: [Reservas]
       security:
         - backendAuth: []
@@ -1355,7 +1975,7 @@ paths:
                   type: boolean
       responses:
         '200':
-          description: Reserva confirmada.
+          description: Reserva confirmada y puntos transferidos.
           content:
             application/json:
               schema:
@@ -1370,6 +1990,8 @@ paths:
                             $ref: '#/components/schemas/Reservation'
                           reservation_ended:
                             $ref: '#/components/schemas/ReservationEnded'
+                          points_transferred:
+                            type: integer
 
   /api/reservations/{reservationId}/cancel:
     delete:
@@ -1542,7 +2164,57 @@ paths:
                       data:
                         type: array
                         items:
-                          type: object # Placeholder, Valoration schema not defined yet
+                          $ref: '#/components/schemas/Valoration'
+    post:
+      summary: Crear valoración
+      description: |
+        Valorar la transacción finalizada (comprador a vendedor o viceversa).
+        **Puntuación (`score`):** Entero del 0 al 10.
+      tags: [Reservas]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: reservationId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                score:
+                  type: integer
+                  description: 'Puntuación (0-10).'
+                  enum:
+                    - 0
+                    - 1
+                    - 2
+                    - 3
+                    - 4
+                    - 5
+                    - 6
+                    - 7
+                    - 8
+                    - 9
+                    - 10
+                comment:
+                  type: string
+      responses:
+        '201':
+          description: Valoración creada y perfil actualizado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Valoration'
 
   # --- Detección De Imagenes ---
   /api/detect/bikes:

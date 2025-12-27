@@ -17,15 +17,13 @@ const chatInclude = {
   user1: {
     select: {
       user_id: true,
-      registered_user: { select: { name: true, surname: true } },
-      profile_picture: true,
+      registered_user: { select: { name: true, surname: true, profile_picture: true } },
     },
   },
   user2: {
     select: {
       user_id: true,
-      registered_user: { select: { name: true, surname: true } },
-      profile_picture: true,
+      registered_user: { select: { name: true, surname: true, profile_picture: true } },
     },
   },
   messages: {
