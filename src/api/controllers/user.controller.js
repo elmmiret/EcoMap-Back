@@ -4,6 +4,7 @@ import { prisma } from '#lib/prisma.js';
 import { signUserJWT } from '#lib/jwt.js';
 import { getAuth } from '#services/auth.service.js';
 import { uploadToS3, deleteFromS3 } from '#services/storage.service.js';
+import { describe } from 'vitest';
 
 // Debug helper to keep logs consistent
 const dbg = (...args) => console.log('[syncUserToPostgres]', ...args);
@@ -14,13 +15,16 @@ const dbg = (...args) => console.log('[syncUserToPostgres]', ...args);
  * Crea: user -> registered_user -> client
  */
 export const syncUserToPostgres = async (req, res) => {
-  // UID del token de Firebase (siempre presente gracias al middleware)
   const { uid: firebaseUID } = req.user;
+
+  const { role: requestRole } = req.body;
+  const validRoles = ['client', 'admin', 'institution', 'partner'];
+  const roleToAssign = validRoles.includes(requestRole) ? requestRole : 'client';
 
   dbg('Inicio handler', { firebaseUID, bodyKeys: Object.keys(req.body || {}) });
 
   try {
-    // --- 1. ¿El usuario ya existe? (Lógica de LOGIN) ---
+    // lógica de login
     dbg('Consultando si el usuario ya existe en la BD', { user_id: firebaseUID });
     const existingUser = await prisma.registered_user.findUnique({
       where: { user_id: firebaseUID },
@@ -28,6 +32,7 @@ export const syncUserToPostgres = async (req, res) => {
         client: true, // para obtener profile_picture, points, streak
         admin: true, // para rol
         institution: true, // para rol
+        partner: true, // para rol
       },
     });
 
@@ -46,9 +51,10 @@ export const syncUserToPostgres = async (req, res) => {
       }
 
       // Determinar el rol del usuario
-      let role = 'client';
-      if (existingUser.admin) role = 'admin';
-      if (existingUser.institution) role = 'institution';
+      let currentRole = 'client';
+      if (existingUser.admin) currentRole = 'admin';
+      else if (existingUser.institution) currentRole = 'institution';
+      else if (existingUser.partner) currentRole = 'partner';
 
       // Generar y guardar nuevo JWT
       const jwtPayload = {
@@ -57,11 +63,12 @@ export const syncUserToPostgres = async (req, res) => {
         name: existingUser.name,
         surname: existingUser.surname,
         username: existingUser.username || null,
-        profile_picture: existingUser.client?.profile_picture || null,
-        role,
+        profile_picture: existingUser.profile_picture || null,
+        role: currentRole,
         points: existingUser.client?.points || 0,
         streak: existingUser.client?.streak || 0,
       };
+
       const { token, expiryDate } = signUserJWT(jwtPayload);
 
       await prisma.session.create({
@@ -78,15 +85,27 @@ export const syncUserToPostgres = async (req, res) => {
         message: 'Inicio de sesión correcto.',
         jwt: token,
         expiryDate: expiryDate.toISOString(),
+        role: currentRole,
       });
     }
 
     // --- 2. Si no existe, es un REGISTRO ---
     dbg('Usuario no existe -> REGISTRO');
+
+    let s3profilePictureUrl = null;
+    if (req.file) {
+      try {
+        s3profilePictureUrl = await uploadToS3(req.file);
+        dbg('Imagen subida a S3exitosamente:', s3profilePictureUrl);
+      } catch (uploadError) {
+        console.error('Error subiendo imagen a S3:', uploadError);
+      }
+    }
+
     const { name: bodyName, email: bodyEmail, username: bodyUsername } = req.body;
     const isManualRegistration = !!(bodyName && bodyEmail); // Username es opcional
 
-    const userData = {
+    let userData = {
       uid: firebaseUID,
       email: '',
       name: '',
@@ -104,6 +123,7 @@ export const syncUserToPostgres = async (req, res) => {
       const nameParts = bodyName.split(' ');
       userData.name = nameParts[0];
       userData.surname = nameParts.slice(1).join(' ');
+      userData.profile_picture = s3profilePictureUrl;
     } else {
       // --- REGISTRO SOCIAL (Google, etc.) ---
       dbg('Detectado REGISTRO SOCIAL (obteniendo datos de Firebase)');
@@ -120,7 +140,7 @@ export const syncUserToPostgres = async (req, res) => {
 
       userData.email = userRecord.email;
       userData.username = userRecord.email ? userRecord.email.split('@')[0] : null;
-      userData.profile_picture = userRecord.photoURL || null;
+      userData.profile_picture = s3profilePictureUrl || userRecord.photoURL || null;
 
       if (userRecord.displayName) {
         const nameParts = userRecord.displayName.split(' ');
@@ -155,7 +175,8 @@ export const syncUserToPostgres = async (req, res) => {
 
     // --- 3. Crear el usuario completo en una transacción ---
     dbg('Iniciando transacción de creación de usuario');
-    const { registeredUser, client } = await prisma.$transaction(async (tx) => {
+
+    const { registeredUser } = await prisma.$transaction(async (tx) => {
       await tx.user.create({ data: { user_id: userData.uid } });
       dbg('Fila creada en tabla `user`');
 
@@ -165,24 +186,45 @@ export const syncUserToPostgres = async (req, res) => {
           name: userData.name,
           email: userData.email,
           app_language: 'es', // Valor por defecto
+          profile_picture: userData.profile_picture,
           ...(userData.surname && { surname: userData.surname }),
           ...(userData.username && { username: userData.username }),
         },
       });
       dbg('Fila creada en tabla `registered_user`');
 
-      const newClient = await tx.client.create({
-        data: {
-          user_id: userData.uid,
-          points: 0,
-          streak: 0,
-          ...(userData.profile_picture && { profile_picture: userData.profile_picture }),
-          ...(userData.phone && { phone: userData.phone }),
-        },
-      });
-      dbg('Fila creada en tabla `client`');
+      switch (roleToAssign) {
+        case 'admin':
+          await tx.admin.create({
+            data: { user_id: userData.uid },
+          });
+          break;
 
-      return { registeredUser: newRegisteredUser, client: newClient };
+        case 'institution':
+          await tx.institution.create({
+            data: { user_id: userData.uid },
+          });
+          break;
+
+        case 'partner':
+          await tx.partner.create({
+            data: { user_id: userData.uid },
+          });
+          break;
+
+        case 'client':
+          await tx.client.create({
+            data: {
+              user_id: userData.uid,
+              points: 0,
+              streak: 0,
+              ...(userData.phone && { phone: userData.phone }),
+            },
+          });
+          break;
+      }
+
+      return { registeredUser: newRegisteredUser };
     });
 
     dbg('Transacción de creación completada');
@@ -194,10 +236,10 @@ export const syncUserToPostgres = async (req, res) => {
       name: registeredUser.name,
       surname: registeredUser.surname,
       username: registeredUser.username || null,
-      profile_picture: client.profile_picture || null,
-      role: 'client', // Rol por defecto para nuevos registros
-      points: client.points,
-      streak: client.streak,
+      role: roleToAssign,
+      profile_picture: registeredUser.profile_picture || null,
+      points: roleToAssign === 'client' ? 0 : 0,
+      streak: roleToAssign === 'client' ? 0 : 0,
     };
     const { token, expiryDate } = signUserJWT(jwtPayload);
 
@@ -212,9 +254,10 @@ export const syncUserToPostgres = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Usuario registrado y sincronizado correctamente.',
+      message: `Usuario registrado como ${roleToAssign} correctamente.`,
       jwt: token,
       expiryDate: expiryDate.toISOString(),
+      role: roleToAssign,
     });
   } catch (error) {
     console.error('Error en syncUserToPostgres:', error);
@@ -706,6 +749,7 @@ export const updateUserProfile = async (req, res) => {
         },
         admin: true,
         institution: true,
+        partner: true,
       },
     });
 
@@ -745,7 +789,7 @@ export const updateUserProfile = async (req, res) => {
       data: responseData,
     });
   } catch (error) {
-    console.error('[updateUserProfile] Error:', error);
+    console.error('Error actualizando perfil:', error);
 
     if (error.code === 'P2002' && error.meta?.target?.includes('username')) {
       return res.status(409).json({
@@ -765,8 +809,8 @@ export const updateUserProfile = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: 'Error al actualizar el perfil.',
-      code: 'PROFILE_UPDATE_ERROR',
+      message: 'Error interno al actualizar el perfil.',
+      code: 'SERVER_ERROR',
     });
   }
 };
