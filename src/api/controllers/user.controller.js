@@ -511,15 +511,14 @@ export const getUserById = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: 'Usuario encontrado.',
-      data: publicData
+      data: publicData,
     });
-
   } catch (error) {
     console.error('Error obteniendo usuario por ID:', error);
-    return res.status(500).json({ 
-      success: false, 
+    return res.status(500).json({
+      success: false,
       message: 'Error interno al obtener el usuario.',
-      code: 'GET_USER_ERROR'
+      code: 'GET_USER_ERROR',
     });
   }
 };
