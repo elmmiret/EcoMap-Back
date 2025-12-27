@@ -1616,6 +1616,93 @@ paths:
                       data:
                         $ref: '#/components/schemas/Publication'
 
+  /api/publications/trades/{id}/body:
+    patch:
+      summary: Actualizar contenido de un intercambio
+      description: |
+        Actualiza el título, descripción, precio de puntos y/o imagen de un trade.
+        Todos los campos son opcionales. Solo se actualizarán los campos proporcionados.
+        **Precios permitidos (`pointsPrice`):** 5, 10, 25, 50.
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: ID de la publicación a actualizar
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  description: Nuevo título del trade
+                description:
+                  type: string
+                  description: Nueva descripción del trade
+                pointsPrice:
+                  type: integer
+                  description: 'Nuevo precio en puntos. Valores permitidos: 5, 10, 25, 50.'
+                  enum:
+                    - 5
+                    - 10
+                    - 25
+                    - 50
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                pointsPrice:
+                  type: integer
+                  enum:
+                    - 5
+                    - 10
+                    - 25
+                    - 50
+                image:
+                  type: string
+                  format: binary
+                  description: Nueva imagen del trade (reemplaza la anterior)
+      responses:
+        '200':
+          description: Trade actualizado exitosamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Publication'
+        '400':
+          description: Datos inválidos (precio de puntos fuera del rango permitido o no es un trade).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      code:
+                        type: string
+                        enum:
+                          - INVALID_POINTS_PRICE
+        '403':
+          description: No tienes permiso para editar esta publicación.
+        '404':
+          description: Publicación no encontrada.
+
   /api/publications/{id}:
     delete:
       summary: Eliminar publicación (Trade o Reward)

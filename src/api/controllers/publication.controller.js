@@ -757,13 +757,13 @@ export const updateTradeState = async (req, res) => {
 };
 
 /**
- * Actualiza el contenido de un Trade (Título, Descripción e Imagen).
+ * Actualiza el contenido de un Trade (Título, Descripción, Precio de Puntos e Imagen).
  * Endpoint: PATCH /api/publications/trades/:id/body
  */
 export const updateTradeBody = async (req, res) => {
   const { id } = req.params;
   const { uid } = req.user;
-  const { title, description } = req.body;
+  const { title, description, pointsPrice } = req.body;
   const imageFile = req.file; // Archivo subido (opcional)
 
   try {
@@ -787,20 +787,32 @@ export const updateTradeBody = async (req, res) => {
       return res.status(403).json({ success: false, message: 'No tienes permiso para editar esta publicación.' });
     }
 
+    // Validar precio de puntos si se proporciona
+    if (pointsPrice !== undefined) {
+      const allowedPointsPrices = gamificationService.POINTS_RULES.ECO_TRADER_SALE || [5, 10, 25, 50];
+      if (!allowedPointsPrices.includes(Number(pointsPrice))) {
+        return res.status(400).json({
+          success: false,
+          message: `Precio de puntos inválido. Valores permitidos: ${allowedPointsPrices.join(', ')}`,
+          code: 'INVALID_POINTS_PRICE',
+        });
+      }
+    }
+
     // subir imagen si existe
     let mediaUrl = null;
     if (imageFile) {
       try {
         mediaUrl = await uploadToS3(imageFile);
       } catch (err) {
-        console.error('Error subiendo la imgen:', err);
+        console.error('Error subiendo la imagen:', err);
         return res.status(500).json({ success: false, message: 'Error subiendo imagen.' });
       }
     }
 
     // actualizar en transacción
     const updatedPub = await prisma.$transaction(async (tx) => {
-      // actualizar datos básicos
+      // actualizar datos básicos de la publicación
       const pub = await tx.publication.update({
         where: { publication_id: id },
         data: {
@@ -810,8 +822,15 @@ export const updateTradeBody = async (req, res) => {
         },
       });
 
-      // si hay nueva imagen, la añadimos a la galería
-      // (Opcional: si quisieras REEMPLAZAR, harías un deleteMany antes)
+      // actualizar precio de puntos en la tabla trade si se proporciona
+      if (pointsPrice !== undefined) {
+        await tx.trade.update({
+          where: { publication_id: id },
+          data: { points_price: Number(pointsPrice) },
+        });
+      }
+
+      // si hay nueva imagen, reemplazamos la anterior
       if (mediaUrl) {
         await tx.publication_media.deleteMany({
           where: { publication_id: id },
@@ -828,10 +847,19 @@ export const updateTradeBody = async (req, res) => {
       return pub;
     });
 
+    // Recuperar la publicación actualizada con todos los datos
+    const fullUpdatedPub = await prisma.publication.findUnique({
+      where: { publication_id: id },
+      include: {
+        trade: true,
+        publication_media: true,
+      },
+    });
+
     return res.status(200).json({
       success: true,
       message: 'Publicación actualizada.',
-      data: updatedPub,
+      data: fullUpdatedPub,
     });
   } catch (error) {
     console.error('Error actualizando trade:', error);
