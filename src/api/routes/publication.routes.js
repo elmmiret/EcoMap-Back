@@ -21,6 +21,9 @@ import {
   getUserPendingTrades,
   updateTradeState,
   updateTradeBody,
+  buyReward,
+  getUserBoughtRewards,
+  getRewardBuyers,
 } from '#controllers/publication.controller.js';
 
 const router = express.Router();
@@ -34,6 +37,24 @@ const router = express.Router();
  * @description Crea una nueva publicación (Reward) - Solo Instituciones.
  */
 router.post('/rewards', authenticateBackendJWT, uploadImageMiddleware, createReward);
+
+/**
+ * @route POST /api/publications/rewards/:rewardId/buy
+ * @description Un cliente compra un reward. Crea registro en 'reward_bought_by'.
+ */
+router.post('/rewards/:rewardId/buy', authenticateBackendJWT, buyReward);
+
+/**
+ * @route GET /api/publications/rewards/user/:userId/bought
+ * @description Obtiene todos los rewards comprados por un cliente específico.
+ */
+router.get('/rewards/user/:userId/bought', authenticateBackendJWT, getUserBoughtRewards);
+
+/**
+ * @route GET /api/publications/rewards/:rewardId/buyers
+ * @description Obtiene la lista de usuarios que han comprado un reward específico.
+ */
+router.get('/rewards/:rewardId/buyers', authenticateBackendJWT, getRewardBuyers);
 
 /**
  * @route GET /api/publications/rewards

@@ -24,6 +24,8 @@ import {
   getUserValorationsMade,
   getUserValorationsReceived,
   getUserScore,
+  getMyRewardsBought,
+  getUserRewardsBoughtById,
 } from '#controllers/user.controller.js';
 
 /**
@@ -39,6 +41,13 @@ router.post('/sync', authenticateUser, uploadImageMiddleware, requireRoleSecret,
  * @access Protegido (requiere autenticación con JWT del backend)
  */
 router.get('/me', authenticateBackendJWT, getUserProfile);
+
+/**
+ * @route GET /api/users/me/rewards_bought
+ * @description Obtiene el historial de rewards comprados por el usuario actual.
+ * @access Protegido
+ */
+router.get('/me/rewards_bought', authenticateBackendJWT, getMyRewardsBought);
 
 /**
  * @route GET /api/users/:userId/public
@@ -124,6 +133,13 @@ router.get('/:id/valorations/made', authenticateBackendJWT, getUserValorationsMa
  * @description Obtiene las valoraciones recibidas por el usuario (su reputación).
  */
 router.get('/:id/valorations/received', authenticateBackendJWT, getUserValorationsReceived);
+
+/**
+ * @route GET /api/users/:userId/rewards_bought
+ * @description Obtiene el historial de rewards comprados por un usuario específico.
+ * @access Protegido
+ */
+router.get('/:userId/rewards_bought', authenticateBackendJWT, getUserRewardsBoughtById);
 
 /**
  * @route GET /api/users/:id/score

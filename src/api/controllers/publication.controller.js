@@ -1116,3 +1116,194 @@ export const updateTradeBody = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Error interno.' });
   }
 };
+
+/**
+ * Registra la compra de un Reward por parte de un cliente.
+ * - Crea el registro en 'reward_bought_by'.
+ * - Deduce los puntos del cliente (opcional, pero recomendado).
+ * - Mantiene el historial del precio en el momento de la compra.
+ * Endpoint: POST /api/publications/rewards/:rewardId/buy
+ */
+export const buyReward = async (req, res) => {
+  const { rewardId } = req.params;
+  const { uid } = req.user; // ID del cliente comprador
+
+  try {
+    // 1. Obtener el reward y validar existencia y disponibilidad
+    const publication = await prisma.publication.findUnique({
+      where: { publication_id: rewardId },
+      include: { reward: true },
+    });
+
+    if (!publication || !publication.reward) {
+      return res.status(404).json({ success: false, message: 'Reward no encontrado.' });
+    }
+
+    if (!publication.reward.available) {
+      return res.status(409).json({ success: false, message: 'Este reward no está disponible actualmente.' });
+    }
+
+    // 2. Verificar que el usuario es un Cliente
+    const client = await prisma.client.findUnique({ where: { user_id: uid } });
+    if (!client) {
+      return res.status(403).json({ success: false, message: 'Solo los clientes pueden comprar rewards.' });
+    }
+
+    // 3. Verificar si tiene puntos suficientes
+    const cost = publication.reward.points_price;
+    if (client.points < cost) {
+      return res.status(400).json({
+        success: false,
+        message: `Puntos insuficientes. Tienes ${client.points}, necesitas ${cost}.`,
+      });
+    }
+
+    // 4. TRANSACCIÓN DE COMPRA
+    const purchaseResult = await prisma.$transaction(async (tx) => {
+      // A. Crear el registro en la tabla asociativa
+      // Al hacer esto, Prisma actualiza automáticamente 'buyers' en el reward y 'rewards_bought' en el cliente.
+      const newPurchase = await tx.reward_bought_by.create({
+        data: {
+          client_id: uid,
+          reward_id: rewardId,
+          points_cost: cost,
+          bought_at: new Date(),
+        },
+      });
+
+      // B. Restar los puntos al cliente
+      await tx.client.update({
+        where: { user_id: uid },
+        data: {
+          points: { decrement: cost },
+        },
+      });
+
+      return newPurchase;
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Reward comprado exitosamente.',
+      data: purchaseResult,
+    });
+  } catch (error) {
+    console.error('Error en buyReward:', error);
+    return res.status(500).json({ success: false, message: 'Error interno al procesar la compra.' });
+  }
+};
+
+/**
+ * Obtiene todos los rewards comprados por un usuario específico.
+ * Endpoint: GET /api/publications/rewards/user/:userId/bought
+ */
+export const getUserBoughtRewards = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const boughtHistory = await prisma.reward_bought_by.findMany({
+      where: { client_id: userId },
+      include: {
+        // Incluimos los detalles del reward comprado
+        reward: {
+          include: {
+            publication: {
+              include: {
+                publication_media: true, // Para ver la foto del reward
+                institution: {
+                  select: { registered_user: { select: { name: true } } }, // Para ver quién lo vendió
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { bought_at: 'desc' }, // Los más recientes primero
+    });
+
+    // Formateamos la respuesta para que sea más limpia
+    const formattedData = boughtHistory.map((item) => ({
+      purchase_id: item.id,
+      bought_at: item.bought_at,
+      points_cost: item.points_cost,
+      reward_details: {
+        title: item.reward.publication.title,
+        description: item.reward.publication.description,
+        image: item.reward.publication.publication_media?.media_url || null,
+        institution_name: item.reward.publication.institution?.registered_user?.name || 'Desconocido',
+        current_price: item.reward.points_price, // Por si ha cambiado respecto al precio de compra
+      },
+    }));
+
+    return res.status(200).json({
+      success: true,
+      count: formattedData.length,
+      data: formattedData,
+    });
+  } catch (error) {
+    console.error('Error obteniendo rewards comprados:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
+
+/**
+ * Obtiene todos los clientes que han comprado un reward específico.
+ * Endpoint: GET /api/publications/rewards/:rewardId/buyers
+ */
+export const getRewardBuyers = async (req, res) => {
+  const { rewardId } = req.params;
+  const { uid } = req.user;
+
+  try {
+    // Verificar permisos: Solo la institución dueña debería ver quién ha comprado.
+    const publication = await prisma.publication.findUnique({
+      where: { publication_id: rewardId },
+      select: { institution_id: true },
+    });
+
+    if (!publication) return res.status(404).json({ success: false, message: 'Publicación no encontrada' });
+
+    if (publication.institution_id !== uid) return res.status(403).json({ success: false, message: 'No autorizado' });
+
+    const buyersList = await prisma.reward_bought_by.findMany({
+      where: { reward_id: rewardId },
+      include: {
+        client: {
+          include: {
+            registered_user: {
+              select: {
+                user_id: true,
+                username: true,
+                name: true,
+                surname: true,
+                profile_picture: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { bought_at: 'desc' },
+    });
+
+    const formattedBuyers = buyersList.map((item) => ({
+      purchase_id: item.id,
+      bought_at: item.bought_at,
+      cost_paid: item.points_cost,
+      buyer: {
+        uid: item.client.registered_user.user_id,
+        username: item.client.registered_user.username,
+        name: `${item.client.registered_user.name} ${item.client.registered_user.surname || ''}`.trim(),
+        profile_picture: item.client.registered_user.profile_picture,
+      },
+    }));
+
+    return res.status(200).json({
+      success: true,
+      count: formattedBuyers.length,
+      data: formattedBuyers,
+    });
+  } catch (error) {
+    console.error('Error obteniendo compradores del reward:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
