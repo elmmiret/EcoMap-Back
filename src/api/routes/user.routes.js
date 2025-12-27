@@ -23,7 +23,7 @@ import {
   getUserValorationsReceived,
   getUserScore,
   getMyRewardsBought,
-  getUserRewardsBoughtById
+  getUserRewardsBoughtById,
 } from '#controllers/user.controller.js';
 
 /**
