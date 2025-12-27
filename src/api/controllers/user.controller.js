@@ -1350,7 +1350,6 @@ export const getUserPoints = async (req, res) => {
       success: true,
       points: client.points,
     });
-
   } catch (error) {
     console.error(`Error obteniendo puntos del usuario ${userId}:`, error);
     return res.status(500).json({
