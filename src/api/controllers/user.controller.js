@@ -448,6 +448,83 @@ export const deleteUser = async (req, res) => {
 };
 
 /**
+ * Obtiene la información pública de un usuario por su ID.
+ * Endpoint: GET /api/users/:id
+ */
+export const getUserById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const user = await prisma.registered_user.findUnique({
+      where: { user_id: id },
+      select: {
+        user_id: true,
+        username: true,
+        name: true,
+        surname: true,
+        profile_picture: true, // Se obtiene de la tabla base
+        // Datos específicos de cliente (para mostrar stats en perfil público)
+        client: {
+          select: {
+            description: true,
+            points: true,
+            streak: true,
+            valorations_score: true,
+          },
+        },
+        // Tablas para determinar el rol
+        admin: true,
+        institution: true,
+        partner: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    // Lógica para determinar el rol
+    let role = 'client';
+    if (user.admin) role = 'admin';
+    else if (user.institution) role = 'institution';
+    else if (user.partner) role = 'partner';
+
+    // Mapeo de datos públicos
+    const publicData = {
+      uid: user.user_id,
+      name: user.name,
+      surname: user.surname,
+      username: user.username,
+      profile_picture: user.profile_picture || null,
+      role: role,
+      // Datos opcionales que pueden ser null si no es un cliente
+      description: user.client?.description || null,
+      points: user.client?.points || 0,
+      streak: user.client?.streak || 0,
+      valorations_score: user.client?.valorations_score || 0,
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: 'Usuario encontrado.',
+      data: publicData
+    });
+
+  } catch (error) {
+    console.error('Error obteniendo usuario por ID:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error interno al obtener el usuario.',
+      code: 'GET_USER_ERROR'
+    });
+  }
+};
+
+/**
  * Obtiene el perfil del usuario autenticado a través del JWT del backend.
  */
 export const getUserProfile = async (req, res) => {
