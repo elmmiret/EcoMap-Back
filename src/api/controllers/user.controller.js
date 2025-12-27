@@ -1214,3 +1214,113 @@ export const getUserScore = async (req, res) => {
     });
   }
 };
+
+/**
+ * Obtiene todos los rewards comprados por el usuario actual (token).
+ * Endpoint: GET /api/users/me/rewards_bought
+ */
+export const getMyRewardsBought = async (req, res) => {
+  const { uid } = req.user;
+
+  try {
+    const rewards = await prisma.reward_bought_by.findMany({
+      where: { client_id: uid },
+      include: {
+        reward: {
+          include: {
+            publication: {
+              include: {
+                publication_media: true,
+                institution: {
+                  select: { registered_user: { select: { name: true } } },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { bought_at: 'desc' },
+    });
+
+    const formattedData = rewards.map((item) => ({
+      purchase_id: item.id,
+      bought_at: item.bought_at,
+      points_cost: item.points_cost,
+      reward: {
+        id: item.reward.publication_id,
+        title: item.reward.publication.title,
+        description: item.reward.publication.description,
+        image: item.reward.publication.publication_media?.media_url || null,
+        institution_name: item.reward.publication.institution?.registered_user?.name || 'Institución Desconocida',
+      },
+    }));
+
+    return res.status(200).json({
+      success: true,
+      count: formattedData.length,
+      data: formattedData,
+    });
+  } catch (error) {
+    console.error('Error obteniendo mis rewards comprados:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
+
+/**
+ * Obtiene todos los rewards comprados por un usuario específico (por ID).
+ * Endpoint: GET /api/users/:userId/rewards_bought
+ */
+export const getUserRewardsBoughtById = async (req, res) => {
+  // Nota: Usamos 'id' si definiste la ruta como /:id/..., o 'userId' si fue /:userId/...
+  // Para mantener consistencia con tus otras rutas de usuario, usaré el parámetro que definas en routes.
+  const { userId } = req.params;
+
+  try {
+    // Verificar si el usuario existe (opcional, pero recomendado)
+    const userExists = await prisma.user.findUnique({ where: { user_id: userId } });
+    if (!userExists) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado.' });
+    }
+
+    const rewards = await prisma.reward_bought_by.findMany({
+      where: { client_id: userId },
+      include: {
+        reward: {
+          include: {
+            publication: {
+              include: {
+                publication_media: true,
+                institution: {
+                  select: { registered_user: { select: { name: true } } },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { bought_at: 'desc' },
+    });
+
+    const formattedData = rewards.map((item) => ({
+      purchase_id: item.id,
+      bought_at: item.bought_at,
+      points_cost: item.points_cost,
+      reward: {
+        id: item.reward.publication_id,
+        title: item.reward.publication.title,
+        description: item.reward.publication.description,
+        image: item.reward.publication.publication_media?.media_url || null,
+        institution_name: item.reward.publication.institution?.registered_user?.name || 'Institución Desconocida',
+      },
+    }));
+
+    return res.status(200).json({
+      success: true,
+      count: formattedData.length,
+      data: formattedData,
+    });
+  } catch (error) {
+    console.error(`Error obteniendo rewards del usuario ${userId}:`, error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
