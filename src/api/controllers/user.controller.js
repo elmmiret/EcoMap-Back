@@ -1368,3 +1368,38 @@ export const getUserRewardsBoughtById = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Error interno.' });
   }
 };
+
+/**
+ * Obtiene la cantidad de puntos de un usuario cliente específico.
+ * Endpoint: GET /api/users/:userId/points
+ */
+export const getUserPoints = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const client = await prisma.client.findUnique({
+      where: { user_id: userId },
+      select: { points: true },
+    });
+
+    if (!client) {
+      return res.status(404).json({
+        success: false,
+        message: 'El usuario no existe o no tiene un perfil de cliente (no tiene puntos).',
+        code: 'CLIENT_NOT_FOUND',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      points: client.points,
+    });
+  } catch (error) {
+    console.error(`Error obteniendo puntos del usuario ${userId}:`, error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al obtener los puntos.',
+      code: 'SERVER_ERROR',
+    });
+  }
+};

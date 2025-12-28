@@ -26,6 +26,7 @@ import {
   getUserScore,
   getMyRewardsBought,
   getUserRewardsBoughtById,
+  getUserPoints,
 } from '#controllers/user.controller.js';
 
 /**
@@ -55,6 +56,13 @@ router.get('/me/rewards_bought', authenticateBackendJWT, getMyRewardsBought);
  * @access Protegido (requiere autenticación con JWT del backend)
  */
 router.get('/:id/public', authenticateBackendJWT, getUserPublicData);
+
+/**
+ * @route GET /api/users/:userId/points
+ * @description Devuelve la cantidad de puntos de un cliente específico.
+ * @access Protegido
+ */
+router.get('/:userId/points', authenticateBackendJWT, getUserPoints);
 
 /**
  * @route GET /api/users/:userId/private
