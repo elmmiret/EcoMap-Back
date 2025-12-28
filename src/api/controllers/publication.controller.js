@@ -155,6 +155,15 @@ export const createReward = async (req, res) => {
       });
     }
 
+    const allowedPointsPrices = gamificationService.POINTS_RULES.REWARD_REDEMPTION || [500, 1000, 2000, 5000];
+    if (!allowedPointsPrices.includes(Number(pointsPrice))) {
+      return res.status(400).json({
+        success: false,
+        message: `Precio de puntos inválido. Valores permitidos: ${allowedPointsPrices.join(', ')}`,
+        code: 'INVALID_POINTS_PRICE',
+      });
+    }
+
     let mediaUrl = null;
     if (imageFile) {
       try {
@@ -1176,6 +1185,16 @@ export const buyReward = async (req, res) => {
         where: { user_id: uid },
         data: {
           points: { decrement: cost },
+        },
+      });
+
+      // C. Registrar en el historial de puntos
+      await tx.point_history.create({
+        data: {
+          user_id: uid,
+          amount: -cost, // Negativo porque es un gasto
+          source: 'REWARD_REDEMPTION',
+          description: `Canje de reward: ${publication.title}`,
         },
       });
 

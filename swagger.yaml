@@ -921,6 +921,90 @@ paths:
                     type: number
                     format: float
 
+  /api/users/me/rewards_bought:
+    get:
+      summary: Obtener rewards comprados por el usuario actual
+      description: Obtiene el historial de rewards que ha comprado el usuario autenticado.
+      tags: [Usuarios - Rewards]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de rewards comprados.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          description: Información del reward comprado con detalles de la compra
+
+  /api/users/{userId}/rewards_bought:
+    get:
+      summary: Obtener rewards comprados por un usuario específico
+      description: Obtiene el historial de rewards comprados por un usuario por su ID.
+      tags: [Usuarios - Rewards]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de rewards comprados por el usuario.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          description: Información del reward comprado con detalles de la compra
+
+  /api/users/{userId}/points:
+    get:
+      summary: Obtener puntos de un usuario
+      description: Devuelve la cantidad de EcoPoints de un cliente específico.
+      tags: [Usuarios - Gamificación]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Cantidad de puntos del usuario.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          points:
+                            type: integer
+                            description: Cantidad actual de EcoPoints del usuario
+
   # --- Puntos de Reciclaje ---
   /api/recycling-points/{region}:
     get:
@@ -1308,6 +1392,225 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/Publication'
+
+  /api/publications/rewards/{rewardId}/buy:
+    post:
+      summary: Comprar un reward (Solo Clientes)
+      description: |
+        Un cliente compra un reward. Crea un registro en 'reward_bought_by'.
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: rewardId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '201':
+          description: Reward comprado exitosamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        description: Registro de compra del reward
+        '400':
+          description: Puntos insuficientes o reward no disponible.
+        '404':
+          description: Reward no encontrado.
+
+  /api/publications/rewards/user/{userId}/bought:
+    get:
+      summary: Obtener rewards comprados por un usuario
+      description: Obtiene todos los rewards que ha comprado un cliente específico.
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de rewards comprados por el usuario.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Publication'
+
+  /api/publications/rewards/{rewardId}/buyers:
+    get:
+      summary: Obtener usuarios que compraron un reward
+      description: Obtiene la lista de usuarios que han comprado un reward específico.
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: rewardId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de usuarios que compraron el reward.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/UserProfile'
+
+  /api/publications/rewards/{id}/body:
+    patch:
+      summary: Actualizar contenido de un reward
+      description: |
+        Actualiza el título, descripción, contenido, precio de puntos y/o imagen de un reward.
+        Todos los campos son opcionales. Solo se actualizarán los campos proporcionados.
+        También permite cancelar la publicación enviando state: "Cancelled".
+        **Precios permitidos (`pointsPrice`):** 500, 1000, 2000, 5000.
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID de la publicación reward a actualizar
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  description: Nuevo título del reward
+                description:
+                  type: string
+                  description: Nueva descripción del reward
+                content:
+                  type: string
+                  description: Nuevo contenido del reward
+                pointsPrice:
+                  type: integer
+                  description: 'Nuevo precio en puntos. Valores permitidos: 500, 1000, 2000, 5000.'
+                  enum:
+                    - 500
+                    - 1000
+                    - 2000
+                    - 5000
+                state:
+                  type: string
+                  description: 'Estado de la publicación. Para cancelar: "Cancelled".'
+                  enum:
+                    - Cancelled
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                content:
+                  type: string
+                pointsPrice:
+                  type: integer
+                  enum:
+                    - 500
+                    - 1000
+                    - 2000
+                    - 5000
+                image:
+                  type: string
+                  format: binary
+                  description: Nueva imagen del reward (reemplaza la anterior)
+      responses:
+        '200':
+          description: Reward actualizado exitosamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Publication'
+        '400':
+          description: Datos inválidos (precio de puntos fuera del rango permitido o no es un reward).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      code:
+                        type: string
+                        enum:
+                          - INVALID_POINTS_PRICE
+        '403':
+          description: No tienes permiso para editar esta publicación (solo institución creadora).
+        '404':
+          description: Publicación no encontrada.
+
+  /api/publications/rewards/{id}:
+    get:
+      summary: Obtener detalle de un reward
+      description: Obtiene el detalle de un Reward específico por su ID.
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detalle del reward.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Publication'
+        '404':
+          description: Reward no encontrado.
 
   # --- Publicaciones (Trades) ---
   /api/publications/trades:
