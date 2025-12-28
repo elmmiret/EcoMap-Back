@@ -189,6 +189,7 @@ model trade {
   created_at     DateTime      @default(now())
   publication    publication   @relation(fields: [publication_id], references: [publication_id], onDelete: Cascade, onUpdate: NoAction)
   reservations   reservation[]
+  @@index([created_at(sort: Desc)])
 }
 
 model publication_media {
