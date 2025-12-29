@@ -1474,7 +1474,7 @@ export const reportUser = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Si seleccionas "Otro", debes proporcionar una descripción.',
-        code: 'MISSING_DESCRIPTION_FOR_OTHER'
+        code: 'MISSING_DESCRIPTION_FOR_OTHER',
       });
     }
   }
@@ -1482,7 +1482,7 @@ export const reportUser = async (req, res) => {
   try {
     // verificar existencia del usuario reportado
     const targetUser = await prisma.registered_user.findUnique({
-      where: { user_id: reportedUserId }
+      where: { user_id: reportedUserId },
     });
 
     if (!targetUser) {
@@ -1496,15 +1496,14 @@ export const reportUser = async (req, res) => {
         reported_user_id: reportedUserId,
         reason: reason,
         description: description || null,
-      }
+      },
     });
 
     return res.status(201).json({
       success: true,
       message: 'Usuario reportado correctamente. Los administradores revisarán el caso.',
-      data: newReport
+      data: newReport,
     });
-
   } catch (error) {
     console.error('Error al reportar usuario:', error);
     return res.status(500).json({ success: false, message: 'Error interno al procesar el reporte.' });
@@ -1529,27 +1528,26 @@ export const getAllUserReports = async (req, res) => {
     const reports = await prisma.user_report.findMany({
       include: {
         reporter: {
-          select: { username: true, email: true }
+          select: { username: true, email: true },
         },
         reported_user: {
-          select: { 
-            user_id: true, 
-            username: true, 
-            email: true, 
+          select: {
+            user_id: true,
+            username: true,
+            email: true,
             profile_picture: true,
             blocked_users: true,
-          }
-        }
+          },
+        },
       },
-      orderBy: { created_at: 'desc' }
+      orderBy: { created_at: 'desc' },
     });
 
     return res.status(200).json({
       success: true,
       count: reports.length,
-      data: reports
+      data: reports,
     });
-
   } catch (error) {
     console.error('Error obteniendo reportes:', error);
     return res.status(500).json({ success: false, message: 'Error interno.' });
@@ -1569,12 +1567,12 @@ export const updateReportStatus = async (req, res) => {
 
   // validar que el estado sea válido según el Enum de Prisma
   const validStatuses = ['Pending', 'Reviewed', 'Resolved', 'Dismissed'];
-  
+
   if (!status || !validStatuses.includes(status)) {
     return res.status(400).json({
       success: false,
       message: `Estado inválido. Valores permitidos: ${validStatuses.join(', ')}.`,
-      code: 'INVALID_STATUS'
+      code: 'INVALID_STATUS',
     });
   }
 
@@ -1585,20 +1583,20 @@ export const updateReportStatus = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: 'Acceso denegado. Solo administradores pueden gestionar reportes.',
-        code: 'FORBIDDEN_ADMIN_ONLY'
+        code: 'FORBIDDEN_ADMIN_ONLY',
       });
     }
 
     // buscar el reporte existente
     const currentReport = await prisma.user_report.findUnique({
-      where: { report_id: reportId }
+      where: { report_id: reportId },
     });
 
     if (!currentReport) {
-      return res.status(404).json({ 
-        success: false, 
+      return res.status(404).json({
+        success: false,
         message: 'Reporte no encontrado.',
-        code: 'REPORT_NOT_FOUND' 
+        code: 'REPORT_NOT_FOUND',
       });
     }
 
@@ -1607,22 +1605,21 @@ export const updateReportStatus = async (req, res) => {
       return res.status(409).json({
         success: false,
         message: 'El nuevo estado debe ser diferente al actual.',
-        code: 'SAME_STATUS_ERROR'
+        code: 'SAME_STATUS_ERROR',
       });
     }
 
     // actualizar el reporte
     const updatedReport = await prisma.user_report.update({
       where: { report_id: reportId },
-      data: { status: status }
+      data: { status: status },
     });
 
     return res.status(200).json({
       success: true,
       message: `Estado del reporte actualizado a ${status}.`,
-      data: updatedReport
+      data: updatedReport,
     });
-
   } catch (error) {
     console.error('Error actualizando estado del reporte:', error);
     return res.status(500).json({ success: false, message: 'Error interno.' });
@@ -1671,7 +1668,6 @@ export const deleteReport = async (req, res) => {
       success: true,
       message: 'Reporte eliminado correctamente.',
     });
-
   } catch (error) {
     console.error('Error eliminando reporte:', error);
     return res.status(500).json({ success: false, message: 'Error interno al eliminar el reporte.' });
