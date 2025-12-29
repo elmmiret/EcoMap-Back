@@ -1628,3 +1628,52 @@ export const updateReportStatus = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Error interno.' });
   }
 };
+
+/**
+ * Elimina un reporte específico.
+ * Solo para administradores.
+ * Endpoint: DELETE /api/users/admin/reports/:reportId
+ */
+export const deleteReport = async (req, res) => {
+  const { uid } = req.user;
+  const { reportId } = req.params;
+
+  try {
+    // verificar permisos de ADMIN
+    const isAdmin = await prisma.admin.findUnique({ where: { user_id: uid } });
+    if (!isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Acceso denegado. Solo administradores pueden eliminar reportes.',
+        code: 'FORBIDDEN_ADMIN_ONLY',
+      });
+    }
+
+    // verificar existencia del reporte
+    const report = await prisma.user_report.findUnique({
+      where: { report_id: reportId },
+    });
+
+    if (!report) {
+      return res.status(404).json({
+        success: false,
+        message: 'Reporte no encontrado.',
+        code: 'REPORT_NOT_FOUND',
+      });
+    }
+
+    // eliminar reporte
+    await prisma.user_report.delete({
+      where: { report_id: reportId },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Reporte eliminado correctamente.',
+    });
+
+  } catch (error) {
+    console.error('Error eliminando reporte:', error);
+    return res.status(500).json({ success: false, message: 'Error interno al eliminar el reporte.' });
+  }
+};

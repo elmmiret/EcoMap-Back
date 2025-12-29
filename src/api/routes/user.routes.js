@@ -29,6 +29,7 @@ import {
   reportUser,
   getAllUserReports,
   updateReportStatus,
+  deleteReport,
 } from '#controllers/user.controller.js';
 
 /**
@@ -63,6 +64,12 @@ router.get('/admin/reports', authenticateBackendJWT, getAllUserReports);
  * @description Actualiza el estado de un reporte específico (Solo Admin).
  */
 router.patch('/admin/reports/:reportId', authenticateBackendJWT, updateReportStatus);
+
+/**
+ * @route DELETE /api/users/admin/reports/:reportId
+ * @description Elimina un reporte de usuario (Solo Admin).
+ */
+router.delete('/admin/reports/:reportId', authenticateBackendJWT, deleteReport);
 
 /**
  * @route POST /api/users/report/:userId
