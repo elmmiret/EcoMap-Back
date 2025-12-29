@@ -491,31 +491,18 @@ export const deleteUser = async (req, res) => {
 };
 
 /**
- * Obtiene la información pública de un usuario por su ID.
- * Endpoint: GET /api/users/:id
+ * Obtiene TODA la información del perfil de un usuario específico por su ID.
+ * Combina datos de registered_user con los datos de su rol específico (client, admin, etc.)
+ * Endpoint: GET /api/users/:userId
  */
-export const getUserById = async (req, res) => {
-  const { id } = req.params;
+export const getUserFullProfile = async (req, res) => {
+  const { userId } = req.params;
 
   try {
     const user = await prisma.registered_user.findUnique({
-      where: { user_id: id },
-      select: {
-        user_id: true,
-        username: true,
-        name: true,
-        surname: true,
-        profile_picture: true, // Se obtiene de la tabla base
-        // Datos específicos de cliente (para mostrar stats en perfil público)
-        client: {
-          select: {
-            description: true,
-            points: true,
-            streak: true,
-            valorations_score: true,
-          },
-        },
-        // Tablas para determinar el rol
+      where: { user_id: userId },
+      include: {
+        client: true,
         admin: true,
         institution: true,
         partner: true,
@@ -530,34 +517,41 @@ export const getUserById = async (req, res) => {
       });
     }
 
-    // Lógica para determinar el rol
-    let role = 'client';
-    if (user.admin) role = 'admin';
-    else if (user.institution) role = 'institution';
-    else if (user.partner) role = 'partner';
+    // determinar el rol y extraer los datos específicos
+    let role = 'client'; // por defecto
+    let roleData = {};
 
-    // Mapeo de datos públicos
-    const publicData = {
-      uid: user.user_id,
-      name: user.name,
-      surname: user.surname,
-      username: user.username,
-      profile_picture: user.profile_picture || null,
+    if (user.admin) {
+      role = 'admin';
+      roleData = user.admin;
+    } else if (user.institution) {
+      role = 'institution';
+      roleData = user.institution;
+    } else if (user.partner) {
+      role = 'partner';
+      roleData = user.partner;
+    } else if (user.client) {
+      role = 'client';
+      roleData = user.client;
+    }
+
+    // limpiar el objeto de respuesta
+    // eliminamos las propiedades anidadas redundantes para enviar un objeto plano
+    const { client, admin, institution, partner, ...baseUserData } = user;
+
+    const fullProfile = {
+      ...baseUserData,
       role: role,
-      // Datos opcionales que pueden ser null si no es un cliente
-      description: user.client?.description || null,
-      points: user.client?.points || 0,
-      streak: user.client?.streak || 0,
-      valorations_score: user.client?.valorations_score || 0,
+      ...roleData,
     };
 
     return res.status(200).json({
       success: true,
-      message: 'Usuario encontrado.',
-      data: publicData,
+      message: 'Perfil de usuario recuperado exitosamente.',
+      data: fullProfile,
     });
   } catch (error) {
-    console.error('Error obteniendo usuario por ID:', error);
+    console.error(`Error obteniendo perfil completo del usuario ${userId}:`, error);
     return res.status(500).json({
       success: false,
       message: 'Error interno al obtener el usuario.',
