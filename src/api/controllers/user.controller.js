@@ -491,31 +491,18 @@ export const deleteUser = async (req, res) => {
 };
 
 /**
- * Obtiene la información pública de un usuario por su ID.
- * Endpoint: GET /api/users/:id
+ * Obtiene TODA la información del perfil de un usuario específico por su ID.
+ * Combina datos de registered_user con los datos de su rol específico (client, admin, etc.)
+ * Endpoint: GET /api/users/:userId
  */
-export const getUserById = async (req, res) => {
-  const { id } = req.params;
+export const getUserFullProfile = async (req, res) => {
+  const { userId } = req.params;
 
   try {
     const user = await prisma.registered_user.findUnique({
-      where: { user_id: id },
-      select: {
-        user_id: true,
-        username: true,
-        name: true,
-        surname: true,
-        profile_picture: true, // Se obtiene de la tabla base
-        // Datos específicos de cliente (para mostrar stats en perfil público)
-        client: {
-          select: {
-            description: true,
-            points: true,
-            streak: true,
-            valorations_score: true,
-          },
-        },
-        // Tablas para determinar el rol
+      where: { user_id: userId },
+      include: {
+        client: true,
         admin: true,
         institution: true,
         partner: true,
@@ -530,34 +517,41 @@ export const getUserById = async (req, res) => {
       });
     }
 
-    // Lógica para determinar el rol
-    let role = 'client';
-    if (user.admin) role = 'admin';
-    else if (user.institution) role = 'institution';
-    else if (user.partner) role = 'partner';
+    // determinar el rol y extraer los datos específicos
+    let role = 'client'; // por defecto
+    let roleData = {};
 
-    // Mapeo de datos públicos
-    const publicData = {
-      uid: user.user_id,
-      name: user.name,
-      surname: user.surname,
-      username: user.username,
-      profile_picture: user.profile_picture || null,
+    if (user.admin) {
+      role = 'admin';
+      roleData = user.admin;
+    } else if (user.institution) {
+      role = 'institution';
+      roleData = user.institution;
+    } else if (user.partner) {
+      role = 'partner';
+      roleData = user.partner;
+    } else if (user.client) {
+      role = 'client';
+      roleData = user.client;
+    }
+
+    // limpiar el objeto de respuesta
+    // eliminamos las propiedades anidadas redundantes para enviar un objeto plano
+    const { client, admin, institution, partner, ...baseUserData } = user;
+
+    const fullProfile = {
+      ...baseUserData,
       role: role,
-      // Datos opcionales que pueden ser null si no es un cliente
-      description: user.client?.description || null,
-      points: user.client?.points || 0,
-      streak: user.client?.streak || 0,
-      valorations_score: user.client?.valorations_score || 0,
+      ...roleData,
     };
 
     return res.status(200).json({
       success: true,
-      message: 'Usuario encontrado.',
-      data: publicData,
+      message: 'Perfil de usuario recuperado exitosamente.',
+      data: fullProfile,
     });
   } catch (error) {
-    console.error('Error obteniendo usuario por ID:', error);
+    console.error(`Error obteniendo perfil completo del usuario ${userId}:`, error);
     return res.status(500).json({
       success: false,
       message: 'Error interno al obtener el usuario.',
@@ -1401,5 +1395,55 @@ export const getUserPoints = async (req, res) => {
       message: 'Error interno al obtener los puntos.',
       code: 'SERVER_ERROR',
     });
+  }
+};
+
+/**
+ * Bloquea a un usuario añadiendo su ID al vector blocked_users.
+ * Endpoint: POST /api/users/block/:userId
+ */
+export const blockUser = async (req, res) => {
+  const { uid } = req.user; // El que bloquea
+  const { userId } = req.params; // El usuario a bloquear
+
+  if (uid === userId) {
+    return res.status(400).json({ success: false, message: 'No puedes bloquearte a ti mismo.' });
+  }
+
+  try {
+    // verificar si el usuario a bloquear existe
+    const targetUser = await prisma.registered_user.findUnique({
+      where: { user_id: userId },
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: 'El usuario a bloquear no existe.' });
+    }
+
+    // actualizar el usuario actual añadiendo el ID al array (si no está ya)
+
+    // primero obtenemos el usuario actual para no duplicar IDs
+    const currentUser = await prisma.registered_user.findUnique({
+      where: { user_id: uid },
+      select: { blocked_users: true },
+    });
+
+    if (currentUser.blocked_users.includes(userId)) {
+      return res.status(409).json({ success: false, message: 'Ya has bloqueado a este usuario.' });
+    }
+
+    await prisma.registered_user.update({
+      where: { user_id: uid },
+      data: {
+        blocked_users: {
+          push: userId, // añadir el ID al array
+        },
+      },
+    });
+
+    return res.status(200).json({ success: true, message: 'Usuario bloqueado correctamente.' });
+  } catch (error) {
+    console.error('Error al bloquear usuario:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
   }
 };

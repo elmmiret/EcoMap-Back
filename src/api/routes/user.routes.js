@@ -17,16 +17,15 @@ import {
   getAllClientIds,
   getAllInstitutionIds,
   getAllAdminIds,
-  getUserById,
+  getUserFullProfile,
   getUserTypeById,
-  getUserPublicData,
-  getUserPrivateData,
   getUserValorationsMade,
   getUserValorationsReceived,
   getUserScore,
   getMyRewardsBought,
   getUserRewardsBoughtById,
   getUserPoints,
+  blockUser,
 } from '#controllers/user.controller.js';
 
 /**
@@ -44,6 +43,13 @@ router.post('/sync', authenticateUser, uploadImageMiddleware, requireRoleSecret,
 router.get('/me', authenticateBackendJWT, getUserProfile);
 
 /**
+ * @route POST /api/users/block/:userId
+ * @description Bloquea a un usuario específico añadiéndolo a la lista de bloqueados.
+ * @access Protegido
+ */
+router.post('/block/:userId', authenticateBackendJWT, blockUser);
+
+/**
  * @route GET /api/users/me/rewards_bought
  * @description Obtiene el historial de rewards comprados por el usuario actual.
  * @access Protegido
@@ -51,25 +57,11 @@ router.get('/me', authenticateBackendJWT, getUserProfile);
 router.get('/me/rewards_bought', authenticateBackendJWT, getMyRewardsBought);
 
 /**
- * @route GET /api/users/:userId/public
- * @description Obtiene datos públicos de un usuario específico.
- * @access Protegido (requiere autenticación con JWT del backend)
- */
-router.get('/:id/public', authenticateBackendJWT, getUserPublicData);
-
-/**
  * @route GET /api/users/:userId/points
  * @description Devuelve la cantidad de puntos de un cliente específico.
  * @access Protegido
  */
 router.get('/:userId/points', authenticateBackendJWT, getUserPoints);
-
-/**
- * @route GET /api/users/:userId/private
- * @description Obtiene datos privados de un usuario específico.
- * @access Protegido (requiere autenticación con JWT del backend)
- */
-router.get('/:id/private', authenticateBackendJWT, getUserPrivateData);
 
 /**
  * @route PUT /api/users/me
@@ -156,9 +148,10 @@ router.get('/:userId/rewards_bought', authenticateBackendJWT, getUserRewardsBoug
 router.get('/:id/score', authenticateBackendJWT, getUserScore);
 
 /**
- * @route GET /api/users/:id
- * @description Obtiene la información pública de un usuario específico.
+ * @route GET /api/users/:userId
+ * @description Obtiene TODA la información de un usuario registrado por su ID.
+ * @access Protegido
  */
-router.get('/:id', authenticateBackendJWT, getUserById);
+router.get('/:userId', authenticateBackendJWT, getUserFullProfile);
 
 export default router;
