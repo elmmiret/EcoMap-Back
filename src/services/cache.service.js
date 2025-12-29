@@ -99,11 +99,56 @@ async function triggerBackgroundRefresh({ source, refreshFn }) {
 /**
  * Función interna para centralizar la obtención y filtrado de puntos.
  */
-async function fetchAndProcessPoints(whereClause, filters) {
-  const { lat, lng, radius, name, isOpenNow, openAt } = filters;
+export async function getCachedPoints({ source, apiLocation, onRefresh, filters = {} } = {}) {
+  if (!source || !apiLocation) {
+    throw new Error('[cache] getCachedPoints requires source and apiLocation');
+  }
 
+  // 1) Ensure metadata exists and read it
+  const meta = await ensureMetadata(source);
+  const stale = isStale(meta.last_sync, source);
+
+  // --- SEPARAR FILTROS DE DB vs FILTROS POST-PROCESAMIENTO ---
+  // Extraemos los filtros de horario (memoria), wasteType (relación), name (memoria) y proximidad (bounding box + Haversine)
+  const { isOpenNow, openAt, wasteType, name, lat, lng, radius, ...dbFilters } = filters;
+
+  // --- CONSTRUCCIÓN DINÁMICA DEL WHERE ---
+  // Combina la ubicación, el estado activo y los filtros de DB
+  const whereClause = {
+    api_location: apiLocation,
+    active: true,
+    ...dbFilters,
+  };
+
+  // Si hay filtro por tipo de residuo, agregar filtro de relación container
+  if (wasteType) {
+    whereClause.container = {
+      some: {
+        type: wasteType, // Filtra puntos que tienen al menos un contenedor de este tipo
+      },
+    };
+  }
+
+  // Si hay filtro de proximidad, aplicar bounding box para optimizar query
+  if (lat !== undefined && lng !== undefined && radius !== undefined) {
+    const latDelta = radius / 111.32; // 1 grado lat ≈ 111.32 km
+    const lngDelta = radius / (111.32 * Math.cos((lat * Math.PI) / 180)); // ajustado por latitud
+    whereClause.latitude = {
+      gte: lat - latDelta,
+      lte: lat + latDelta,
+    };
+    whereClause.longitude = {
+      gte: lng - lngDelta,
+      lte: lng + lngDelta,
+    };
+  }
+
+  // 2) Load cached data from DB
+  if (!prisma?.recycling_point) {
+    throw new Error("[cache] Prisma client desactualizado: falta el modelo 'recycling_point'. Ejecuta `npx prisma generate` y reinicia el servidor.");
+  }
   const points = await prisma.recycling_point.findMany({
-    where: whereClause,
+    where: whereClause, // <--- USAMOS LA CLÁUSULA DINÁMICA
     select: {
       recycling_point_id: true,
       api_id: true,
@@ -120,98 +165,109 @@ async function fetchAndProcessPoints(whereClause, filters) {
           is_damaged: true,
         },
       },
+      // raw_payload could be large; omit by default for list views.
     },
     orderBy: { api_id: 'asc' },
   });
 
+  // --- APLICAR FILTRO DE PROXIMIDAD (Haversine exacto) ---
   let filteredPoints = points;
-
-  // Filtro de Proximidad (Haversine)
   if (lat !== undefined && lng !== undefined && radius !== undefined) {
-    const R = 6371; 
+    const R = 6371; // Radio de la Tierra en km
     filteredPoints = filteredPoints
       .map((p) => {
         if (!p.latitude || !p.longitude) return null;
         const dLat = ((p.latitude - lat) * Math.PI) / 180;
         const dLng = ((p.longitude - lng) * Math.PI) / 180;
-        const a =
-          Math.sin(dLat / 2) ** 2 +
-          Math.cos((lat * Math.PI) / 180) * Math.cos((p.latitude * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat * Math.PI) / 180) * Math.cos((p.latitude * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const distance = R * c;
         return distance <= radius ? { ...p, distance_km: Math.round(distance * 100) / 100 } : null;
       })
       .filter((p) => p !== null)
-      .sort((a, b) => a.distance_km - b.distance_km);
+      .sort((a, b) => a.distance_km - b.distance_km); // ordenar por distancia
+    log.debug('Applied proximity filter (Haversine)', {
+      lat,
+      lng,
+      radius,
+      before: points.length,
+      after: filteredPoints.length,
+    });
   }
 
-  // Enriquecer con Horarios
+  // --- ENRIQUECER CON HORARIOS DEL DÍA ---
+  // Determinar qué día usar: openAt si está presente, o día actual
   const targetDate = openAt ? new Date(openAt) : new Date();
   const pointIds = filteredPoints.map((p) => p.recycling_point_id).filter(Boolean);
   const timetablesMap = await getTimetablesForDay(pointIds, targetDate);
 
+  // Añadir campo timetable a cada punto
   filteredPoints = filteredPoints.map((p) => ({
     ...p,
     timetable: timetablesMap.get(p.recycling_point_id) || [],
   }));
+  log.debug('Enriched points with timetable data', {
+    targetDay: targetDate.toDateString(),
+    pointsWithTimetable: Array.from(timetablesMap.keys()).length,
+  });
 
-  // Filtro de Nombre
+  // --- APLICAR FILTRO DE NOMBRE (accent-insensitive) ---
   if (name) {
-    const normSearch = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const normSearch = name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
     filteredPoints = filteredPoints.filter((p) => {
       if (!p.name) return false;
-      const normName = p.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const normName = p.name
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
       return normName.includes(normSearch);
     });
+    log.debug('Applied name (accent-insensitive) filter', { search: name, before: points.length, after: filteredPoints.length });
   }
 
-  // Filtro de Horario
+  // --- APLICAR FILTROS DE HORARIO (POST-PRISMA) ---
+  // Los filtros de schedule se aplican en memoria porque el horario está normalizado en tablas auxiliares
+  // IMPORTANTE: Usar filterByScheduleInMemory porque ya tenemos el campo timetable enriquecido
   if (isOpenNow) {
+    // Filter points that are open right now
     filteredPoints = filterByScheduleInMemory(filteredPoints, new Date());
+    log.debug('Applied isOpenNow filter', { before: points.length, after: filteredPoints.length });
   } else if (openAt) {
-    const targetDateObj = new Date(openAt);
-    if (!isNaN(targetDateObj.getTime())) {
-      filteredPoints = filterByScheduleInMemory(filteredPoints, targetDateObj);
+    // Filter points that are open at a specific datetime
+    const targetDate = new Date(openAt);
+    if (!isNaN(targetDate.getTime())) {
+      filteredPoints = filterByScheduleInMemory(filteredPoints, targetDate);
+      log.debug('Applied openAt filter', { openAt, before: points.length, after: filteredPoints.length });
+    } else {
+      log.warn('Invalid openAt date provided', { openAt });
     }
   }
 
-  return filteredPoints;
-}
-
-// Main SWR entrypoint
-export async function getCachedPoints({ source, apiLocation, onRefresh, filters = {} } = {}) {
-  if (!source || !apiLocation) throw new Error('[cache] getCachedPoints requires source and apiLocation');
-
-  const meta = await ensureMetadata(source);
-  const stale = isStale(meta.last_sync, source);
-
-  const { isOpenNow, openAt, wasteType, name, lat, lng, radius, ...dbFilters } = filters;
-
-  const whereClause = {
-    api_location: apiLocation,
-    active: true,
-    ...dbFilters,
-  };
-
-  if (wasteType) {
-    whereClause.container = { some: { type: wasteType } };
-  }
-
-  if (lat !== undefined && lng !== undefined && radius !== undefined) {
-    const latDelta = radius / 111.32;
-    const lngDelta = radius / (111.32 * Math.cos((lat * Math.PI) / 180));
-    whereClause.latitude = { gte: lat - latDelta, lte: lat + latDelta };
-    whereClause.longitude = { gte: lng - lngDelta, lte: lng + lngDelta };
-  }
-
-  if (!prisma?.recycling_point) throw new Error("[cache] Prisma client desactualizado.");
-
+  // Nota: coldStart ahora depende de si NUNCA se ha sincronizado.
+  // Si hay filtros, points.length puede ser 0 aunque haya datos en cache.
+  // Con !meta.last_sync nos aseguramos de que sea un verdadero cold start.
   const coldStart = !meta.last_sync;
 
+  // 3) Decide whether to trigger a background refresh (SWR)
+  if (stale && typeof onRefresh === 'function' && meta.status !== 'SYNCING') {
+    // Fire-and-forget; don't await
+    triggerBackgroundRefresh({ source, refreshFn: onRefresh }).catch((e) => console.error('[cache] refresh error (unhandled):', e));
+  }
+
+  // 4) Return behavior
   if (coldStart) {
+    // Cold start: si hay función de refresh, realizar un refresh BLOQUEANTE aquí mismo
     if (typeof onRefresh === 'function') {
       try {
-        try { await markStatus(source, 'SYNCING'); } catch {} 
+        // Intentar marcar estado SYNCING (best-effort)
+        try {
+          await markStatus(source, 'SYNCING');
+        } catch {
+          /* ignore concurrent update error */
+        }
 
         const startedAt = Date.now();
         const result = await onRefresh();
@@ -225,31 +281,80 @@ export async function getCachedPoints({ source, apiLocation, onRefresh, filters 
           error_message: null,
         });
 
-        const data = await fetchAndProcessPoints(whereClause, filters);
+        // Releer puntos tras el refresh (USANDO LOS MISMOS FILTROS)
+        const refreshed = await prisma.recycling_point.findMany({
+          where: whereClause, // <--- IMPORTANTE: MANTENER FILTROS
+          select: {
+            recycling_point_id: true,
+            api_id: true,
+            name: true,
+            latitude: true,
+            longitude: true,
+            equipment_type: true,
+            last_updated: true,
+            container: {
+              select: {
+                container_id: true,
+                type: true,
+                is_full: true,
+                is_damaged: true,
+              },
+            },
+          },
+          orderBy: { api_id: 'asc' },
+        });
+
+        // Enriquecer con horarios del día
+        const targetDateRefresh = openAt ? new Date(openAt) : new Date();
+        const refreshedIds = refreshed.map((p) => p.recycling_point_id).filter(Boolean);
+        const timetablesMapRefresh = await getTimetablesForDay(refreshedIds, targetDateRefresh);
+        let filteredRefreshed = refreshed.map((p) => ({
+          ...p,
+          timetable: timetablesMapRefresh.get(p.recycling_point_id) || [],
+        }));
+
+        // Aplicar filtros de horario también después del refresh
+        // IMPORTANTE: Usar filterByScheduleInMemory porque ya enriquecimos con timetable
+        if (isOpenNow) {
+          filteredRefreshed = filterByScheduleInMemory(filteredRefreshed, new Date());
+        } else if (openAt) {
+          const targetDate = new Date(openAt);
+          if (!isNaN(targetDate.getTime())) {
+            filteredRefreshed = filterByScheduleInMemory(filteredRefreshed, targetDate);
+          }
+        }
 
         return {
-          data,
+          data: filteredRefreshed,
           metadata: { ...(await ensureMetadata(source)), is_stale: false },
           isStale: false,
           coldStart: false,
           refreshDurationMs: Date.now() - startedAt,
         };
       } catch (err) {
+        // Si el refresh falla, devolver vacío e indicar coldStart (el controlador puede decidir qué hacer)
         console.error('[cache] blocking refresh failed on cold start:', err?.message || err);
-        return { data: [], metadata: { ...meta, is_stale: true }, isStale: true, coldStart: true };
+        return {
+          data: [],
+          metadata: { ...meta, is_stale: true },
+          isStale: true,
+          coldStart: true,
+        };
       }
     }
-    return { data: [], metadata: { ...meta, is_stale: true }, isStale: true, coldStart: true };
+
+    // No hay función de refresh: devolver vacío indicando coldStart
+    return {
+      data: [],
+      metadata: { ...meta, is_stale: true },
+      isStale: true,
+      coldStart: true,
+    };
   }
 
-  const data = await fetchAndProcessPoints(whereClause, filters);
-
-  if (stale && typeof onRefresh === 'function' && meta.status !== 'SYNCING') {
-    triggerBackgroundRefresh({ source, refreshFn: onRefresh }).catch((e) => console.error('[cache] refresh error:', e));
-  }
-
+  // Serve cached data immediately (even if stale), SWR will refresh in background
   return {
-    data,
+    data: filteredPoints,
     metadata: { ...meta, is_stale: stale },
     isStale: stale,
     coldStart: false,
@@ -268,11 +373,6 @@ export function minutesSince(date) {
   if (!date) return null;
   return Math.floor((Date.now() - new Date(date).getTime()) / 60000);
 }
-
-// --------------------------------------------------------------------------
-// GENERIC MEMORY CACHE (Para endpoints como getAllTrades)
-// Implementación simple en memoria (Map) para evitar consultas repetitivas.
-// --------------------------------------------------------------------------
 
 const memoryCache = new Map();
 

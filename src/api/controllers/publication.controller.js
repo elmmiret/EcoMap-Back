@@ -625,9 +625,8 @@ export const getAllTrades = async (req, res) => {
               publication_id: true,
               title: true,
               description: true,
-              // Optimización: Traer solo la PRIMERA imagen (Lazy loading de galería)
+              // Optimización: Solo la imagen asociada (relación uno-a-uno)
               publication_media: {
-                take: 1,
                 select: { media_url: true },
               },
               client: {
@@ -655,7 +654,7 @@ export const getAllTrades = async (req, res) => {
       price: trade.points_price,
       state: trade.item_state,
       // Solo devolvemos la URL de la portada
-      image: trade.publication.publication_media[0]?.media_url || null,
+      image: trade.publication.publication_media?.media_url || null,
       author: trade.publication.client?.registered_user?.username || 'Anónimo',
       date: trade.created_at,
     }));
