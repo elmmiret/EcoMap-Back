@@ -378,7 +378,7 @@ const memoryCache = new Map();
 
 /**
  * Obtiene un valor de la caché en memoria.
- * @param {string} key 
+ * @param {string} key
  * @returns {Promise<any | null>}
  */
 export async function getCache(key) {
@@ -396,14 +396,14 @@ export async function getCache(key) {
 
 /**
  * Guarda un valor en la caché en memoria.
- * @param {string} key 
- * @param {any} value 
+ * @param {string} key
+ * @param {any} value
  * @param {number} ttlSeconds Tiempo de vida en segundos
  */
 export async function setCache(key, value, ttlSeconds = 300) {
-  const expiry = Date.now() + (ttlSeconds * 1000);
+  const expiry = Date.now() + ttlSeconds * 1000;
   memoryCache.set(key, { value, expiry });
-  
+
   // Limpieza básica preventiva (opcional): si crece mucho, vaciar
   if (memoryCache.size > 1000) {
     memoryCache.clear();
