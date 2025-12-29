@@ -1419,7 +1419,7 @@ export const blockUser = async (req, res) => {
   try {
     // verificar si el usuario a bloquear existe
     const targetUser = await prisma.registered_user.findUnique({
-      where: { user_id: userId }
+      where: { user_id: userId },
     });
 
     if (!targetUser) {
@@ -1427,11 +1427,11 @@ export const blockUser = async (req, res) => {
     }
 
     // actualizar el usuario actual añadiendo el ID al array (si no está ya)
-    
+
     // primero obtenemos el usuario actual para no duplicar IDs
     const currentUser = await prisma.registered_user.findUnique({
       where: { user_id: uid },
-      select: { blocked_users: true }
+      select: { blocked_users: true },
     });
 
     if (currentUser.blocked_users.includes(userId)) {
@@ -1442,15 +1442,14 @@ export const blockUser = async (req, res) => {
       where: { user_id: uid },
       data: {
         blocked_users: {
-          push: userId // añadir el ID al array
-        }
-      }
+          push: userId, // añadir el ID al array
+        },
+      },
     });
 
     return res.status(200).json({ success: true, message: 'Usuario bloqueado correctamente.' });
-
   } catch (error) {
     console.error('Error al bloquear usuario:', error);
     return res.status(500).json({ success: false, message: 'Error interno.' });
-  } 
+  }
 };

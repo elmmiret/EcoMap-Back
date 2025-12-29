@@ -631,8 +631,8 @@ export const getAllTrades = async (req, res) => {
     // 3. Consulta optimizada a la base de datos
     const [total, trades] = await Promise.all([
       // El conteo también debe respetar el filtro de bloqueados
-      prisma.trade.count({ where: whereClause }), 
-      
+      prisma.trade.count({ where: whereClause }),
+
       prisma.trade.findMany({
         where: whereClause, // Aplicamos el filtro de bloqueo aquí
         skip,
@@ -692,7 +692,7 @@ export const getAllTrades = async (req, res) => {
         totalPages: Math.ceil(total / limit),
       },
     };
-    
+
     // 5. Guardar en caché SOLO si es la primera página Y es una lista "limpia" (sin filtros personales)
     if (page === 1 && useGlobalCache) {
       await setCache(cacheKey, response, 300);
