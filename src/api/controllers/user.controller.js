@@ -1447,3 +1447,345 @@ export const blockUser = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Error interno.' });
   }
 };
+
+/**
+ * Reporta a un usuario.
+ * Endpoint: POST /api/users/report/:userId
+ */
+export const reportUser = async (req, res) => {
+  const { uid: reporterId } = req.user;
+  const { userId: reportedUserId } = req.params;
+  const { reason, description } = req.body;
+
+  // validar que no se reporte a sí mismo
+  if (reporterId === reportedUserId) {
+    return res.status(400).json({ success: false, message: 'No puedes reportarte a ti mismo.' });
+  }
+
+  // validar motivo
+  const validReasons = ['inappropriate_content', 'harassment', 'fake_profile', 'spam', 'other'];
+  if (!reason || !validReasons.includes(reason)) {
+    return res.status(400).json({ success: false, message: 'Motivo de reporte inválido o faltante.' });
+  }
+
+  // si es "other", la descripción es obligatoria
+  if (reason === 'other') {
+    if (!description || description.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Si seleccionas "Otro", debes proporcionar una descripción.',
+        code: 'MISSING_DESCRIPTION_FOR_OTHER',
+      });
+    }
+  }
+
+  try {
+    // verificar existencia del usuario reportado
+    const targetUser = await prisma.registered_user.findUnique({
+      where: { user_id: reportedUserId },
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: 'El usuario a reportar no existe.' });
+    }
+
+    // crear el reporte
+    const newReport = await prisma.user_report.create({
+      data: {
+        reporter_id: reporterId,
+        reported_user_id: reportedUserId,
+        reason: reason,
+        description: description || null,
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Usuario reportado correctamente. Los administradores revisarán el caso.',
+      data: newReport,
+    });
+  } catch (error) {
+    console.error('Error al reportar usuario:', error);
+    return res.status(500).json({ success: false, message: 'Error interno al procesar el reporte.' });
+  }
+};
+
+/**
+ * Obtiene todos los reportes, solo para admins
+ * Endpoint: GET /api/users/admin/reports
+ */
+export const getAllUserReports = async (req, res) => {
+  const { uid } = req.user;
+
+  try {
+    // verificar si el solicitante es admin
+    const isAdmin = await prisma.admin.findUnique({ where: { user_id: uid } });
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: 'Acceso denegado. Solo administradores.' });
+    }
+
+    // obtener reportes con información detallada
+    const reports = await prisma.user_report.findMany({
+      include: {
+        reporter: {
+          select: { username: true, email: true },
+        },
+        reported_user: {
+          select: {
+            user_id: true,
+            username: true,
+            email: true,
+            profile_picture: true,
+            blocked_users: true,
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: reports.length,
+      data: reports,
+    });
+  } catch (error) {
+    console.error('Error obteniendo reportes:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
+
+/**
+ * Actualiza el estado de un reporte.
+ * Solo para administradores.
+ * El nuevo estado debe ser diferente al actual.
+ * Endpoint: PATCH /api/users/admin/reports/:reportId
+ */
+export const updateReportStatus = async (req, res) => {
+  const { uid } = req.user;
+  const { reportId } = req.params;
+  const { status } = req.body;
+
+  // validar que el estado sea válido según el Enum de Prisma
+  const validStatuses = ['Pending', 'Resolved', 'Dismissed'];
+
+  if (!status || !validStatuses.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: `Estado inválido. Valores permitidos: ${validStatuses.join(', ')}.`,
+      code: 'INVALID_STATUS',
+    });
+  }
+
+  try {
+    // verificar permisos de admin
+    const isAdmin = await prisma.admin.findUnique({ where: { user_id: uid } });
+    if (!isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Acceso denegado. Solo administradores pueden gestionar reportes.',
+        code: 'FORBIDDEN_ADMIN_ONLY',
+      });
+    }
+
+    // buscar el reporte existente
+    const currentReport = await prisma.user_report.findUnique({
+      where: { report_id: reportId },
+    });
+
+    if (!currentReport) {
+      return res.status(404).json({
+        success: false,
+        message: 'Reporte no encontrado.',
+        code: 'REPORT_NOT_FOUND',
+      });
+    }
+
+    // validar que el estado sea diferente
+    if (currentReport.status === status) {
+      return res.status(409).json({
+        success: false,
+        message: 'El nuevo estado debe ser diferente al actual.',
+        code: 'SAME_STATUS_ERROR',
+      });
+    }
+
+    // actualizar el reporte
+    const updatedReport = await prisma.user_report.update({
+      where: { report_id: reportId },
+      data: { status: status },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Estado del reporte actualizado a ${status}.`,
+      data: updatedReport,
+    });
+  } catch (error) {
+    console.error('Error actualizando estado del reporte:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
+
+/**
+ * Elimina un reporte específico.
+ * Solo para administradores.
+ * Endpoint: DELETE /api/users/admin/reports/:reportId
+ */
+export const deleteReport = async (req, res) => {
+  const { uid } = req.user;
+  const { reportId } = req.params;
+
+  try {
+    // verificar permisos de ADMIN
+    const isAdmin = await prisma.admin.findUnique({ where: { user_id: uid } });
+    if (!isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Acceso denegado. Solo administradores pueden eliminar reportes.',
+        code: 'FORBIDDEN_ADMIN_ONLY',
+      });
+    }
+
+    // verificar existencia del reporte
+    const report = await prisma.user_report.findUnique({
+      where: { report_id: reportId },
+    });
+
+    if (!report) {
+      return res.status(404).json({
+        success: false,
+        message: 'Reporte no encontrado.',
+        code: 'REPORT_NOT_FOUND',
+      });
+    }
+
+    // eliminar reporte
+    await prisma.user_report.delete({
+      where: { report_id: reportId },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Reporte eliminado correctamente.',
+    });
+  } catch (error) {
+    console.error('Error eliminando reporte:', error);
+    return res.status(500).json({ success: false, message: 'Error interno al eliminar el reporte.' });
+  }
+};
+
+/**
+ * Obtiene reportes filtrados por su estado.
+ * Estados válidos: Pending, Resolved, Dismissed.
+ * Endpoint: GET /api/users/admin/reports/status/:status
+ */
+export const getReportsByStatus = async (req, res) => {
+  const { uid } = req.user;
+  const { status } = req.params;
+
+  try {
+    // verificar si es admin
+    const isAdmin = await prisma.admin.findUnique({ where: { user_id: uid } });
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: 'Acceso denegado. Solo administradores.' });
+    }
+
+    // normalizar el estado (Primera mayúscula, resto minúscula)
+    const formattedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+
+    // validar que sea un estado permitido en el Enum
+    const validStatuses = ['Pending', 'Resolved', 'Dismissed'];
+    if (!validStatuses.includes(formattedStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: `Estado inválido. Usa: ${validStatuses.join(', ')}`,
+        code: 'INVALID_STATUS_PARAM',
+      });
+    }
+
+    // buscar reportes
+    const reports = await prisma.user_report.findMany({
+      where: { status: formattedStatus },
+      include: {
+        reporter: {
+          select: { username: true, email: true },
+        },
+        reported_user: {
+          select: {
+            user_id: true,
+            username: true,
+            email: true,
+            profile_picture: true,
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return res.status(200).json({
+      success: true,
+      status: formattedStatus,
+      count: reports.length,
+      data: reports,
+    });
+  } catch (error) {
+    console.error('Error obteniendo reportes por estado:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
+
+/**
+ * Obtiene el detalle completo de un reporte por su ID.
+ * Endpoint: GET /api/users/admin/reports/detail/:reportId
+ */
+export const getReportById = async (req, res) => {
+  const { uid } = req.user;
+  const { reportId } = req.params;
+
+  try {
+    // verificar ADMIN
+    const isAdmin = await prisma.admin.findUnique({ where: { user_id: uid } });
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: 'Acceso denegado.' });
+    }
+
+    // buscar Reporte con todos los detalles
+    const report = await prisma.user_report.findUnique({
+      where: { report_id: reportId },
+      include: {
+        reporter: {
+          select: {
+            user_id: true,
+            username: true,
+            name: true,
+            email: true,
+            profile_picture: true,
+          },
+        },
+        reported_user: {
+          select: {
+            user_id: true,
+            username: true,
+            name: true,
+            email: true,
+            profile_picture: true,
+            blocked_users: true,
+          },
+        },
+      },
+    });
+
+    if (!report) {
+      return res.status(404).json({ success: false, message: 'Reporte no encontrado.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Detalle del reporte obtenido.',
+      data: report,
+    });
+  } catch (error) {
+    console.error('Error obteniendo detalle del reporte:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};

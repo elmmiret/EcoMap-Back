@@ -26,6 +26,12 @@ import {
   getUserRewardsBoughtById,
   getUserPoints,
   blockUser,
+  reportUser,
+  getAllUserReports,
+  updateReportStatus,
+  deleteReport,
+  getReportsByStatus,
+  getReportById,
 } from '#controllers/user.controller.js';
 
 /**
@@ -48,6 +54,45 @@ router.get('/me', authenticateBackendJWT, getUserProfile);
  * @access Protegido
  */
 router.post('/block/:userId', authenticateBackendJWT, blockUser);
+
+/**
+ * @route GET /api/users/admin/reports
+ * @description Obtiene todos los reportes de usuarios (Solo Admin).
+ */
+router.get('/admin/reports', authenticateBackendJWT, getAllUserReports);
+
+/**
+ * @route PATCH /api/users/admin/reports/:reportId
+ * @description Actualiza el estado de un reporte específico (Solo Admin).
+ */
+router.patch('/admin/reports/:reportId', authenticateBackendJWT, updateReportStatus);
+
+/**
+ * @route DELETE /api/users/admin/reports/:reportId
+ * @description Elimina un reporte de usuario (Solo Admin).
+ */
+router.delete('/admin/reports/:reportId', authenticateBackendJWT, deleteReport);
+
+/**
+ * @route GET /api/users/admin/reports/status/:status
+ * @description Obtiene reportes filtrados por estado (Pending, Resolved, Dismissed).
+ * @access Protegido (Solo Admin)
+ * @example GET /api/users/admin/reports/status/pending
+ */
+router.get('/admin/reports/status/:status', authenticateBackendJWT, getReportsByStatus);
+
+/**
+ * @route GET /api/users/admin/reports/detail/:reportId
+ * @description Obtiene el detalle de un reporte específico.
+ * @access Protegido (Solo Admin)
+ */
+router.get('/admin/reports/detail/:reportId', authenticateBackendJWT, getReportById);
+
+/**
+ * @route POST /api/users/report/:userId
+ * @description Crea un reporte contra un usuario.
+ */
+router.post('/report/:userId', authenticateBackendJWT, reportUser);
 
 /**
  * @route GET /api/users/me/rewards_bought
