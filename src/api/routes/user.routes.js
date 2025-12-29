@@ -26,6 +26,8 @@ import {
   getUserRewardsBoughtById,
   getUserPoints,
   blockUser,
+  reportUser,
+  getAllUserReports,
 } from '#controllers/user.controller.js';
 
 /**
@@ -48,6 +50,18 @@ router.get('/me', authenticateBackendJWT, getUserProfile);
  * @access Protegido
  */
 router.post('/block/:userId', authenticateBackendJWT, blockUser);
+
+/**
+ * @route GET /api/users/admin/reports
+ * @description Obtiene todos los reportes de usuarios (Solo Admin).
+ */
+router.get('/admin/reports', authenticateBackendJWT, getAllUserReports);
+
+/**
+ * @route POST /api/users/report/:userId
+ * @description Crea un reporte contra un usuario.
+ */
+router.post('/report/:userId', authenticateBackendJWT, reportUser);
 
 /**
  * @route GET /api/users/me/rewards_bought
