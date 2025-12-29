@@ -14,8 +14,10 @@ export const chatMessageLimiter = rateLimit({
   },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  // Use user ID for authenticated requests, skip for better security
+  skip: (req) => !req.user, // Only apply to authenticated users
   keyGenerator: (req) => {
-    // Use user ID for rate limiting if available, otherwise IP
-    return req.user ? req.user.uid : req.ip;
+    // Always use user ID for authenticated requests (middleware ensures req.user exists)
+    return req.user.uid;
   },
 });

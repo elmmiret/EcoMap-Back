@@ -1,5 +1,5 @@
 import { prisma } from '#lib/prisma.js';
-import { processPoints, MAX_USER_POINTS } from '#services/gamification.service.js';
+import { MAX_USER_POINTS } from '#services/gamification.service.js';
 
 /**
  * Crea una reserva para un 'trade'.

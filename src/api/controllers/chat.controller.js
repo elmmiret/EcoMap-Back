@@ -1,12 +1,6 @@
-import {
-  createOrGetChat,
-  getUserChats,
-  sendMessage,
-  markMessagesAsRead,
-  getChatMessages,
-  deleteMessage,
-  formatChat,
-} from '#services/chat.service.js';
+import { createOrGetChat, sendMessage, markMessagesAsRead, getChatMessages, deleteMessage, formatChat } from '#services/chat.service.js';
+import { getMessageById } from '#services/message.service.js';
+import { getQueueStats } from '#services/message-queue.service.js';
 import { prisma } from '#lib/prisma.js';
 import { createLogger } from '#lib/logger.js';
 
@@ -249,6 +243,52 @@ export const removeMessage = async (req, res) => {
     if (error.message === 'DELETE_TIME_EXPIRED') {
       return res.status(400).json({ success: false, error: 'DELETE_TIME_EXPIRED' });
     }
+    return res.status(500).json({ success: false, error: 'INTERNAL_ERROR' });
+  }
+};
+
+export const getMessageStatus = async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    const { messageId } = req.params;
+
+    const message = await getMessageById(messageId);
+
+    if (!message) {
+      return res.status(404).json({ success: false, error: 'MESSAGE_NOT_FOUND' });
+    }
+
+    // Verify user has access to this message
+    const chat = await prisma.chat.findUnique({
+      where: { chat_id: message.chat_id },
+    });
+
+    if (!chat || (chat.user1_id !== userId && chat.user2_id !== userId)) {
+      return res.status(403).json({ success: false, error: 'FORBIDDEN' });
+    }
+
+    const status = {
+      message_id: message.message_id,
+      status: message.status,
+      retry_count: message.retry_count,
+      last_error: message.last_error,
+      created_at: message.created_at,
+      updated_at: message.updated_at,
+    };
+
+    return res.json({ success: true, status });
+  } catch (error) {
+    log.error('Error getting message status:', error);
+    return res.status(500).json({ success: false, error: 'INTERNAL_ERROR' });
+  }
+};
+
+export const getQueueStatistics = async (req, res) => {
+  try {
+    const stats = getQueueStats();
+    return res.json({ success: true, stats });
+  } catch (error) {
+    log.error('Error getting queue stats:', error);
     return res.status(500).json({ success: false, error: 'INTERNAL_ERROR' });
   }
 };

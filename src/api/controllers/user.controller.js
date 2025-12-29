@@ -4,7 +4,6 @@ import { prisma } from '#lib/prisma.js';
 import { signUserJWT } from '#lib/jwt.js';
 import { getAuth } from '#services/auth.service.js';
 import { uploadToS3, deleteFromS3 } from '#services/storage.service.js';
-import { describe } from 'vitest';
 
 // Debug helper to keep logs consistent
 const dbg = (...args) => console.log('[syncUserToPostgres]', ...args);
@@ -537,6 +536,7 @@ export const getUserFullProfile = async (req, res) => {
 
     // limpiar el objeto de respuesta
     // eliminamos las propiedades anidadas redundantes para enviar un objeto plano
+    // eslint-disable-next-line no-unused-vars
     const { client, admin, institution, partner, ...baseUserData } = user;
 
     const fullProfile = {

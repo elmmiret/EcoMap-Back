@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "message" ALTER COLUMN "status" SET DEFAULT 'PENDING',
+ALTER COLUMN "updated_at" DROP DEFAULT;

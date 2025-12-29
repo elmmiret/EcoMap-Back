@@ -2,9 +2,13 @@ import { prisma } from '#lib/prisma.js';
 import { createLogger } from '#lib/logger.js';
 import { getIO, isUserConnected } from './socket.service.js';
 import { sendPushNotification } from './notification.service.js';
+import { enqueueMessage } from './message-queue.service.js';
 import * as messageService from './message.service.js';
 
 const log = createLogger('chat-service');
+
+// Timeout for message sending
+const MESSAGE_SEND_TIMEOUT_MS = 30000; // 30 seconds
 
 // ============================================
 // HELPER FUNCTIONS
@@ -73,12 +77,14 @@ function formatMessage(message) {
   return {
     message_id: message.message_id,
     chat_id: message.chat_id,
+    sender_id: message.sender_id,
     content: message.is_deleted ? 'Mensaje eliminado' : message.content,
     media: message.is_deleted ? [] : message.message_media?.map((m) => m.media_url) || [],
-    is_read: message.is_read,
-    delivered: message.delivered,
+    status: message.status || 'SENT',
     created_at: message.created_at,
     is_deleted: message.is_deleted,
+    retry_count: message.retry_count || 0,
+    last_error: message.last_error,
   };
 }
 
@@ -137,7 +143,7 @@ export async function createOrGetChat(user1Id, user2Id) {
           messages: {
             where: {
               sender_id: { not: user1Id },
-              is_read: false,
+              status: { notIn: ['READ'] },
             },
           },
         },
@@ -175,7 +181,7 @@ export async function getUserChats(userId) {
           messages: {
             where: {
               sender_id: { not: userId },
-              is_read: false,
+              status: { notIn: ['READ'] },
             },
           },
         },
@@ -188,7 +194,7 @@ export async function getUserChats(userId) {
 }
 
 /**
- * Sends a message in a chat
+ * Sends a message in a chat with timeout and retry support
  * @param {string} chatId
  * @param {string} senderId
  * @param {string} content
@@ -198,8 +204,8 @@ export async function getUserChats(userId) {
 export async function sendMessage(chatId, senderId, content, mediaUrls = []) {
   const chat = await verifyChatAccess(chatId, senderId);
 
-  // Create message via message service
-  const message = await messageService.createMessage(chatId, senderId, content, mediaUrls);
+  // Create message with PENDING status
+  const message = await messageService.createMessage(chatId, senderId, content, mediaUrls, 'PENDING');
 
   // Update chat timestamp
   await prisma.chat.update({
@@ -208,20 +214,84 @@ export async function sendMessage(chatId, senderId, content, mediaUrls = []) {
   });
 
   const formattedMessage = formatMessage(message);
+  const recipientId = getRecipientId(chat, senderId);
 
-  // Socket & Push notification orchestration
+  // Attempt to send with timeout
+  const sendPromise = attemptSendMessage(message, chat, senderId, recipientId, content);
+
+  // Use Promise.race to implement timeout
+  const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('MESSAGE_SEND_TIMEOUT')), MESSAGE_SEND_TIMEOUT_MS));
+
+  try {
+    await Promise.race([sendPromise, timeoutPromise]);
+
+    // Update status to SENT on success
+    await messageService.updateMessageStatus(message.message_id, 'SENT');
+    formattedMessage.status = 'SENT';
+
+    // Notify sender of success
+    const io = getIO();
+    io.to(senderId).emit('message_status_updated', {
+      message_id: message.message_id,
+      status: 'SENT',
+    });
+  } catch (error) {
+    log.error('Error sending message:', error);
+
+    // Update status to FAILED and add to retry queue
+    await messageService.updateMessageStatus(message.message_id, 'FAILED', error.message);
+
+    // Add to retry queue
+    enqueueMessage(message.message_id, {
+      chatId,
+      senderId,
+      content,
+      mediaUrls,
+      retryCount: 0,
+    });
+
+    formattedMessage.status = 'FAILED';
+    formattedMessage.last_error = error.message;
+
+    // Notify sender of failure
+    try {
+      const io = getIO();
+      io.to(senderId).emit('message_status_updated', {
+        message_id: message.message_id,
+        status: 'FAILED',
+        error: error.message,
+      });
+    } catch (socketError) {
+      log.error('Error notifying sender:', socketError);
+    }
+  }
+
+  return formattedMessage;
+}
+
+/**
+ * Attempts to send a message via socket and push notification
+ * @param {object} message
+ * @param {object} chat
+ * @param {string} senderId
+ * @param {string} recipientId
+ * @param {string} content
+ * @returns {Promise<void>}
+ */
+async function attemptSendMessage(message, chat, senderId, recipientId, content) {
   try {
     const io = getIO();
-    const recipientId = getRecipientId(chat, senderId);
+    const formattedMessage = formatMessage(message);
 
-    // Emit to both sender and recipient
+    // Emit to recipient
     io.to(recipientId).emit('new_message', {
-      chat_id: chatId,
+      chat_id: message.chat_id,
       message: formattedMessage,
     });
 
+    // Emit to sender
     io.to(senderId).emit('new_message', {
-      chat_id: chatId,
+      chat_id: message.chat_id,
       message: formattedMessage,
     });
 
@@ -234,15 +304,14 @@ export async function sendMessage(chatId, senderId, content, mediaUrls = []) {
 
       await sendPushNotification(recipientId, `Nuevo mensaje de ${sender?.name || 'Alguien'}`, content.substring(0, 100), {
         type: 'NEW_MESSAGE',
-        chat_id: chatId,
+        chat_id: message.chat_id,
         message_id: message.message_id,
       });
     }
   } catch (error) {
     log.error('Socket/Push error:', error);
+    throw error;
   }
-
-  return formattedMessage;
 }
 
 /**
@@ -290,7 +359,7 @@ export async function getChatMessages(chatId, userId, limit = 50, before = null)
   const messages = await messageService.getMessagesByChatId(chatId, limit, before);
 
   // Mark undelivered messages as delivered (async, non-blocking)
-  const undeliveredMessageIds = messages.filter((m) => m.sender_id !== userId && !m.delivered).map((m) => m.message_id);
+  const undeliveredMessageIds = messages.filter((m) => m.sender_id !== userId && m.status === 'SENT').map((m) => m.message_id);
 
   if (undeliveredMessageIds.length > 0) {
     messageService.markMessagesAsDelivered(undeliveredMessageIds).catch((err) => log.error('Error marking messages as delivered:', err));
