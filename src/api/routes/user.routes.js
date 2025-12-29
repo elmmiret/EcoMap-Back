@@ -27,6 +27,7 @@ import {
   getMyRewardsBought,
   getUserRewardsBoughtById,
   getUserPoints,
+  blockUser,
 } from '#controllers/user.controller.js';
 
 /**
@@ -42,6 +43,13 @@ router.post('/sync', authenticateUser, uploadImageMiddleware, requireRoleSecret,
  * @access Protegido (requiere autenticación con JWT del backend)
  */
 router.get('/me', authenticateBackendJWT, getUserProfile);
+
+/**
+ * @route POST /api/users/block/:userId
+ * @description Bloquea a un usuario específico añadiéndolo a la lista de bloqueados.
+ * @access Protegido
+ */
+router.post('/block/:userId', authenticateBackendJWT, blockUser);
 
 /**
  * @route GET /api/users/me/rewards_bought

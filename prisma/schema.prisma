@@ -74,6 +74,7 @@ model registered_user {
   device_tokens device_token[]
   user          user              @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
   sessions      session[]
+  blocked_users String[]    @default([])
 }
 
 model user {
