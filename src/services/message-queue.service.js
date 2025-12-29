@@ -8,7 +8,7 @@ const log = createLogger('message-queue-service');
 // Configuration
 const MAX_RETRY_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 2000; // 2 seconds
-const MESSAGE_TIMEOUT_MS = 30000; // 30 seconds
+// const MESSAGE_TIMEOUT_MS = 30000; // 30 seconds (not used here, defined in chat.service.js)
 const QUEUE_CHECK_INTERVAL_MS = 5000; // Check queue every 5 seconds
 
 // In-memory queue for pending messages
@@ -123,7 +123,7 @@ async function processQueue() {
  * @param {object} data
  */
 async function retryMessage(messageId, data) {
-  const { chatId, senderId, content, mediaUrls, retryCount = 0 } = data;
+  const { chatId, senderId, content, retryCount = 0 } = data;
 
   try {
     // Check if message still exists and is in PENDING or FAILED state
@@ -190,16 +190,11 @@ async function retryMessage(messageId, data) {
         select: { name: true },
       });
 
-      await sendPushNotification(
-        recipientId,
-        `Nuevo mensaje de ${sender?.name || 'Alguien'}`,
-        content.substring(0, 100),
-        {
-          type: 'NEW_MESSAGE',
-          chat_id: chatId,
-          message_id: messageId,
-        }
-      );
+      await sendPushNotification(recipientId, `Nuevo mensaje de ${sender?.name || 'Alguien'}`, content.substring(0, 100), {
+        type: 'NEW_MESSAGE',
+        chat_id: chatId,
+        message_id: messageId,
+      });
 
       // Mark as SENT (push notification sent)
       await prisma.message.update({

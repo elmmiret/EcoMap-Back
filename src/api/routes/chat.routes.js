@@ -1,14 +1,14 @@
 import express from 'express';
 import { authenticateBackendJWT, requireClient } from '#middlewares/auth.middleware.js';
-import { 
-  startChat, 
-  listChats, 
-  postMessage, 
-  markRead, 
-  getMessages, 
-  removeMessage, 
+import {
+  startChat,
+  listChats,
+  postMessage,
+  markRead,
+  getMessages,
+  removeMessage,
   getMessageStatus,
-  getQueueStatistics 
+  getQueueStatistics,
 } from '#controllers/chat.controller.js';
 
 import { chatMessageLimiter } from '#middlewares/rate-limit.middleware.js';

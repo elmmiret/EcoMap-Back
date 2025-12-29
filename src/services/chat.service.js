@@ -218,19 +218,17 @@ export async function sendMessage(chatId, senderId, content, mediaUrls = []) {
 
   // Attempt to send with timeout
   const sendPromise = attemptSendMessage(message, chat, senderId, recipientId, content);
-  
+
   // Use Promise.race to implement timeout
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('MESSAGE_SEND_TIMEOUT')), MESSAGE_SEND_TIMEOUT_MS)
-  );
+  const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('MESSAGE_SEND_TIMEOUT')), MESSAGE_SEND_TIMEOUT_MS));
 
   try {
     await Promise.race([sendPromise, timeoutPromise]);
-    
+
     // Update status to SENT on success
     await messageService.updateMessageStatus(message.message_id, 'SENT');
     formattedMessage.status = 'SENT';
-    
+
     // Notify sender of success
     const io = getIO();
     io.to(senderId).emit('message_status_updated', {
@@ -239,10 +237,10 @@ export async function sendMessage(chatId, senderId, content, mediaUrls = []) {
     });
   } catch (error) {
     log.error('Error sending message:', error);
-    
+
     // Update status to FAILED and add to retry queue
     await messageService.updateMessageStatus(message.message_id, 'FAILED', error.message);
-    
+
     // Add to retry queue
     enqueueMessage(message.message_id, {
       chatId,
@@ -251,10 +249,10 @@ export async function sendMessage(chatId, senderId, content, mediaUrls = []) {
       mediaUrls,
       retryCount: 0,
     });
-    
+
     formattedMessage.status = 'FAILED';
     formattedMessage.last_error = error.message;
-    
+
     // Notify sender of failure
     try {
       const io = getIO();

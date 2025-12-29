@@ -1,12 +1,4 @@
-import {
-  createOrGetChat,
-  getUserChats,
-  sendMessage,
-  markMessagesAsRead,
-  getChatMessages,
-  deleteMessage,
-  formatChat,
-} from '#services/chat.service.js';
+import { createOrGetChat, sendMessage, markMessagesAsRead, getChatMessages, deleteMessage, formatChat } from '#services/chat.service.js';
 import { getMessageById } from '#services/message.service.js';
 import { getQueueStats } from '#services/message-queue.service.js';
 import { prisma } from '#lib/prisma.js';

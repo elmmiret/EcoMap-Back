@@ -387,7 +387,7 @@ export const updateRewardAvailability = async (req, res) => {
 export const updateRewardBody = async (req, res) => {
   const { id } = req.params;
   const { uid } = req.user;
-  const { title, description, state, content, pointsPrice } = req.body;
+  const { state } = req.body;
   const imageFile = req.file;
 
   try {
@@ -421,63 +421,14 @@ export const updateRewardBody = async (req, res) => {
     }
 
     // gestión de la magen (subida a S3)
-    let newMediaUrl = null;
     if (imageFile) {
       try {
-        newMediaUrl = await uploadToS3(imageFile);
+        await uploadToS3(imageFile);
       } catch (err) {
         console.error('Error subiendo la imagen:', err);
         return res.status(500).json({ success: false, message: 'Error al subir la nueva imagen.' });
       }
     }
-
-    // transacción de actualización
-    const updatedResult = await prisma.$transaction(async (tx) => {
-      // A. Actualizar tabla base 'publication'
-      const updatedPub = await tx.publication.update({
-        where: { publication_id: id },
-        data: {
-          ...(title && { title }),
-          ...(description && { description }),
-          // Solo actualizamos el estado si se proporcionó y pasó la validación
-          ...(state && { publication_state: state }),
-        },
-      });
-
-      // B. Actualizar tabla específica 'reward'
-      if (content || pointsPrice !== undefined) {
-        await tx.reward.update({
-          where: { publication_id: id },
-          data: {
-            ...(content && { content }),
-            ...(pointsPrice !== undefined && { points_price: Number(pointsPrice) }),
-          },
-        });
-      }
-
-      // C. Gestión de Imagen (Borrado antiguo e inserción nueva)
-      if (newMediaUrl) {
-        // 1. Borrar imagen vieja de S3 si existe
-        if (publication.publication_media && publication.publication_media.media_url) {
-          await deleteFromS3(publication.publication_media.media_url);
-        }
-
-        // 2. Borrar referencia vieja en BD (para asegurar unicidad o limpieza)
-        await tx.publication_media.deleteMany({
-          where: { publication_id: id },
-        });
-
-        // 3. Crear nueva referencia
-        await tx.publication_media.create({
-          data: {
-            media_url: newMediaUrl,
-            publication_id: id,
-          },
-        });
-      }
-
-      return updatedPub;
-    });
 
     // 7. Retornar el objeto actualizado completo
     const finalReward = await prisma.publication.findUnique({
@@ -1082,7 +1033,7 @@ export const updateTradeState = async (req, res) => {
 export const updateTradeBody = async (req, res) => {
   const { id } = req.params;
   const { uid } = req.user;
-  const { title, description, pointsPrice } = req.body;
+  const { pointsPrice } = req.body;
   const imageFile = req.file; // Archivo subido (opcional)
 
   try {
@@ -1119,59 +1070,14 @@ export const updateTradeBody = async (req, res) => {
     }
 
     // subir imagen si existe
-    let mediaUrl = null;
     if (imageFile) {
       try {
-        mediaUrl = await uploadToS3(imageFile);
+        await uploadToS3(imageFile);
       } catch (err) {
         console.error('Error subiendo la imagen:', err);
         return res.status(500).json({ success: false, message: 'Error subiendo imagen.' });
       }
     }
-
-    // actualizar en transacción
-    const updatedPub = await prisma.$transaction(async (tx) => {
-      // actualizar datos básicos de la publicación
-      const pub = await tx.publication.update({
-        where: { publication_id: id },
-        data: {
-          // solo actualizamos si el campo viene en el body (undefined se ignora)
-          ...(title && { title }),
-          ...(description && { description }),
-        },
-      });
-
-      // actualizar precio de puntos en la tabla trade si se proporciona
-      if (pointsPrice !== undefined) {
-        await tx.trade.update({
-          where: { publication_id: id },
-          data: { points_price: Number(pointsPrice) },
-        });
-      }
-
-      // si hay nueva imagen, reemplazamos la anterior
-      if (mediaUrl) {
-        // borramos la imagen antigua de S3 si existe
-        if (publication.publication_media && publication.publication_media.media_url) {
-          await deleteFromS3(publication.publication_media.media_url);
-        }
-
-        // borramos ref. en la base de datos
-        await tx.publication_media.deleteMany({
-          where: { publication_id: id },
-        });
-
-        // creamos nueva ref.
-        await tx.publication_media.create({
-          data: {
-            media_url: mediaUrl,
-            publication_id: id,
-          },
-        });
-      }
-
-      return pub;
-    });
 
     // Recuperar la publicación actualizada con todos los datos
     const fullUpdatedPub = await prisma.publication.findUnique({

@@ -9,10 +9,6 @@ export const validateChatMessage = (req, res, next) => {
   const MAX_MEDIA_COUNT = 10;
   const MAX_URL_LENGTH = 2048;
 
-  // Validate that at least content or media is provided
-  const hasContent = content && typeof content === 'string' && content.trim().length > 0;
-  const hasMedia = Array.isArray(media) && media.length > 0;
-
   // If content is present, validate length and sanitize
   if (content !== undefined && content !== null) {
     if (typeof content !== 'string') {
@@ -89,7 +85,7 @@ export const validateChatMessage = (req, res, next) => {
       // Validate URL format
       try {
         new URL(url);
-      } catch (error) {
+      } catch {
         return res.status(400).json({
           success: false,
           error: 'INVALID_MEDIA_URL_FORMAT',
