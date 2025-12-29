@@ -593,28 +593,53 @@ export const getAllTrades = async (req, res) => {
   const limit = parseInt(req.query.limit) || 20;
   const skip = (page - 1) * limit;
 
-  // Key de caché única para la primera página (la más visitada)
-  const cacheKey = `trades_list_p${page}_l${limit}`;
-
   try {
-    // 2. Intentar servir desde caché (Solo página 1 para ahorrar memoria en Redis/Memoria)
-    if (page === 1) {
+    let whereClause = {};
+    let useGlobalCache = true; // Por defecto intentamos usar caché
+
+    // Si el usuario está autenticado, verificamos su lista de bloqueados
+    if (req.user && req.user.uid) {
+      const currentUser = await prisma.registered_user.findUnique({
+        where: { user_id: req.user.uid },
+        select: { blocked_users: true },
+      });
+
+      // Si tiene usuarios bloqueados, aplicamos el filtro
+      if (currentUser && currentUser.blocked_users.length > 0) {
+        whereClause = {
+          publication: {
+            client_id: {
+              notIn: currentUser.blocked_users, // EXCLUIR los IDs bloqueados
+            },
+          },
+        };
+        useGlobalCache = false;
+      }
+    }
+
+    // Key de caché única para la primera página
+    const cacheKey = `trades_list_p${page}_l${limit}`;
+
+    // 2. Intentar servir desde caché (Solo página 1 Y si no hay filtros de bloqueo activos)
+    if (page === 1 && useGlobalCache) {
       const cachedResponse = await getCache(cacheKey);
       if (cachedResponse) {
         return res.status(200).json(cachedResponse);
       }
     }
 
-    // 3. Consulta optimizada a la base de datos (Paralelo: Datos + Conteo Total)
+    // 3. Consulta optimizada a la base de datos
     const [total, trades] = await Promise.all([
-      prisma.trade.count(), // Total de registros para calcular páginas
+      // El conteo también debe respetar el filtro de bloqueados
+      prisma.trade.count({ where: whereClause }), 
+      
       prisma.trade.findMany({
+        where: whereClause, // Aplicamos el filtro de bloqueo aquí
         skip,
         take: limit,
         orderBy: {
-          created_at: 'desc', // Requiere índice en BD para ser rápido
+          created_at: 'desc',
         },
-        // Optimización: "Select" trae solo lo necesario, no todo el objeto (Lazy Loading implícito)
         select: {
           trade_id: true,
           item_state: true,
@@ -625,7 +650,6 @@ export const getAllTrades = async (req, res) => {
               publication_id: true,
               title: true,
               description: true,
-              // Optimización: Solo la imagen asociada (relación uno-a-uno)
               publication_media: {
                 select: { media_url: true },
               },
@@ -642,18 +666,16 @@ export const getAllTrades = async (req, res) => {
       }),
     ]);
 
-    // 4. Formatear/Aplanar respuesta para vista de lista ligera
+    // 4. Formatear respuesta
     const formattedTrades = trades.map((trade) => ({
       id: trade.trade_id,
       publication_id: trade.publication.publication_id,
       title: trade.publication.title,
-      // "Breve campo de descripción": Cortamos a 100 caracteres
       description: trade.publication.description
         ? trade.publication.description.substring(0, 100) + (trade.publication.description.length > 100 ? '...' : '')
         : null,
       price: trade.points_price,
       state: trade.item_state,
-      // Solo devolvemos la URL de la portada
       image: trade.publication.publication_media?.media_url || null,
       author: trade.publication.client?.registered_user?.username || 'Anónimo',
       date: trade.created_at,
@@ -670,9 +692,9 @@ export const getAllTrades = async (req, res) => {
         totalPages: Math.ceil(total / limit),
       },
     };
-
-    // 5. Guardar en caché si es la primera página (TTL: 5 minutos)
-    if (page === 1) {
+    
+    // 5. Guardar en caché SOLO si es la primera página Y es una lista "limpia" (sin filtros personales)
+    if (page === 1 && useGlobalCache) {
       await setCache(cacheKey, response, 300);
     }
 
