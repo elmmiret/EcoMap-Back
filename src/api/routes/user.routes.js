@@ -28,6 +28,7 @@ import {
   blockUser,
   reportUser,
   getAllUserReports,
+  updateReportStatus,
 } from '#controllers/user.controller.js';
 
 /**
@@ -56,6 +57,12 @@ router.post('/block/:userId', authenticateBackendJWT, blockUser);
  * @description Obtiene todos los reportes de usuarios (Solo Admin).
  */
 router.get('/admin/reports', authenticateBackendJWT, getAllUserReports);
+
+/**
+ * @route PATCH /api/users/admin/reports/:reportId
+ * @description Actualiza el estado de un reporte específico (Solo Admin).
+ */
+router.patch('/admin/reports/:reportId', authenticateBackendJWT, updateReportStatus);
 
 /**
  * @route POST /api/users/report/:userId

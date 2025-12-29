@@ -1555,3 +1555,76 @@ export const getAllUserReports = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Error interno.' });
   }
 };
+
+/**
+ * Actualiza el estado de un reporte.
+ * Solo para administradores.
+ * El nuevo estado debe ser diferente al actual.
+ * Endpoint: PATCH /api/users/admin/reports/:reportId
+ */
+export const updateReportStatus = async (req, res) => {
+  const { uid } = req.user;
+  const { reportId } = req.params;
+  const { status } = req.body;
+
+  // validar que el estado sea válido según el Enum de Prisma
+  const validStatuses = ['Pending', 'Reviewed', 'Resolved', 'Dismissed'];
+  
+  if (!status || !validStatuses.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: `Estado inválido. Valores permitidos: ${validStatuses.join(', ')}.`,
+      code: 'INVALID_STATUS'
+    });
+  }
+
+  try {
+    // verificar permisos de admin
+    const isAdmin = await prisma.admin.findUnique({ where: { user_id: uid } });
+    if (!isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Acceso denegado. Solo administradores pueden gestionar reportes.',
+        code: 'FORBIDDEN_ADMIN_ONLY'
+      });
+    }
+
+    // buscar el reporte existente
+    const currentReport = await prisma.user_report.findUnique({
+      where: { report_id: reportId }
+    });
+
+    if (!currentReport) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Reporte no encontrado.',
+        code: 'REPORT_NOT_FOUND' 
+      });
+    }
+
+    // validar que el estado sea diferente
+    if (currentReport.status === status) {
+      return res.status(409).json({
+        success: false,
+        message: 'El nuevo estado debe ser diferente al actual.',
+        code: 'SAME_STATUS_ERROR'
+      });
+    }
+
+    // actualizar el reporte
+    const updatedReport = await prisma.user_report.update({
+      where: { report_id: reportId },
+      data: { status: status }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Estado del reporte actualizado a ${status}.`,
+      data: updatedReport
+    });
+
+  } catch (error) {
+    console.error('Error actualizando estado del reporte:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
