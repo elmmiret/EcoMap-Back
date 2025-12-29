@@ -53,7 +53,7 @@ export function initializeSocket(httpServer) {
             io.to(updatedMessage.sender_id).emit('message_delivered', {
               chat_id: updatedMessage.chat_id,
               message_id: updatedMessage.message_id,
-              delivered: true,
+              status: updatedMessage.status,
             });
           }
         }

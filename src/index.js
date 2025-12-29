@@ -5,6 +5,7 @@ import { initializeFirebaseAdmin } from '#config/firebase.js';
 import { startSchedulers } from '#services/scheduler.service.js';
 import { warmupCaches } from '#services/scheduler.service.js';
 import { initializeSocket } from '#services/socket.service.js';
+import { startMessageQueue, recoverPendingMessages } from '#services/message-queue.service.js';
 import { createLogger } from '#lib/logger.js';
 import { authenticateBackendJWT, requireAdmin } from '#middlewares/auth.middleware.js';
 
@@ -93,6 +94,13 @@ httpServer.listen(PORT, () => {
   // Initialize Socket.io
   initializeSocket(httpServer);
   log.info('Socket.io initialized');
+
+  // Initialize message queue
+  startMessageQueue();
+  log.info('Message queue processor started');
+
+  // Recover pending messages from database
+  recoverPendingMessages().catch((e) => log.error('Failed to recover pending messages:', e?.message || e));
 
   // Start background schedulers only in production (avoid cron traffic in development)
   if (process.env.NODE_ENV === 'production') {

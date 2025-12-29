@@ -331,22 +331,91 @@ components:
         chat_id:
           type: string
           format: uuid
+        sender_id:
+          type: string
+          description: ID del usuario que envió el mensaje
         content:
           type: string
-        is_read:
-          type: boolean
-        delivered:
-          type: boolean
+        status:
+          type: string
+          enum:
+            - PENDING
+            - SENT
+            - DELIVERED
+            - READ
+            - FAILED
+          description: Estado actual del mensaje
         created_at:
           type: string
           format: date-time
         is_deleted:
           type: boolean
+        retry_count:
+          type: integer
+          description: Número de reintentos de envío
+        last_error:
+          type: string
+          nullable: true
+          description: Último error al enviar (si falló)
         media:
           type: array
           items:
             type: string
             format: uri
+
+    MessageStatus:
+      type: object
+      properties:
+        message_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - PENDING
+            - SENT
+            - DELIVERED
+            - READ
+            - FAILED
+        retry_count:
+          type: integer
+        last_error:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    QueueStats:
+      type: object
+      properties:
+        queueSize:
+          type: integer
+          description: Número de mensajes en cola de reintentos
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              messageId:
+                type: string
+                format: uuid
+              chatId:
+                type: string
+                format: uuid
+              retryCount:
+                type: integer
+              addedAt:
+                type: integer
+                format: int64
+                description: Timestamp de cuándo se agregó a la cola
+              nextRetryAt:
+                type: integer
+                format: int64
+                description: Timestamp del próximo reintento
 
     # --- Reservation Schemas ---
     Reservation:
@@ -2169,6 +2238,57 @@ paths:
           description: No eres el propietario del mensaje.
         '400':
           description: Tiempo de eliminación expirado (> 5 min).
+
+  /api/chats/messages/{messageId}/status:
+    get:
+      summary: Consultar estado de un mensaje
+      description: Obtiene el estado actual de un mensaje específico (PENDING, SENT, DELIVERED, READ, FAILED).
+      tags: [Chat]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: messageId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Estado del mensaje obtenido correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      status:
+                        $ref: '#/components/schemas/MessageStatus'
+        '404':
+          description: Mensaje no encontrado.
+        '403':
+          description: No tienes acceso a este mensaje.
+
+  /api/chats/queue/stats:
+    get:
+      summary: Obtener estadísticas de la cola de mensajes
+      description: Devuelve información sobre los mensajes pendientes de reenvío en la cola (útil para debugging).
+      tags: [Chat]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Estadísticas de la cola obtenidas correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      stats:
+                        $ref: '#/components/schemas/QueueStats'
 
   # --- Notificaciones ---
   /api/notifications/token:
