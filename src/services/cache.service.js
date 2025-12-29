@@ -1,5 +1,5 @@
-// Cache Service: centralizes cache status, freshness checks and SWR (stale-while-revalidate)
-// for external datasets (Navarra, Barcelona recycling points, etc.)
+// Cache Service: centralizes cache status, freshness checks and SWR
+// + Generic in-memory cache for API responses
 
 import { prisma } from '#lib/prisma.js';
 import { RECYCLING_SOURCES } from '#config/recycling-sources.config.js';
@@ -8,13 +8,11 @@ import { filterByScheduleInMemory, getTimetablesForDay } from '#services/schedul
 
 const log = createLogger('cache');
 
-// Export cache source constants (generated from config)
+// Export cache source constants
 export const CACHE_SOURCES = Object.fromEntries(Object.values(RECYCLING_SOURCES).map((cfg) => [cfg.source, cfg.source]));
 
 /**
  * Get cache policy for a source (TTL and sync interval)
- * @param {string} source - cache source identifier
- * @returns {{ ttl: number, syncInterval: number }}
  */
 function getCachePolicy(source) {
   const config = Object.values(RECYCLING_SOURCES).find((cfg) => cfg.source === source);
@@ -24,23 +22,16 @@ function getCachePolicy(source) {
   };
 }
 
-/**
- * Get sync interval for a source (for job scheduling)
- * @param {string} source - cache source identifier
- * @returns {number} sync interval in ms
- */
 export function getSyncIntervalMs(source) {
   return getCachePolicy(source).syncInterval;
 }
 
-// Helper: compute if metadata indicates a stale cache
 export function isStale(lastSync, source, now = new Date()) {
-  if (!lastSync) return true; // never synced → stale
+  if (!lastSync) return true;
   const { ttl } = getCachePolicy(source);
   return now.getTime() - new Date(lastSync).getTime() > ttl;
 }
 
-// Ensure a metadata row exists for a source; return it
 export async function ensureMetadata(source) {
   const existing = await prisma.cache_metadata.findUnique({ where: { source } });
   if (existing) return existing;
@@ -72,16 +63,12 @@ export async function markStatus(source, status, patch = {}) {
   });
 }
 
-// Fire-and-forget background refresh with proper status transitions
+// Fire-and-forget background refresh
 async function triggerBackgroundRefresh({ source, refreshFn }) {
-  // Double-check we have metadata
   await ensureMetadata(source);
-
-  // Try to flip to SYNCING (best-effort; if another worker already did, this will throw)
   try {
     await markStatus(source, 'SYNCING');
   } catch {
-    // If concurrent update fails, just bail out to avoid overlap
     return;
   }
 
@@ -90,7 +77,6 @@ async function triggerBackgroundRefresh({ source, refreshFn }) {
 
   try {
     const result = await refreshFn();
-    // Expect result to optionally include { totalRecords }
     const total = typeof result?.totalRecords === 'number' ? result.totalRecords : undefined;
 
     await markStatus(source, 'READY', {
@@ -102,7 +88,6 @@ async function triggerBackgroundRefresh({ source, refreshFn }) {
   } catch (err) {
     await markStatus(source, 'ERROR', {
       error_message: err?.message?.slice(0, 500) || 'Unknown error',
-      // keep last_sync intact (per docs), schedule a next attempt anyway
       next_sync: new Date(Date.now() + syncInterval),
     });
   } finally {
@@ -111,13 +96,9 @@ async function triggerBackgroundRefresh({ source, refreshFn }) {
   }
 }
 
-// Main SWR entrypoint: serve cached points for any location, trigger background refresh if stale.
-// Options:
-// - source: cache source key (e.g. 'NAVARRA_POINTS', 'BARCELONA_POINTS')
-// - apiLocation: api_location value in DB (e.g. 'Navarra', 'Barcelona')
-// - onRefresh: async function to perform the sync (required to refresh)
-// - filters: object with all filter options (DB filters like name/equipment_type + schedule filters like isOpenNow/openAt)
-// Returns: { data, metadata, isStale, coldStart }
+/**
+ * Función interna para centralizar la obtención y filtrado de puntos.
+ */
 export async function getCachedPoints({ source, apiLocation, onRefresh, filters = {} } = {}) {
   if (!source || !apiLocation) {
     throw new Error('[cache] getCachedPoints requires source and apiLocation');
@@ -380,7 +361,6 @@ export async function getCachedPoints({ source, apiLocation, onRefresh, filters 
   };
 }
 
-// Backward compatibility wrapper for Navarra
 export async function getNavarraPoints({ onRefresh } = {}) {
   return getCachedPoints({
     source: CACHE_SOURCES.NAVARRA_POINTS,
@@ -389,8 +369,43 @@ export async function getNavarraPoints({ onRefresh } = {}) {
   });
 }
 
-// Utility to compute minutes since last sync (for status endpoint)
 export function minutesSince(date) {
   if (!date) return null;
   return Math.floor((Date.now() - new Date(date).getTime()) / 60000);
+}
+
+const memoryCache = new Map();
+
+/**
+ * Obtiene un valor de la caché en memoria.
+ * @param {string} key
+ * @returns {Promise<any | null>}
+ */
+export async function getCache(key) {
+  const entry = memoryCache.get(key);
+  if (!entry) return null;
+
+  // Si ha expirado, borrar y devolver null
+  if (Date.now() > entry.expiry) {
+    memoryCache.delete(key);
+    return null;
+  }
+
+  return entry.value;
+}
+
+/**
+ * Guarda un valor en la caché en memoria.
+ * @param {string} key
+ * @param {any} value
+ * @param {number} ttlSeconds Tiempo de vida en segundos
+ */
+export async function setCache(key, value, ttlSeconds = 300) {
+  const expiry = Date.now() + ttlSeconds * 1000;
+  memoryCache.set(key, { value, expiry });
+
+  // Limpieza básica preventiva (opcional): si crece mucho, vaciar
+  if (memoryCache.size > 1000) {
+    memoryCache.clear();
+  }
 }

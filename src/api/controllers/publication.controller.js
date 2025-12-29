@@ -2,6 +2,7 @@
 import { prisma } from '#lib/prisma.js';
 import { uploadToS3, deleteFromS3 } from '#services/storage.service.js';
 import * as gamificationService from '#services/gamification.service.js';
+import { getCache, setCache } from '#services/cache.service.js';
 
 /**
  * Crea una nueva publicación para un usuario (cliente).
@@ -586,57 +587,101 @@ export const getUserTrades = async (req, res) => {
   }
 };
 
-/**
- * Obtiene TODAS las publicaciones de tipo 'trade' a través de la tabla 'trade'.
- * Endpoint: /api/publications/all
- */
 export const getAllTrades = async (req, res) => {
+  // 1. Configuración de paginación
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 20;
+  const skip = (page - 1) * limit;
+
+  // Key de caché única para la primera página (la más visitada)
+  const cacheKey = `trades_list_p${page}_l${limit}`;
+
   try {
-    // Consultamos la tabla 'trade' e incluimos la publicación anidada
-    const trades = await prisma.trade.findMany({
-      include: {
-        publication: {
-          include: {
-            trade: true, // Datos del precio y estado
-            publication_media: true, // Imágenes
-            client: {
-              // Datos del autor (opcional)
-              include: {
-                registered_user: {
-                  select: {
-                    username: true,
-                    name: true,
+    // 2. Intentar servir desde caché (Solo página 1 para ahorrar memoria en Redis/Memoria)
+    if (page === 1) {
+      const cachedResponse = await getCache(cacheKey);
+      if (cachedResponse) {
+        return res.status(200).json(cachedResponse);
+      }
+    }
+
+    // 3. Consulta optimizada a la base de datos (Paralelo: Datos + Conteo Total)
+    const [total, trades] = await Promise.all([
+      prisma.trade.count(), // Total de registros para calcular páginas
+      prisma.trade.findMany({
+        skip,
+        take: limit,
+        orderBy: {
+          created_at: 'desc', // Requiere índice en BD para ser rápido
+        },
+        // Optimización: "Select" trae solo lo necesario, no todo el objeto (Lazy Loading implícito)
+        select: {
+          trade_id: true,
+          item_state: true,
+          points_price: true,
+          created_at: true,
+          publication: {
+            select: {
+              publication_id: true,
+              title: true,
+              description: true,
+              // Optimización: Solo la imagen asociada (relación uno-a-uno)
+              publication_media: {
+                select: { media_url: true },
+              },
+              client: {
+                select: {
+                  registered_user: {
+                    select: { username: true },
                   },
                 },
               },
             },
           },
         },
-      },
-      orderBy: {
-        created_at: 'desc', // Ordenar por fecha de creación del trade
-      },
-    });
+      }),
+    ]);
 
-    // Aplanamos la respuesta para devolver directamente un array de publicaciones
-    const publications = trades.map((trade) => ({
-      ...trade.publication,
-      trade_id: trade.trade_id, // Añadimos el ID del trade por si es útil
-      item_state: trade.item_state,
-      points_price: trade.points_price,
-      trade_created_at: trade.created_at,
+    // 4. Formatear/Aplanar respuesta para vista de lista ligera
+    const formattedTrades = trades.map((trade) => ({
+      id: trade.trade_id,
+      publication_id: trade.publication.publication_id,
+      title: trade.publication.title,
+      // "Breve campo de descripción": Cortamos a 100 caracteres
+      description: trade.publication.description
+        ? trade.publication.description.substring(0, 100) + (trade.publication.description.length > 100 ? '...' : '')
+        : null,
+      price: trade.points_price,
+      state: trade.item_state,
+      // Solo devolvemos la URL de la portada
+      image: trade.publication.publication_media?.media_url || null,
+      author: trade.publication.client?.registered_user?.username || 'Anónimo',
+      date: trade.created_at,
     }));
 
-    return res.status(200).json({
+    const response = {
       success: true,
-      message: `Se encontraron ${publications.length} publicaciones en total.`,
-      data: publications,
-    });
+      message: `Se encontraron ${formattedTrades.length} publicaciones (Página ${page}).`,
+      data: formattedTrades,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+
+    // 5. Guardar en caché si es la primera página (TTL: 5 minutos)
+    if (page === 1) {
+      await setCache(cacheKey, response, 300);
+    }
+
+    return res.status(200).json(response);
   } catch (error) {
-    console.error('Error al obtener todas las publicaciones (trades):', error);
+    console.error('Error al obtener trades paginados:', error);
     return res.status(500).json({
       success: false,
-      message: 'Error al obtener el listado global de publicaciones.',
+      message: 'Error al obtener el listado de publicaciones.',
       code: 'GET_ALL_TRADES_ERROR',
     });
   }
