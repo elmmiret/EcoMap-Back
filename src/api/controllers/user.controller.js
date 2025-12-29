@@ -1566,7 +1566,7 @@ export const updateReportStatus = async (req, res) => {
   const { status } = req.body;
 
   // validar que el estado sea válido según el Enum de Prisma
-  const validStatuses = ['Pending', 'Reviewed', 'Resolved', 'Dismissed'];
+  const validStatuses = ['Pending', 'Resolved', 'Dismissed'];
 
   if (!status || !validStatuses.includes(status)) {
     return res.status(400).json({
@@ -1671,5 +1671,121 @@ export const deleteReport = async (req, res) => {
   } catch (error) {
     console.error('Error eliminando reporte:', error);
     return res.status(500).json({ success: false, message: 'Error interno al eliminar el reporte.' });
+  }
+};
+
+/**
+ * Obtiene reportes filtrados por su estado.
+ * Estados válidos: Pending, Resolved, Dismissed.
+ * Endpoint: GET /api/users/admin/reports/status/:status
+ */
+export const getReportsByStatus = async (req, res) => {
+  const { uid } = req.user;
+  const { status } = req.params;
+
+  try {
+    // verificar si es admin
+    const isAdmin = await prisma.admin.findUnique({ where: { user_id: uid } });
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: 'Acceso denegado. Solo administradores.' });
+    }
+
+    // normalizar el estado (Primera mayúscula, resto minúscula)
+    const formattedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+
+    // validar que sea un estado permitido en el Enum
+    const validStatuses = ['Pending', 'Resolved', 'Dismissed'];
+    if (!validStatuses.includes(formattedStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: `Estado inválido. Usa: ${validStatuses.join(', ')}`,
+        code: 'INVALID_STATUS_PARAM',
+      });
+    }
+
+    // buscar reportes
+    const reports = await prisma.user_report.findMany({
+      where: { status: formattedStatus },
+      include: {
+        reporter: {
+          select: { username: true, email: true },
+        },
+        reported_user: {
+          select: {
+            user_id: true,
+            username: true,
+            email: true,
+            profile_picture: true,
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return res.status(200).json({
+      success: true,
+      status: formattedStatus,
+      count: reports.length,
+      data: reports,
+    });
+  } catch (error) {
+    console.error('Error obteniendo reportes por estado:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
+
+/**
+ * Obtiene el detalle completo de un reporte por su ID.
+ * Endpoint: GET /api/users/admin/reports/detail/:reportId
+ */
+export const getReportById = async (req, res) => {
+  const { uid } = req.user;
+  const { reportId } = req.params;
+
+  try {
+    // verificar ADMIN
+    const isAdmin = await prisma.admin.findUnique({ where: { user_id: uid } });
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: 'Acceso denegado.' });
+    }
+
+    // buscar Reporte con todos los detalles
+    const report = await prisma.user_report.findUnique({
+      where: { report_id: reportId },
+      include: {
+        reporter: {
+          select: {
+            user_id: true,
+            username: true,
+            name: true,
+            email: true,
+            profile_picture: true,
+          },
+        },
+        reported_user: {
+          select: {
+            user_id: true,
+            username: true,
+            name: true,
+            email: true,
+            profile_picture: true,
+            blocked_users: true,
+          },
+        },
+      },
+    });
+
+    if (!report) {
+      return res.status(404).json({ success: false, message: 'Reporte no encontrado.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Detalle del reporte obtenido.',
+      data: report,
+    });
+  } catch (error) {
+    console.error('Error obteniendo detalle del reporte:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
   }
 };

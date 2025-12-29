@@ -431,7 +431,6 @@ enum report_reason_type {
 
 enum report_status {
   Pending
-  Reviewed
   Resolved
   Dismissed
 }

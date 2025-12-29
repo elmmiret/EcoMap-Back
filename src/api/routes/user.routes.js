@@ -30,6 +30,8 @@ import {
   getAllUserReports,
   updateReportStatus,
   deleteReport,
+  getReportsByStatus,
+  getReportById,
 } from '#controllers/user.controller.js';
 
 /**
@@ -70,6 +72,21 @@ router.patch('/admin/reports/:reportId', authenticateBackendJWT, updateReportSta
  * @description Elimina un reporte de usuario (Solo Admin).
  */
 router.delete('/admin/reports/:reportId', authenticateBackendJWT, deleteReport);
+
+/**
+ * @route GET /api/users/admin/reports/status/:status
+ * @description Obtiene reportes filtrados por estado (Pending, Resolved, Dismissed).
+ * @access Protegido (Solo Admin)
+ * @example GET /api/users/admin/reports/status/pending
+ */
+router.get('/admin/reports/status/:status', authenticateBackendJWT, getReportsByStatus);
+
+/**
+ * @route GET /api/users/admin/reports/detail/:reportId
+ * @description Obtiene el detalle de un reporte específico.
+ * @access Protegido (Solo Admin)
+ */
+router.get('/admin/reports/detail/:reportId', authenticateBackendJWT, getReportById);
 
 /**
  * @route POST /api/users/report/:userId
