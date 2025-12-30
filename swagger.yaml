@@ -1125,7 +1125,7 @@ paths:
       summary: Reportar a un usuario
       description: |
         Permite a un usuario autenticado reportar a otro usuario por comportamiento inapropiado.
-        
+
         **Tipos de reporte disponibles (report_reason_type):**
         - `inappropriate_content` - Contenido inapropiado
         - `harassment` - Acoso
@@ -1211,7 +1211,7 @@ paths:
       summary: Actualizar estado de un reporte (Solo Administradores)
       description: |
         Permite a los administradores cambiar el estado de un reporte.
-        
+
         **Estados de reporte disponibles (report_status):**
         - `Pending` - Pendiente de revisión
         - `Resolved` - Resuelto (acción tomada)
