@@ -1448,6 +1448,57 @@ export const blockUser = async (req, res) => {
   }
 };
 
+  /**
+ * Obtiene la lista de usuarios bloqueados por un usuario específico.
+ * Solo para administradores.
+ * Endpoint: GET /api/users/admin/block/:userId
+ */
+export const getUserBlockedList = async (req, res) => {
+  const { uid } = req.user; // id del admin
+  const { userId } = req.params; // id del client
+
+  try {
+    // verificar si el solicitante es admin
+    const isAdmin = await prisma.admin.findUnique({ where: { user_id: uid } });
+    if (!isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Acceso denegado. Solo los administradores pueden ver esta información.',
+        code: 'FORBIDDEN_ADMIN_ONLY',
+      });
+    }
+
+    // buscar al usuario objetivo y obtener su array de bloqueados
+    const targetUser = await prisma.registered_user.findUnique({
+      where: { user_id: userId },
+      select: { blocked_users: true },
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'El usuario especificado no existe.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    // devolver la lista
+    return res.status(200).json({
+      success: true,
+      message: `Lista de bloqueos del usuario ${userId} recuperada.`,
+      blocked_users: targetUser.blocked_users || [], // Devuelve array de IDs
+    });
+
+  } catch (error) {
+    console.error(`Error obteniendo bloqueos del usuario ${userId}:`, error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor.',
+      code: 'SERVER_ERROR',
+    });
+  }
+};
+
 /**
  * Reporta a un usuario.
  * Endpoint: POST /api/users/report/:userId
