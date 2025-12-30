@@ -508,6 +508,60 @@ components:
           items:
             $ref: '#/components/schemas/PointHistory'
 
+    # --- User Report Schema ---
+    UserReport:
+      type: object
+      properties:
+        report_id:
+          type: string
+          format: uuid
+        reporter_id:
+          type: string
+          format: uuid
+        reported_user_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          enum:
+            - inappropriate_content
+            - harassment
+            - fake_profile
+            - spam
+            - other
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum:
+            - Pending
+            - Resolved
+            - Dismissed
+        created_at:
+          type: string
+          format: date-time
+        reporter:
+          type: object
+          properties:
+            username:
+              type: string
+            email:
+              type: string
+        reported_user:
+          type: object
+          properties:
+            user_id:
+              type: string
+              format: uuid
+            username:
+              type: string
+            email:
+              type: string
+            profile_picture:
+              type: string
+              nullable: true
+
 paths:
   # --- Health Check ---
   /:
@@ -1064,6 +1118,248 @@ paths:
                           points:
                             type: integer
                             description: Cantidad actual de EcoPoints del usuario
+
+  # --- Reportes de Usuarios ---
+  /api/users/report/{userId}:
+    post:
+      summary: Reportar a un usuario
+      description: |
+        Permite a un usuario autenticado reportar a otro usuario por comportamiento inapropiado.
+
+        **Tipos de reporte disponibles (report_reason_type):**
+        - `inappropriate_content` - Contenido inapropiado
+        - `harassment` - Acoso
+        - `fake_profile` - Perfil falso
+        - `spam` - Spam
+        - `other` - Otro (requiere descripción obligatoria)
+      tags: [Usuarios - Reportes]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+          description: ID del usuario a reportar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  enum:
+                    - inappropriate_content
+                    - harassment
+                    - fake_profile
+                    - spam
+                    - other
+                  description: Motivo del reporte
+                description:
+                  type: string
+                  description: Descripción adicional (obligatoria si reason es "other")
+      responses:
+        '201':
+          description: Usuario reportado correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserReport'
+        '400':
+          description: Motivo inválido o falta descripción para "other".
+        '404':
+          description: Usuario a reportar no encontrado.
+
+  /api/users/admin/reports:
+    get:
+      summary: Obtener todos los reportes (Solo Administradores)
+      description: Recupera todos los reportes de usuarios. Solo accesible para administradores.
+      tags: [Usuarios - Reportes]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de todos los reportes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserReport'
+        '403':
+          description: Acceso denegado. Solo administradores.
+
+  /api/users/admin/reports/{reportId}:
+    patch:
+      summary: Actualizar estado de un reporte (Solo Administradores)
+      description: |
+        Permite a los administradores cambiar el estado de un reporte.
+
+        **Estados de reporte disponibles (report_status):**
+        - `Pending` - Pendiente de revisión
+        - `Resolved` - Resuelto (acción tomada)
+        - `Dismissed` - Descartado (sin acción necesaria)
+      tags: [Usuarios - Reportes]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: reportId
+          required: true
+          schema:
+            type: string
+          description: ID del reporte a actualizar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum:
+                    - Pending
+                    - Resolved
+                    - Dismissed
+                  description: Nuevo estado del reporte
+      responses:
+        '200':
+          description: Estado del reporte actualizado correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserReport'
+        '400':
+          description: Estado inválido.
+        '403':
+          description: Acceso denegado. Solo administradores.
+        '404':
+          description: Reporte no encontrado.
+        '409':
+          description: El nuevo estado debe ser diferente al actual.
+
+    delete:
+      summary: Eliminar un reporte (Solo Administradores)
+      description: Permite a los administradores eliminar un reporte específico.
+      tags: [Usuarios - Reportes]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: reportId
+          required: true
+          schema:
+            type: string
+          description: ID del reporte a eliminar
+      responses:
+        '200':
+          description: Reporte eliminado correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          description: Acceso denegado. Solo administradores.
+        '404':
+          description: Reporte no encontrado.
+
+  /api/users/admin/reports/status/{status}:
+    get:
+      summary: Obtener reportes filtrados por estado (Solo Administradores)
+      description: Recupera todos los reportes que coinciden con el estado especificado.
+      tags: [Usuarios - Reportes]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: status
+          required: true
+          schema:
+            type: string
+            enum:
+              - Pending
+              - Resolved
+              - Dismissed
+          description: Estado de los reportes a filtrar (case-insensitive)
+      responses:
+        '200':
+          description: Lista de reportes con el estado especificado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  status:
+                    type: string
+                    description: Estado filtrado (normalizado)
+                  count:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserReport'
+        '400':
+          description: Estado inválido.
+        '403':
+          description: Acceso denegado. Solo administradores.
+
+  /api/users/admin/reports/detail/{reportId}:
+    get:
+      summary: Obtener detalle completo de un reporte (Solo Administradores)
+      description: Recupera toda la información de un reporte específico, incluyendo detalles del reportador y usuario reportado.
+      tags: [Usuarios - Reportes]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: reportId
+          required: true
+          schema:
+            type: string
+          description: ID del reporte a consultar
+      responses:
+        '200':
+          description: Detalle completo del reporte.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserReport'
+        '403':
+          description: Acceso denegado. Solo administradores.
+        '404':
+          description: Reporte no encontrado.
 
   # --- Puntos de Reciclaje ---
   /api/recycling-points/{region}:
