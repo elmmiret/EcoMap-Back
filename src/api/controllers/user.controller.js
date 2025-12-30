@@ -1448,7 +1448,7 @@ export const blockUser = async (req, res) => {
   }
 };
 
-  /**
+/**
  * Obtiene la lista de usuarios bloqueados por un usuario específico.
  * Solo para administradores.
  * Endpoint: GET /api/users/admin/block/:userId
@@ -1488,7 +1488,6 @@ export const getUserBlockedList = async (req, res) => {
       message: `Lista de bloqueos del usuario ${userId} recuperada.`,
       blocked_users: targetUser.blocked_users || [], // Devuelve array de IDs
     });
-
   } catch (error) {
     console.error(`Error obteniendo bloqueos del usuario ${userId}:`, error);
     return res.status(500).json({
