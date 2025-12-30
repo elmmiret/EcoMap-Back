@@ -26,6 +26,7 @@ import {
   getUserRewardsBoughtById,
   getUserPoints,
   blockUser,
+  getUserBlockedList,
   reportUser,
   getAllUserReports,
   updateReportStatus,
@@ -54,6 +55,12 @@ router.get('/me', authenticateBackendJWT, getUserProfile);
  * @access Protegido
  */
 router.post('/block/:userId', authenticateBackendJWT, blockUser);
+
+/**
+ * @route GET /api/users/admin/block/:userId
+ * @description Devuelve los IDs de los usuarios bloqueados por :userId (Solo Admin).
+ */
+router.get('/admin/block/:userId', authenticateBackendJWT, getUserBlockedList);
 
 /**
  * @route GET /api/users/admin/reports
