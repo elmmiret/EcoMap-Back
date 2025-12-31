@@ -451,12 +451,21 @@ model user_report {
   reported_user    registered_user    @relation("reports_received", fields: [reported_user_id], references: [user_id], onDelete: Cascade)
 }
 
-
-
 enum message_status {
   PENDING
   SENT
   DELIVERED
   READ
   FAILED
+}
+
+model recycling_guide_item {
+  item_id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String       @unique
+  keywords       String[]
+  container_type product_type
+  description    String?
+  created_at     DateTime     @default(now())
+
+  @@index([name])
 }
