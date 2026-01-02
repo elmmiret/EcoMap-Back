@@ -9,6 +9,10 @@ const router = Router();
 // Endpoint público para buscar en la guía de reciclaje
 router.get('/search', guideController.search);
 
+// GET /api/recycling-guide/all
+// Endpoint público para obtener todos los productos del catálogo
+router.get('/all', guideController.getAllItems);
+
 // POST /api/recycling-guide
 // Solo administradores pueden añadir productos a la guía
 router.post('/', authenticateBackendJWT, requireAdmin, guideController.addItem);

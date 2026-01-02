@@ -3151,6 +3151,31 @@ paths:
         '500':
           description: Error del servidor.
 
+  /api/recycling-guide/all:
+    get:
+      summary: Obtener todos los productos del catálogo
+      description: Devuelve la lista completa de productos disponibles en la guía de reciclaje, ordenados alfabéticamente.
+      tags: [Guía de Reciclaje]
+      responses:
+        '200':
+          description: Catálogo completo obtenido correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      count:
+                        type: integer
+                        description: Número total de productos en el catálogo
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RecyclingGuideItem'
+        '500':
+          description: Error del servidor.
+
   /api/recycling-guide:
     post:
       summary: Añadir producto a la guía de reciclaje

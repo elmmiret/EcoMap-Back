@@ -17,7 +17,8 @@
     "test:run": "vitest --run",
     "test:ui": "vitest --ui",
     "coverage": "vitest run --coverage",
-    "token:firebase": "node scripts/generate-firebase-token.js"
+    "token:firebase": "node scripts/generate-firebase-token.js",
+    "seed:guide": "node scripts/seed-guide.js"
   },
   "imports": {
     "#lib/*": "./src/lib/*",

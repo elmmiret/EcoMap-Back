@@ -27,6 +27,25 @@ export const search = async (req, res) => {
   }
 };
 
+// Endpoint para obtener todos los productos del catálogo
+export const getAllItems = async (req, res) => {
+  try {
+    const allItems = await guideService.getAllProducts();
+    
+    res.status(200).json({
+      success: true,
+      count: allItems.length,
+      data: allItems
+    });
+  } catch (error) {
+    console.error('Error getting all recycling guide items:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener el catálogo de reciclaje.'
+    });
+  }
+};
+
 // Endpoint para añadir ítems (Protegido para admins idealmente)
 export const addItem = async (req, res) => {
   try {
