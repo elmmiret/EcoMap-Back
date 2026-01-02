@@ -1033,14 +1033,14 @@ export const updateTradeState = async (req, res) => {
 export const updateTradeBody = async (req, res) => {
   const { id } = req.params;
   const { uid } = req.user;
-  const { pointsPrice } = req.body;
+  const { title, description, pointsPrice } = req.body;
   const imageFile = req.file; // Archivo subido (opcional)
 
   try {
     // buscar la publicación
     const publication = await prisma.publication.findUnique({
       where: { publication_id: id },
-      include: { trade: true, publication_media: true }, // Verificar que sea un trade
+      include: { trade: true, publication_media: true },
     });
 
     if (!publication) {
@@ -1069,30 +1069,77 @@ export const updateTradeBody = async (req, res) => {
       }
     }
 
-    // subir imagen si existe
+    // subir imagen, si existe
+    let newMediaUrl = null;
     if (imageFile) {
       try {
-        await uploadToS3(imageFile);
+         newMediaUrl = await uploadToS3(imageFile);
       } catch (err) {
-        console.error('Error subiendo la imagen:', err);
+        console.error('Error subiendo la imagen a S3:', err);
         return res.status(500).json({ success: false, message: 'Error subiendo imagen.' });
       }
     }
 
-    // Recuperar la publicación actualizada con todos los datos
-    const fullUpdatedPub = await prisma.publication.findUnique({
+    await prisma.$transaction(async (tx) => {
+
+      // actualizar tabla padre (publication)
+      if (title || description) {
+        await tx.publication.update({
+          where: { publication_id: id },
+          data: {
+            ...(title && { title }),
+            ...(description && { description }),
+          },
+        });
+      }
+
+      // actualizar tabla hija (trade)
+      if (pointsPrice !== undefined) {
+        await tx.trade.update({
+          where: { publication_id: id },
+          data: {
+            points_price: Number(pointsPrice),
+          },
+        });
+      }
+
+      if (newMediaUrl) {
+        // borrar ref vieja de la BD
+        await tx.publication_media.deleteMany({
+          where: { publication_id: id },
+        });
+
+        // crear nueva ref en la BD
+        await tx.publication_media.create({
+          data: {
+            media_url: newMediaUrl,
+            publication_id: id,
+          },
+        });
+      }
+    });
+
+    // borrar la imagen vieja de S3 (una vez la BD se actualiza correctamente, no antes)
+    if (newMediaUrl && publication.publication_media && publication.publication_media.media_url) {
+      try {
+        await deleteFromS3(publication.publication_media.media_url);
+      } catch (s3Error) {
+        console.error('Advertencia: No se puede borrar la imagen antigua de S3:', s3Error);
+      }
+    }
+
+    // devolver el objeto actualizado completo
+    const finalTrade = await prisma.publication.findUnique({
       where: { publication_id: id },
-      include: {
-        trade: true,
-        publication_media: true,
-      },
+      include: { trade: true, publication_media: true },
     });
 
     return res.status(200).json({
       success: true,
-      message: 'Publicación actualizada.',
-      data: fullUpdatedPub,
+      message: 'Trade actualizado correctamente.',
+      data: finalTrade,
     });
+
   } catch (error) {
     console.error('Error actualizando trade:', error);
     return res.status(500).json({ success: false, message: 'Error interno.' });
