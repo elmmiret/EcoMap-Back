@@ -12,14 +12,14 @@ async function main() {
         name: item.name,
         container_type: item.container_type,
         keywords: item.keywords,
-        description: item.description
-      }
+        description: item.description,
+      },
     });
   }
 }
 
 main()
-  .catch(e => {
+  .catch((e) => {
     console.error(e);
     process.exit(1);
   })

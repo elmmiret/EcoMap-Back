@@ -3221,7 +3221,7 @@ paths:
                 name:
                   type: string
                   description: Nombre del producto (debe ser único)
-                  example: "Botella de vidrio"
+                  example: 'Botella de vidrio'
                 containerType:
                   type: string
                   enum:
@@ -3233,17 +3233,17 @@ paths:
                     - TextileContainer
                     - Unrecyclable
                   description: Tipo de contenedor donde debe reciclarse
-                  example: "GlassContainer"
+                  example: 'GlassContainer'
                 keywords:
                   type: array
                   items:
                     type: string
                   description: Palabras clave para facilitar la búsqueda
-                  example: ["botella", "vidrio", "cristal"]
+                  example: ['botella', 'vidrio', 'cristal']
                 description:
                   type: string
                   description: Descripción adicional del producto
-                  example: "Botellas de vidrio transparente o de color"
+                  example: 'Botellas de vidrio transparente o de color'
       responses:
         '201':
           description: Producto añadido correctamente.
@@ -3292,7 +3292,7 @@ paths:
                 name:
                   type: string
                   description: Nuevo nombre del producto (opcional)
-                  example: "Botella de plástico PET"
+                  example: 'Botella de plástico PET'
                 containerType:
                   type: string
                   enum:
@@ -3304,17 +3304,17 @@ paths:
                     - TextileContainer
                     - Unrecyclable
                   description: Nuevo tipo de contenedor (opcional)
-                  example: "PlasticContainer"
+                  example: 'PlasticContainer'
                 keywords:
                   type: array
                   items:
                     type: string
                   description: Nuevas palabras clave (opcional)
-                  example: ["botella", "plástico", "pet", "envase"]
+                  example: ['botella', 'plástico', 'pet', 'envase']
                 description:
                   type: string
                   description: Nueva descripción (opcional)
-                  example: "Botellas de plástico PET transparentes"
+                  example: 'Botellas de plástico PET transparentes'
       responses:
         '200':
           description: Producto actualizado correctamente.

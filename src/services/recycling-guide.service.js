@@ -12,23 +12,23 @@ export const searchProducts = async (query) => {
   return prisma.recycling_guide_item.findMany({
     where: {
       OR: [
-        { 
-          name: { 
-            contains: searchTerms, 
-            mode: 'insensitive' 
-          } 
+        {
+          name: {
+            contains: searchTerms,
+            mode: 'insensitive',
+          },
         },
-        { 
-          keywords: { 
-            has: searchTerms.toLowerCase() 
-          } 
-        }
-      ]
+        {
+          keywords: {
+            has: searchTerms.toLowerCase(),
+          },
+        },
+      ],
     },
     take: 20,
     orderBy: {
-      name: 'asc'
-    }
+      name: 'asc',
+    },
   });
 };
 
@@ -37,7 +37,7 @@ export const searchProducts = async (query) => {
  */
 export const getAllProducts = async () => {
   return prisma.recycling_guide_item.findMany({
-    orderBy: { name: 'asc' }
+    orderBy: { name: 'asc' },
   });
 };
 
@@ -46,7 +46,7 @@ export const getAllProducts = async () => {
  */
 export const createProduct = async (data) => {
   return prisma.recycling_guide_item.create({
-    data
+    data,
   });
 };
 
@@ -58,7 +58,7 @@ export const createProduct = async (data) => {
 export const updateProduct = async (itemId, data) => {
   return prisma.recycling_guide_item.update({
     where: { item_id: itemId },
-    data
+    data,
   });
 };
 
@@ -68,7 +68,7 @@ export const updateProduct = async (itemId, data) => {
  */
 export const deleteProduct = async (itemId) => {
   return prisma.recycling_guide_item.delete({
-    where: { item_id: itemId }
+    where: { item_id: itemId },
   });
 };
 
