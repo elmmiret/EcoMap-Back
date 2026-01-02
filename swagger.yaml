@@ -562,6 +562,40 @@ components:
               type: string
               nullable: true
 
+    # --- Recycling Guide Schema ---
+    RecyclingGuideItem:
+      type: object
+      properties:
+        item_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Nombre del producto (ej. "Botella de plástico")
+        keywords:
+          type: array
+          items:
+            type: string
+          description: Palabras clave para búsqueda
+        container_type:
+          type: string
+          enum:
+            - ElectricContainer
+            - GlassContainer
+            - OrganicContainer
+            - PaperContainer
+            - PlasticContainer
+            - TextileContainer
+            - Unrecyclable
+          description: Tipo de contenedor donde debe reciclarse
+        description:
+          type: string
+          nullable: true
+          description: Descripción adicional del producto
+        created_at:
+          type: string
+          format: date-time
+
 paths:
   # --- Health Check ---
   /:
@@ -3083,3 +3117,255 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/WasteDetectionResponse'
+
+  # --- Guía de Reciclaje ---
+  /api/recycling-guide/search:
+    get:
+      summary: Buscar productos en la guía de reciclaje
+      description: Busca productos por nombre o palabras clave. Si no se proporciona query, devuelve todos los productos.
+      tags: [Guía de Reciclaje]
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Texto de búsqueda (ej. "botella", "pila", "ropa")
+          required: false
+      responses:
+        '200':
+          description: Resultados de la búsqueda.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      count:
+                        type: integer
+                        description: Número de resultados encontrados
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RecyclingGuideItem'
+        '500':
+          description: Error del servidor.
+
+  /api/recycling-guide/all:
+    get:
+      summary: Obtener todos los productos del catálogo
+      description: Devuelve la lista completa de productos disponibles en la guía de reciclaje, ordenados alfabéticamente.
+      tags: [Guía de Reciclaje]
+      responses:
+        '200':
+          description: Catálogo completo obtenido correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      count:
+                        type: integer
+                        description: Número total de productos en el catálogo
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RecyclingGuideItem'
+        '500':
+          description: Error del servidor.
+    delete:
+      summary: Eliminar todos los productos del catálogo
+      description: ⚠️ PRECAUCIÓN - Solo administradores pueden eliminar TODOS los productos de la guía. Esta acción es irreversible.
+      tags: [Guía de Reciclaje]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Todos los productos eliminados correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      deletedCount:
+                        type: integer
+                        description: Número de productos eliminados
+        '401':
+          description: No autenticado.
+        '403':
+          description: No tiene permisos de administrador.
+        '500':
+          description: Error del servidor.
+
+  /api/recycling-guide:
+    post:
+      summary: Añadir producto a la guía de reciclaje
+      description: Solo administradores pueden añadir nuevos productos a la guía.
+      tags: [Guía de Reciclaje]
+      security:
+        - backendAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - containerType
+              properties:
+                name:
+                  type: string
+                  description: Nombre del producto (debe ser único)
+                  example: 'Botella de vidrio'
+                containerType:
+                  type: string
+                  enum:
+                    - ElectricContainer
+                    - GlassContainer
+                    - OrganicContainer
+                    - PaperContainer
+                    - PlasticContainer
+                    - TextileContainer
+                    - Unrecyclable
+                  description: Tipo de contenedor donde debe reciclarse
+                  example: 'GlassContainer'
+                keywords:
+                  type: array
+                  items:
+                    type: string
+                  description: Palabras clave para facilitar la búsqueda
+                  example: ['botella', 'vidrio', 'cristal']
+                description:
+                  type: string
+                  description: Descripción adicional del producto
+                  example: 'Botellas de vidrio transparente o de color'
+      responses:
+        '201':
+          description: Producto añadido correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RecyclingGuideItem'
+        '400':
+          description: Datos faltantes o inválidos.
+        '401':
+          description: No autenticado.
+        '403':
+          description: No tiene permisos de administrador.
+        '409':
+          description: El producto ya existe en la guía.
+        '500':
+          description: Error del servidor.
+
+  /api/recycling-guide/{id}:
+    put:
+      summary: Actualizar producto del catálogo
+      description: Solo administradores pueden actualizar productos existentes en la guía.
+      tags: [Guía de Reciclaje]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID del producto a actualizar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Nuevo nombre del producto (opcional)
+                  example: 'Botella de plástico PET'
+                containerType:
+                  type: string
+                  enum:
+                    - ElectricContainer
+                    - GlassContainer
+                    - OrganicContainer
+                    - PaperContainer
+                    - PlasticContainer
+                    - TextileContainer
+                    - Unrecyclable
+                  description: Nuevo tipo de contenedor (opcional)
+                  example: 'PlasticContainer'
+                keywords:
+                  type: array
+                  items:
+                    type: string
+                  description: Nuevas palabras clave (opcional)
+                  example: ['botella', 'plástico', 'pet', 'envase']
+                description:
+                  type: string
+                  description: Nueva descripción (opcional)
+                  example: 'Botellas de plástico PET transparentes'
+      responses:
+        '200':
+          description: Producto actualizado correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RecyclingGuideItem'
+        '400':
+          description: No se proporcionó ningún campo para actualizar.
+        '401':
+          description: No autenticado.
+        '403':
+          description: No tiene permisos de administrador.
+        '404':
+          description: Producto no encontrado.
+        '409':
+          description: Ya existe otro producto con ese nombre.
+        '500':
+          description: Error del servidor.
+
+    delete:
+      summary: Eliminar producto del catálogo
+      description: Solo administradores pueden eliminar productos de la guía.
+      tags: [Guía de Reciclaje]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID del producto a eliminar
+      responses:
+        '200':
+          description: Producto eliminado correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          description: No autenticado.
+        '403':
+          description: No tiene permisos de administrador.
+        '404':
+          description: Producto no encontrado.
+        '500':
+          description: Error del servidor.

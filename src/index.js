@@ -19,6 +19,7 @@ import chatRoutes from './api/routes/chat.routes.js';
 import notificationRoutes from './api/routes/notification.routes.js';
 import gamificationRoutes from './api/routes/gamification.routes.js';
 import swaggerUi from 'swagger-ui-express';
+import recyclingGuideRoutes from './api/routes/recycling-guide.routes.js';
 import yaml from 'yamljs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -72,6 +73,7 @@ app.use('/api/reservations', reservationRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/gamification', gamificationRoutes);
+app.use('/api/recycling-guide', recyclingGuideRoutes);
 
 // ruta base para verificar que la API está corriendo
 app.get('/', (req, res) => {
