@@ -387,7 +387,7 @@ export const updateRewardAvailability = async (req, res) => {
 export const updateRewardBody = async (req, res) => {
   const { id } = req.params;
   const { uid } = req.user;
-  const { state } = req.body;
+  const { title, description, state, content, pointsPrice } = req.body;
   const imageFile = req.file;
 
   try {
@@ -401,12 +401,11 @@ export const updateRewardBody = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Publicación no encontrada.' });
     }
 
-    // verificamos que es un Reward
     if (!publication.reward) {
       return res.status(400).json({ success: false, message: 'Esta publicación no es un Reward.' });
     }
 
-    // verificamos permisos (solo la institución creadora)
+    // verificamos permisos
     if (publication.institution_id !== uid) {
       return res.status(403).json({ success: false, message: 'No tienes permiso para editar este reward.' });
     }
@@ -420,17 +419,66 @@ export const updateRewardBody = async (req, res) => {
       });
     }
 
-    // gestión de la magen (subida a S3)
-    if (imageFile) {
+    let newMediaUrl = null;
+    try {
+      newMediaUrl = await uploadToS3(imageFile);
+    } catch (err) {
+      console.error('Error procesando la iamgen en S3:', err);
+      return res.status(500).json({ success: false, message: 'Error al procesar la imagen.' });
+    }
+
+    // actualizar datos
+    await prisma.$transaction(async (tx) => {
+      // actualizar tabla padre (publication)
+      if (title || description || state) {
+        await tx.publication.update({
+          where: { publication_id: id },
+          data: {
+            ...(title && { title }),
+            ...(description && { description }),
+            ...(state && { publication_state: state }),
+          },
+        });
+      }
+
+      // actualizar tabla hija (reward)
+      if (content || pointsPrice !== undefined) {
+        await tx.reward.update({
+          where: { publication_id: id },
+          data: {
+            ...(content && { content }),
+            ...(pointsPrice !== undefined && { points_price: Number(pointsPrice) }),
+          },
+        });
+      }
+
+      // actualiar refs en BD
+      if (newMediaUrl) {
+        // borrar ref vieja
+        await tx.publication_media.deleteMany({
+          where: { publication_id: id },
+        });
+
+        // crear ref nueva
+        await tx.publication_media.create({
+          data: {
+            media_url: newMediaUrl,
+            publication_id: id,
+          },
+        });
+      }
+    });
+
+    // borrar imagen vieja de S3, si existía
+    if (newMediaUrl && publication.publication_media && publication.publication_media.media_url) {
       try {
-        await uploadToS3(imageFile);
-      } catch (err) {
-        console.error('Error subiendo la imagen:', err);
-        return res.status(500).json({ success: false, message: 'Error al subir la nueva imagen.' });
+        await deleteFromS3(publication.publication_media.media_url);
+      } catch (s3Error) {
+        console.warn('Advertencia: No se pudo borrar la imagen antigua de S3:', s3Error);
       }
     }
 
-    // 7. Retornar el objeto actualizado completo
+    // devolver el objeto final completo actualizado
     const finalReward = await prisma.publication.findUnique({
       where: { publication_id: id },
       include: { reward: true, publication_media: true },
