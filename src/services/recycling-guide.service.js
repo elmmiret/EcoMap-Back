@@ -49,3 +49,32 @@ export const createProduct = async (data) => {
     data
   });
 };
+
+/**
+ * Actualiza un producto existente
+ * @param {string} itemId - ID del producto a actualizar
+ * @param {object} data - Datos a actualizar
+ */
+export const updateProduct = async (itemId, data) => {
+  return prisma.recycling_guide_item.update({
+    where: { item_id: itemId },
+    data
+  });
+};
+
+/**
+ * Elimina un producto
+ * @param {string} itemId - ID del producto a eliminar
+ */
+export const deleteProduct = async (itemId) => {
+  return prisma.recycling_guide_item.delete({
+    where: { item_id: itemId }
+  });
+};
+
+/**
+ * Elimina todos los productos del catálogo
+ */
+export const deleteAllProducts = async () => {
+  return prisma.recycling_guide_item.deleteMany();
+};

@@ -3175,6 +3175,31 @@ paths:
                           $ref: '#/components/schemas/RecyclingGuideItem'
         '500':
           description: Error del servidor.
+    delete:
+      summary: Eliminar todos los productos del catálogo
+      description: ⚠️ PRECAUCIÓN - Solo administradores pueden eliminar TODOS los productos de la guía. Esta acción es irreversible.
+      tags: [Guía de Reciclaje]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Todos los productos eliminados correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      deletedCount:
+                        type: integer
+                        description: Número de productos eliminados
+        '401':
+          description: No autenticado.
+        '403':
+          description: No tiene permisos de administrador.
+        '500':
+          description: Error del servidor.
 
   /api/recycling-guide:
     post:
@@ -3239,5 +3264,108 @@ paths:
           description: No tiene permisos de administrador.
         '409':
           description: El producto ya existe en la guía.
+        '500':
+          description: Error del servidor.
+
+  /api/recycling-guide/{id}:
+    put:
+      summary: Actualizar producto del catálogo
+      description: Solo administradores pueden actualizar productos existentes en la guía.
+      tags: [Guía de Reciclaje]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID del producto a actualizar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Nuevo nombre del producto (opcional)
+                  example: "Botella de plástico PET"
+                containerType:
+                  type: string
+                  enum:
+                    - ElectricContainer
+                    - GlassContainer
+                    - OrganicContainer
+                    - PaperContainer
+                    - PlasticContainer
+                    - TextileContainer
+                    - Unrecyclable
+                  description: Nuevo tipo de contenedor (opcional)
+                  example: "PlasticContainer"
+                keywords:
+                  type: array
+                  items:
+                    type: string
+                  description: Nuevas palabras clave (opcional)
+                  example: ["botella", "plástico", "pet", "envase"]
+                description:
+                  type: string
+                  description: Nueva descripción (opcional)
+                  example: "Botellas de plástico PET transparentes"
+      responses:
+        '200':
+          description: Producto actualizado correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RecyclingGuideItem'
+        '400':
+          description: No se proporcionó ningún campo para actualizar.
+        '401':
+          description: No autenticado.
+        '403':
+          description: No tiene permisos de administrador.
+        '404':
+          description: Producto no encontrado.
+        '409':
+          description: Ya existe otro producto con ese nombre.
+        '500':
+          description: Error del servidor.
+
+    delete:
+      summary: Eliminar producto del catálogo
+      description: Solo administradores pueden eliminar productos de la guía.
+      tags: [Guía de Reciclaje]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID del producto a eliminar
+      responses:
+        '200':
+          description: Producto eliminado correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          description: No autenticado.
+        '403':
+          description: No tiene permisos de administrador.
+        '404':
+          description: Producto no encontrado.
         '500':
           description: Error del servidor.

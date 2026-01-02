@@ -17,4 +17,17 @@ router.get('/all', guideController.getAllItems);
 // Solo administradores pueden añadir productos a la guía
 router.post('/', authenticateBackendJWT, requireAdmin, guideController.addItem);
 
+// PUT /api/recycling-guide/:id
+// Solo administradores pueden actualizar productos de la guía
+router.put('/:id', authenticateBackendJWT, requireAdmin, guideController.updateItem);
+
+// DELETE /api/recycling-guide/all
+// Solo administradores pueden eliminar todos los productos (usar con precaución)
+// IMPORTANTE: Esta ruta debe ir ANTES de /:id para evitar que "all" sea capturado como un ID
+router.delete('/all', authenticateBackendJWT, requireAdmin, guideController.deleteAllItems);
+
+// DELETE /api/recycling-guide/:id
+// Solo administradores pueden eliminar un producto específico
+router.delete('/:id', authenticateBackendJWT, requireAdmin, guideController.deleteItem);
+
 export default router;
