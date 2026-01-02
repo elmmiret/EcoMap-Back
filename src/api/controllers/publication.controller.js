@@ -1073,7 +1073,7 @@ export const updateTradeBody = async (req, res) => {
     let newMediaUrl = null;
     if (imageFile) {
       try {
-         newMediaUrl = await uploadToS3(imageFile);
+        newMediaUrl = await uploadToS3(imageFile);
       } catch (err) {
         console.error('Error subiendo la imagen a S3:', err);
         return res.status(500).json({ success: false, message: 'Error subiendo imagen.' });
@@ -1081,7 +1081,6 @@ export const updateTradeBody = async (req, res) => {
     }
 
     await prisma.$transaction(async (tx) => {
-
       // actualizar tabla padre (publication)
       if (title || description) {
         await tx.publication.update({
@@ -1139,7 +1138,6 @@ export const updateTradeBody = async (req, res) => {
       message: 'Trade actualizado correctamente.',
       data: finalTrade,
     });
-
   } catch (error) {
     console.error('Error actualizando trade:', error);
     return res.status(500).json({ success: false, message: 'Error interno.' });
