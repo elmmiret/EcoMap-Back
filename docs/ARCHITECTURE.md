@@ -694,3 +694,17 @@ Cuando implementes una nueva funcionalidad, asegúrate de:
 - [Documentación de Prisma](https://www.prisma.io/docs)
 - [Express Best Practices](https://expressjs.com/en/advanced/best-practice-performance.html)
 - [Node.js Error Handling](https://nodejs.org/en/docs/guides/error-handling/)
+
+
+curl -X 'POST' \
+  'https://peskaos-back-staging-0028.up.railway.app/api/users/sync' \
+  -H 'accept: application/json' \
+  -H 'x-role-secret: y9n5VBf4cMhq8MPNbe2KGY3DxNa5Wb' \
+  -H 'Authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6ImQ4Mjg5MmZhMzJlY2QxM2E0ZTBhZWZlNjI4ZGQ5YWFlM2FiYThlMWUiLCJ0eXAiOiJKV1QifQ.eyJuYW1lIjoiZmluYSBmaWxpcGluYSIsInBpY3R1cmUiOiJodHRwczovL2xoMy5nb29nbGV1c2VyY29udGVudC5jb20vYS9BQ2c4b2NJNGk1cEotRmtpMlJ0SmM1M1JaTkpJd0lBTUFGUTBzelVldlFSMm1UdTRGel9pMkE9czk2LWMiLCJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vcGVza2Fvcy01YTVjZSIsImF1ZCI6InBlc2thb3MtNWE1Y2UiLCJhdXRoX3RpbWUiOjE3Njc0MzM0ODQsInVzZXJfaWQiOiJCNnF2aWRQdmQ2WFpCSHdldGZLSEdyQm5RV3kxIiwic3ViIjoiQjZxdmlkUHZkNlhaQkh3ZXRmS0hHckJuUVd5MSIsImlhdCI6MTc2NzQzMzQ4NCwiZXhwIjoxNzY3NDM3MDg0LCJlbWFpbCI6ImZpbmFmaWxpcGlucUBnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiZmlyZWJhc2UiOnsiaWRlbnRpdGllcyI6eyJnb29nbGUuY29tIjpbIjEwMDI1MTQwMzg4NzUwNjg4NDU1NSJdLCJlbWFpbCI6WyJmaW5hZmlsaXBpbnFAZ21haWwuY29tIl19LCJzaWduX2luX3Byb3ZpZGVyIjoiY3VzdG9tIn19.U4ble6tm7H3p5eN7eVOKCDUaGo13IuucrbBYBmxgHhmF5K-L4qVFtsp2cJeFIgXJDYB1lJzGXMFrbKcvRuaIluu81Mf7sQtOv-EwL-fje1JZqwu3QtvVy9jthdpjrhBZpTaSKUsoDDv-Y_CaSdwKezqxTFMKxrV5IQx1vJxE734uvJNMpLNB7rawONp3HdUqpi6kSejvu9B7H64IEqfuI8-RZQuvedt1lCTkFKGaO_yLXdXLy2k6MZd9tYMWXQvxzddTDDwCfw9g3sI-BGfh7f-Nlm_Dz4HrK2pebOyFveuUcp1njK3mEhGgz1XbcEVdPYqAP1tvfOwDpkwDr14TZw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "name": "tacosrra",
+  "email": "tacosrra",
+  "username": "tacosrra",
+  "role": "admin"
+}'

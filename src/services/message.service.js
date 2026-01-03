@@ -10,14 +10,23 @@ import { prisma } from '#lib/prisma.js';
  * @param {string} chatId
  * @param {string} senderId
  * @param {string} content
+ * @param {Array<string>} mediaUrls
+ * @param {string} initialStatus - Initial status (PENDING by default)
  * @returns {Promise<object>}
  */
-export async function createMessage(chatId, senderId, content) {
+export async function createMessage(chatId, senderId, content, mediaUrls = [], initialStatus = 'PENDING') {
   return prisma.message.create({
     data: {
       chat_id: chatId,
       sender_id: senderId,
       content: content,
+      status: initialStatus,
+      message_media: {
+        create: mediaUrls.map((url) => ({ media_url: url })),
+      },
+    },
+    include: {
+      message_media: true,
     },
   });
 }
@@ -34,6 +43,9 @@ export async function getMessagesByChatId(chatId, limit = 50, before = null) {
     where: { chat_id: chatId },
     orderBy: { created_at: 'desc' },
     take: limit,
+    include: {
+      message_media: true,
+    },
   };
 
   if (before) {
@@ -52,7 +64,7 @@ export async function getMessagesByChatId(chatId, limit = 50, before = null) {
 export async function markMessageAsDelivered(messageId) {
   return prisma.message.update({
     where: { message_id: messageId },
-    data: { delivered: true },
+    data: { status: 'DELIVERED' },
   });
 }
 
@@ -64,7 +76,7 @@ export async function markMessageAsDelivered(messageId) {
 export async function markMessagesAsDelivered(messageIds) {
   return prisma.message.updateMany({
     where: { message_id: { in: messageIds } },
-    data: { delivered: true },
+    data: { status: 'DELIVERED' },
   });
 }
 
@@ -79,10 +91,10 @@ export async function markMessagesAsRead(chatId, userId) {
     where: {
       chat_id: chatId,
       sender_id: { not: userId },
-      is_read: false,
+      status: { notIn: ['READ'] },
     },
     data: {
-      is_read: true,
+      status: 'READ',
     },
   });
 }
@@ -99,6 +111,9 @@ export async function softDeleteMessage(messageId) {
       is_deleted: true,
       content: '', // Clear content for privacy
     },
+    include: {
+      message_media: true,
+    },
   });
 }
 
@@ -110,5 +125,49 @@ export async function softDeleteMessage(messageId) {
 export async function getMessageById(messageId) {
   return prisma.message.findUnique({
     where: { message_id: messageId },
+    include: {
+      message_media: true,
+    },
+  });
+}
+
+/**
+ * Updates the status of a message
+ * @param {string} messageId
+ * @param {string} status - New status (PENDING, SENT, DELIVERED, READ, FAILED)
+ * @param {string|null} error - Error message if status is FAILED
+ * @returns {Promise<object>}
+ */
+export async function updateMessageStatus(messageId, status, error = null) {
+  const updateData = { status };
+
+  if (status === 'FAILED' && error) {
+    updateData.last_error = error;
+  }
+
+  return prisma.message.update({
+    where: { message_id: messageId },
+    data: updateData,
+    include: {
+      message_media: true,
+    },
+  });
+}
+
+/**
+ * Gets messages by status
+ * @param {string} status
+ * @param {number} limit
+ * @returns {Promise<Array>}
+ */
+export async function getMessagesByStatus(status, limit = 100) {
+  return prisma.message.findMany({
+    where: { status },
+    orderBy: { created_at: 'asc' },
+    take: limit,
+    include: {
+      message_media: true,
+      chat: true,
+    },
   });
 }

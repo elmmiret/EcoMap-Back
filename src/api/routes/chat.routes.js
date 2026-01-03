@@ -1,6 +1,18 @@
 import express from 'express';
 import { authenticateBackendJWT, requireClient } from '#middlewares/auth.middleware.js';
-import { startChat, listChats, postMessage, markRead, getMessages, removeMessage } from '#controllers/chat.controller.js';
+import {
+  startChat,
+  listChats,
+  postMessage,
+  markRead,
+  getMessages,
+  removeMessage,
+  getMessageStatus,
+  getQueueStatistics,
+} from '#controllers/chat.controller.js';
+
+import { chatMessageLimiter } from '#middlewares/rate-limit.middleware.js';
+import { validateChatMessage } from '#middlewares/chat.middleware.js';
 
 const router = express.Router();
 
@@ -30,10 +42,10 @@ router.get('/:chatId/messages', authenticateBackendJWT, requireClient, getMessag
 /**
  * @route POST /api/chats/:chatId/messages
  * @description Send a message to a chat
- * @body { content: string }
+ * @body { content: string, media: string[] }
  * @access Protected (Client only)
  */
-router.post('/:chatId/messages', authenticateBackendJWT, requireClient, postMessage);
+router.post('/:chatId/messages', authenticateBackendJWT, requireClient, chatMessageLimiter, validateChatMessage, postMessage);
 
 /**
  * @route PUT /api/chats/:chatId/read
@@ -48,5 +60,19 @@ router.put('/:chatId/read', authenticateBackendJWT, requireClient, markRead);
  * @access Protected (Client only)
  */
 router.delete('/messages/:messageId', authenticateBackendJWT, requireClient, removeMessage);
+
+/**
+ * @route GET /api/chats/messages/:messageId/status
+ * @description Get the status of a specific message
+ * @access Protected (Client only)
+ */
+router.get('/messages/:messageId/status', authenticateBackendJWT, requireClient, getMessageStatus);
+
+/**
+ * @route GET /api/chats/queue/stats
+ * @description Get message queue statistics (for debugging)
+ * @access Protected (Client only)
+ */
+router.get('/queue/stats', authenticateBackendJWT, requireClient, getQueueStatistics);
 
 export default router;

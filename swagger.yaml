@@ -8,6 +8,8 @@ info:
 servers:
   - url: http://localhost:3001
     description: Servidor de desarrollo local
+  - url: https://peskaos-back-staging-0028.up.railway.app
+    description: Servidor de staging
   - url: https://peskaos-back-production.up.railway.app
     description: Servidor publico
 
@@ -53,7 +55,10 @@ components:
           nullable: true
         app_language:
           type: string
-          enum: [ca, es, en]
+          enum:
+            - ca
+            - es
+            - en
         address:
           type: string
           nullable: true
@@ -69,11 +74,19 @@ components:
           nullable: true
         role:
           type: string
-          enum: [client, admin, institution]
+          enum:
+            - client
+            - admin
+            - institution
+            - partner
         points:
           type: integer
         streak:
           type: integer
+        valorations_score:
+          type: number
+          format: float
+          description: Puntuación media de valoraciones (0-10)
 
     # Basado en el modelo 'recycling_point' de Prisma
     RecyclingPoint:
@@ -86,7 +99,9 @@ components:
           type: integer
         api_location:
           type: string
-          enum: [Navarra, Barcelona]
+          enum:
+            - Navarra
+            - Barcelona
         name:
           type: string
         latitude:
@@ -98,6 +113,18 @@ components:
         equipment_type:
           type: string
           description: Mapeado desde el enum equipment_type de la BD
+          enum:
+            - Recycling_center
+            - Batteries
+            - Medicines_and_packaging
+            - Garden_waste
+            - Clothing_and_footwear
+            - Bulky_waste
+            - Glass_containers
+            - Coffee_capsules
+            - Used_cooking_oil
+            - Household_construction_waste
+            - Community_composting
         distance_km:
           type: number
           description: Distancia en KM desde el punto de búsqueda. **Solo presente** si se aplica el filtro de proximidad (lat+lng+radius).
@@ -194,9 +221,18 @@ components:
           format: uuid
         item_state:
           type: string
-          enum: [New, Little_used, Widely_used, Bad_condition]
+          enum:
+            - New
+            - Little_used
+            - Widely_used
+            - Bad_condition
         points_price:
           type: integer
+          enum:
+            - 5
+            - 10
+            - 25
+            - 50
         created_at:
           type: string
           format: date-time
@@ -211,6 +247,11 @@ components:
           type: string
         points_price:
           type: integer
+          enum:
+            - 500
+            - 1000
+            - 2000
+            - 5000
         available:
           type: boolean
 
@@ -230,7 +271,10 @@ components:
           format: date-time
         publication_state:
           type: string
-          enum: [Pending, Completed, Cancelled]
+          enum:
+            - Pending
+            - Completed
+            - Cancelled
         client_id:
           type: string
           nullable: true
@@ -272,6 +316,8 @@ components:
             created_at:
               type: string
               format: date-time
+            has_media:
+              type: boolean
         unread_count:
           type: integer
         updated_at:
@@ -287,18 +333,93 @@ components:
         chat_id:
           type: string
           format: uuid
+        sender_id:
+          type: string
+          description: ID del usuario que envió el mensaje
         content:
           type: string
-        is_read:
-          type: boolean
-        delivered:
-          type: boolean
+        status:
+          type: string
+          enum:
+            - PENDING
+            - SENT
+            - DELIVERED
+            - READ
+            - FAILED
+          description: Estado actual del mensaje
         created_at:
           type: string
           format: date-time
         is_deleted:
           type: boolean
+        retry_count:
+          type: integer
+          description: Número de reintentos de envío
+        last_error:
+          type: string
+          nullable: true
+          description: Último error al enviar (si falló)
+        media:
+          type: array
+          items:
+            type: string
+            format: uri
 
+    MessageStatus:
+      type: object
+      properties:
+        message_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - PENDING
+            - SENT
+            - DELIVERED
+            - READ
+            - FAILED
+        retry_count:
+          type: integer
+        last_error:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    QueueStats:
+      type: object
+      properties:
+        queueSize:
+          type: integer
+          description: Número de mensajes en cola de reintentos
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              messageId:
+                type: string
+                format: uuid
+              chatId:
+                type: string
+                format: uuid
+              retryCount:
+                type: integer
+              addedAt:
+                type: integer
+                format: int64
+                description: Timestamp de cuándo se agregó a la cola
+              nextRetryAt:
+                type: integer
+                format: int64
+                description: Timestamp del próximo reintento
+
+    # --- Reservation Schemas ---
     Reservation:
       type: object
       properties:
@@ -333,6 +454,150 @@ components:
         reservation:
           $ref: '#/components/schemas/Reservation'
 
+    Valoration:
+      type: object
+      properties:
+        valoration_id:
+          type: string
+          format: uuid
+        score:
+          type: integer
+          minimum: 0
+          maximum: 10
+        comment:
+          type: string
+        author:
+          $ref: '#/components/schemas/UserProfile'
+
+    # --- Gamification Schemas ---
+    PointHistory:
+      type: object
+      properties:
+        history_id:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          description: Cantidad de puntos (positivo = ganancia, negativo = gasto)
+        source:
+          type: string
+          enum:
+            - ECO_TRADER_SALE
+            - RECYCLING_ACTION
+            - EVENT_ATTENDANCE
+            - REWARD_REDEMPTION
+            - ADMIN_ADJUSTMENT
+        description:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    GamificationProfile:
+      type: object
+      properties:
+        balance:
+          type: integer
+          description: Saldo actual de puntos
+        limit:
+          type: integer
+          description: Límite máximo de puntos permitidos
+        rules:
+          type: object
+          description: Reglas de puntos vigentes (acciones y valores permitidos)
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/PointHistory'
+
+    # --- User Report Schema ---
+    UserReport:
+      type: object
+      properties:
+        report_id:
+          type: string
+          format: uuid
+        reporter_id:
+          type: string
+          format: uuid
+        reported_user_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          enum:
+            - inappropriate_content
+            - harassment
+            - fake_profile
+            - spam
+            - other
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum:
+            - Pending
+            - Resolved
+            - Dismissed
+        created_at:
+          type: string
+          format: date-time
+        reporter:
+          type: object
+          properties:
+            username:
+              type: string
+            email:
+              type: string
+        reported_user:
+          type: object
+          properties:
+            user_id:
+              type: string
+              format: uuid
+            username:
+              type: string
+            email:
+              type: string
+            profile_picture:
+              type: string
+              nullable: true
+
+    # --- Recycling Guide Schema ---
+    RecyclingGuideItem:
+      type: object
+      properties:
+        item_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Nombre del producto (ej. "Botella de plástico")
+        keywords:
+          type: array
+          items:
+            type: string
+          description: Palabras clave para búsqueda
+        container_type:
+          type: string
+          enum:
+            - ElectricContainer
+            - GlassContainer
+            - OrganicContainer
+            - PaperContainer
+            - PlasticContainer
+            - TextileContainer
+            - Unrecyclable
+          description: Tipo de contenedor donde debe reciclarse
+        description:
+          type: string
+          nullable: true
+          description: Descripción adicional del producto
+        created_at:
+          type: string
+          format: date-time
+
 paths:
   # --- Health Check ---
   /:
@@ -352,10 +617,19 @@ paths:
   /api/users/sync:
     post:
       summary: Sincronizar usuario / Login / Registro
-      description: Intercambia un token de Firebase por un JWT del Backend y crea el usuario si no existe.
+      description: |
+        Intercambia un token de Firebase por un JWT del Backend y crea el usuario si no existe.
+        **Para crear un usuario con un rol específico (admin/institution/partner), se debe enviar el header `x-role-secret` con la clave correspondiente.**
       tags: [Usuarios]
       security:
         - firebaseAuth: []
+      parameters:
+        - in: header
+          name: x-role-secret
+          schema:
+            type: string
+          description: 'Clave secreta para autorizar el registro de roles privilegiados (admin, institution, partner).'
+          required: false
       requestBody:
         description: Datos opcionales para registro manual.
         required: false
@@ -370,6 +644,14 @@ paths:
                   type: string
                 username:
                   type: string
+                role:
+                  type: string
+                  description: "Rol deseado. Valores: 'client', 'admin', 'institution', 'partner'. Si es distinto a 'client', requiere header `x-role-secret`."
+                  enum:
+                    - client
+                    - admin
+                    - institution
+                    - partner
       responses:
         '200':
           description: Login correcto o usuario creado.
@@ -386,6 +668,11 @@ paths:
                       expiryDate:
                         type: string
                         format: date-time
+                      role:
+                        type: string
+                        description: Rol asignado al usuario.
+        '403':
+          description: Clave secreta requerida o incorrecta para el rol solicitado.
 
   /api/users/me:
     get:
@@ -482,10 +769,732 @@ paths:
               properties:
                 newLanguage:
                   type: string
-                  enum: [ca, es, en]
+                  description: "Nuevo idioma para la aplicación. Valores permitidos: 'ca', 'es', 'en'."
+                  enum:
+                    - ca
+                    - es
+                    - en
       responses:
         '200':
           description: Idioma actualizado.
+
+  # --- Endpoints de Información de Usuarios (IDs, Tipos, etc.) ---
+  /api/users/ids/all:
+    get:
+      summary: Obtener todos los IDs de usuarios
+      tags: [Usuarios - Admin/Info]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de todos los IDs.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  ids:
+                    type: array
+                    items:
+                      type: string
+                      format: uuid
+
+  /api/users/ids/clients:
+    get:
+      summary: Obtener IDs de clientes
+      tags: [Usuarios - Admin/Info]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de IDs de clientes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  ids:
+                    type: array
+                    items:
+                      type: string
+
+  /api/users/ids/institutions:
+    get:
+      summary: Obtener IDs de instituciones
+      tags: [Usuarios - Admin/Info]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de IDs de instituciones.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  ids:
+                    type: array
+                    items:
+                      type: string
+
+  /api/users/ids/admins:
+    get:
+      summary: Obtener IDs de administradores
+      tags: [Usuarios - Admin/Info]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de IDs de administradores.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  ids:
+                    type: array
+                    items:
+                      type: string
+
+  /api/users/{id}:
+    get:
+      summary: Obtener perfil público de usuario por ID
+      tags: [Usuarios]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Información del usuario.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserProfile'
+
+  /api/users/{id}/type:
+    get:
+      summary: Obtener tipo/rol de un usuario específico
+      tags: [Usuarios - Admin/Info]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Rol del usuario.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  role:
+                    type: string
+                    enum: [client, admin, institution, partner, unknown]
+
+  /api/users/{id}/public:
+    get:
+      summary: Obtener datos explícitamente públicos
+      tags: [Usuarios]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Datos públicos del usuario.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserProfile'
+
+  /api/users/{id}/private:
+    get:
+      summary: Obtener datos privados (Solo Admin o Propio usuario)
+      tags: [Usuarios]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Datos sensibles (email, dni, teléfono, etc.).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          email:
+                            type: string
+                          dni:
+                            type: string
+                          phone:
+                            type: string
+                          address:
+                            type: string
+                          birth_date:
+                            type: string
+
+  /api/users/{id}/valorations/made:
+    get:
+      summary: Obtener valoraciones hechas por el usuario
+      tags: [Usuarios - Valoraciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de valoraciones escritas.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Valoration'
+
+  /api/users/{id}/valorations/received:
+    get:
+      summary: Obtener valoraciones recibidas por el usuario
+      tags: [Usuarios - Valoraciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de valoraciones recibidas y puntuación media.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  average_score:
+                    type: number
+                    format: float
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Valoration'
+
+  /api/users/{id}/score:
+    get:
+      summary: Obtener puntuación media de un usuario
+      tags: [Usuarios - Valoraciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Puntuación media.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  score:
+                    type: number
+                    format: float
+
+  /api/users/me/rewards_bought:
+    get:
+      summary: Obtener rewards comprados por el usuario actual
+      description: Obtiene el historial de rewards que ha comprado el usuario autenticado.
+      tags: [Usuarios - Rewards]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de rewards comprados.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          description: Información del reward comprado con detalles de la compra
+
+  /api/users/{userId}/rewards_bought:
+    get:
+      summary: Obtener rewards comprados por un usuario específico
+      description: Obtiene el historial de rewards comprados por un usuario por su ID.
+      tags: [Usuarios - Rewards]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de rewards comprados por el usuario.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          description: Información del reward comprado con detalles de la compra
+
+  /api/users/{userId}/points:
+    get:
+      summary: Obtener puntos de un usuario
+      description: Devuelve la cantidad de EcoPoints de un cliente específico.
+      tags: [Usuarios - Gamificación]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cantidad de puntos del usuario.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          points:
+                            type: integer
+                            description: Cantidad actual de EcoPoints del usuario
+
+  # --- Reportes de Usuarios ---
+  /api/users/report/{userId}:
+    post:
+      summary: Reportar a un usuario
+      description: |
+        Permite a un usuario autenticado reportar a otro usuario por comportamiento inapropiado.
+
+        **Tipos de reporte disponibles (report_reason_type):**
+        - `inappropriate_content` - Contenido inapropiado
+        - `harassment` - Acoso
+        - `fake_profile` - Perfil falso
+        - `spam` - Spam
+        - `other` - Otro (requiere descripción obligatoria)
+      tags: [Usuarios - Reportes]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+          description: ID del usuario a reportar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  enum:
+                    - inappropriate_content
+                    - harassment
+                    - fake_profile
+                    - spam
+                    - other
+                  description: Motivo del reporte
+                description:
+                  type: string
+                  description: Descripción adicional (obligatoria si reason es "other")
+      responses:
+        '201':
+          description: Usuario reportado correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserReport'
+        '400':
+          description: Motivo inválido o falta descripción para "other".
+        '404':
+          description: Usuario a reportar no encontrado.
+
+  /api/users/admin/reports:
+    get:
+      summary: Obtener todos los reportes (Solo Administradores)
+      description: Recupera todos los reportes de usuarios. Solo accesible para administradores.
+      tags: [Usuarios - Reportes]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Lista de todos los reportes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserReport'
+        '403':
+          description: Acceso denegado. Solo administradores.
+
+  /api/users/admin/reports/{reportId}:
+    patch:
+      summary: Actualizar estado de un reporte (Solo Administradores)
+      description: |
+        Permite a los administradores cambiar el estado de un reporte.
+
+        **Estados de reporte disponibles (report_status):**
+        - `Pending` - Pendiente de revisión
+        - `Resolved` - Resuelto (acción tomada)
+        - `Dismissed` - Descartado (sin acción necesaria)
+      tags: [Usuarios - Reportes]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: reportId
+          required: true
+          schema:
+            type: string
+          description: ID del reporte a actualizar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum:
+                    - Pending
+                    - Resolved
+                    - Dismissed
+                  description: Nuevo estado del reporte
+      responses:
+        '200':
+          description: Estado del reporte actualizado correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserReport'
+        '400':
+          description: Estado inválido.
+        '403':
+          description: Acceso denegado. Solo administradores.
+        '404':
+          description: Reporte no encontrado.
+        '409':
+          description: El nuevo estado debe ser diferente al actual.
+
+    delete:
+      summary: Eliminar un reporte (Solo Administradores)
+      description: Permite a los administradores eliminar un reporte específico.
+      tags: [Usuarios - Reportes]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: reportId
+          required: true
+          schema:
+            type: string
+          description: ID del reporte a eliminar
+      responses:
+        '200':
+          description: Reporte eliminado correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          description: Acceso denegado. Solo administradores.
+        '404':
+          description: Reporte no encontrado.
+
+  /api/users/admin/reports/status/{status}:
+    get:
+      summary: Obtener reportes filtrados por estado (Solo Administradores)
+      description: Recupera todos los reportes que coinciden con el estado especificado.
+      tags: [Usuarios - Reportes]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: status
+          required: true
+          schema:
+            type: string
+            enum:
+              - Pending
+              - Resolved
+              - Dismissed
+          description: Estado de los reportes a filtrar (case-insensitive)
+      responses:
+        '200':
+          description: Lista de reportes con el estado especificado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  status:
+                    type: string
+                    description: Estado filtrado (normalizado)
+                  count:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserReport'
+        '400':
+          description: Estado inválido.
+        '403':
+          description: Acceso denegado. Solo administradores.
+
+  /api/users/admin/reports/detail/{reportId}:
+    get:
+      summary: Obtener detalle completo de un reporte (Solo Administradores)
+      description: Recupera toda la información de un reporte específico, incluyendo detalles del reportador y usuario reportado.
+      tags: [Usuarios - Reportes]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: reportId
+          required: true
+          schema:
+            type: string
+          description: ID del reporte a consultar
+      responses:
+        '200':
+          description: Detalle completo del reporte.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserReport'
+        '403':
+          description: Acceso denegado. Solo administradores.
+        '404':
+          description: Reporte no encontrado.
+
+  /api/users/block/{userId}:
+    post:
+      summary: Bloquear a un usuario
+      description: >-
+        Añade el ID de un usuario a la lista de bloqueados del usuario autenticado. 
+        Esto impedirá ver sus publicaciones (trades) y recibir mensajes de chat de él.
+      tags: [Usuarios - Block]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          schema:
+            type: string
+          required: true
+          description: ID del usuario objetivo a bloquear
+      responses:
+        '200':
+          description: Usuario bloqueado correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          description: Error de validación (ej. intentar bloquearse a sí mismo).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          description: El usuario a bloquear no existe en la base de datos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '409':
+          description: Conflicto - El usuario ya se encuentra en la lista de bloqueados.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '500':
+          description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /api/users/admin/block/{userId}:
+    get:
+      summary: Obtener lista de bloqueados de un usuario (Admin)
+      description: >-
+        Devuelve el array de identificadores (IDs) de los usuarios que han sido
+        bloqueados por el usuario especificado en el parámetro.
+        Requiere permisos de administrador.
+      tags: [Usuarios - Block]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          schema:
+            type: string
+          required: true
+          description: ID del usuario del cual se quiere consultar la lista de bloqueos.
+      responses:
+        '200':
+          description: Lista obtenida correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      blocked_users:
+                        type: array
+                        items:
+                          type: string
+                        description: Lista de IDs de usuarios bloqueados.
+        '403':
+          description: No autorizado (El usuario no es administrador).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          description: El usuario especificado no existe.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '500':
+          description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
 
   # --- Puntos de Reciclaje ---
   /api/recycling-points/{region}:
@@ -499,7 +1508,9 @@ paths:
           required: true
           schema:
             type: string
-            enum: [navarra, barcelona]
+            enum:
+              - navarra
+              - barcelona
         # Filtros extraídos de recycling-points.controller.js
         - in: query
           name: api_id
@@ -512,24 +1523,29 @@ paths:
             type: string
             # Enum extraído de schema.prisma y equipment-type-mapper.js
             enum:
-              [
-                Recycling_center,
-                Batteries,
-                Medicines_and_packaging,
-                Garden_waste,
-                Clothing_and_footwear,
-                Bulky_waste,
-                Glass_containers,
-                Coffee_capsules,
-                Used_cooking_oil,
-                Household_construction_waste,
-                Community_composting,
-              ]
+              - Recycling_center
+              - Batteries
+              - Medicines_and_packaging
+              - Garden_waste
+              - Clothing_and_footwear
+              - Bulky_waste
+              - Glass_containers
+              - Coffee_capsules
+              - Used_cooking_oil
+              - Household_construction_waste
+              - Community_composting
         - in: query
           name: wasteType
           schema:
             type: string
-            enum: [ElectricContainer, GlassContainer, OrganicContainer, PaperContainer, PlasticContainer, TextileContainer, Unrecyclable]
+            enum:
+              - ElectricContainer
+              - GlassContainer
+              - OrganicContainer
+              - PaperContainer
+              - PlasticContainer
+              - TextileContainer
+              - Unrecyclable
           description: Filtra puntos que tengan contenedores de este tipo.
         - in: query
           name: name
@@ -645,7 +1661,11 @@ paths:
           schema:
             type: string
             default: driving-car
-            enum: [driving-car, cycling-regular, foot-walking, wheelchair]
+            enum:
+              - driving-car
+              - cycling-regular
+              - foot-walking
+              - wheelchair
       responses:
         '200':
           description: Datos de la ruta calculada.
@@ -672,10 +1692,79 @@ paths:
                         items:
                           type: object
 
+  # --- Gamificación (EcoPoints) ---
+  /api/gamification/me:
+    get:
+      summary: Obtener perfil de gamificación (Puntos e Historial)
+      tags: [Gamificación]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Perfil de gamificación recuperado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GamificationProfile'
+
+  /api/gamification/grant:
+    post:
+      summary: Otorgar puntos manualmente (Admin/Institución)
+      description: |
+        Permite otorgar puntos manualmente a un usuario.
+        **Fuentes permitidas (`source`):**
+        - `RECYCLING_ACTION`: Acción de reciclaje.
+        - `EVENT_ATTENDANCE`: Asistencia a evento.
+        - `ADMIN_ADJUSTMENT`: Ajuste administrativo.
+      tags: [Gamificación]
+      security:
+        - backendAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                targetUserId:
+                  type: string
+                  format: uuid
+                amount:
+                  type: integer
+                source:
+                  type: string
+                  description: "Fuente de los puntos. Valores permitidos: 'RECYCLING_ACTION', 'EVENT_ATTENDANCE', 'ADMIN_ADJUSTMENT'."
+                  enum:
+                    - RECYCLING_ACTION
+                    - EVENT_ATTENDANCE
+                    - ADMIN_ADJUSTMENT
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Puntos otorgados.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object # Resultado del processPoints
+
   # --- Publicaciones (Rewards) ---
   /api/publications/rewards:
     post:
       summary: Crear nueva recompensa (Solo Instituciones)
+      description: |
+        Crea una nueva recompensa disponible para canjear.
+        **Precios permitidos (`pointsPrice`):** 500, 1000, 2000, 5000.
       tags: [Publicaciones]
       security:
         - backendAuth: []
@@ -694,6 +1783,12 @@ paths:
                   type: string
                 pointsPrice:
                   type: integer
+                  description: 'Precio en puntos. Valores permitidos: 500, 1000, 2000, 5000.'
+                  enum:
+                    - 500
+                    - 1000
+                    - 2000
+                    - 5000
                 mediaUrl:
                   type: string
       responses:
@@ -789,10 +1884,233 @@ paths:
                       data:
                         $ref: '#/components/schemas/Publication'
 
+  /api/publications/rewards/{rewardId}/buy:
+    post:
+      summary: Comprar un reward (Solo Clientes)
+      description: |
+        Un cliente compra un reward. Crea un registro en 'reward_bought_by'.
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: rewardId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '201':
+          description: Reward comprado exitosamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        description: Registro de compra del reward
+        '400':
+          description: Puntos insuficientes o reward no disponible.
+        '404':
+          description: Reward no encontrado.
+
+  /api/publications/rewards/user/{userId}/bought:
+    get:
+      summary: Obtener rewards comprados por un usuario
+      description: Obtiene todos los rewards que ha comprado un cliente específico.
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de rewards comprados por el usuario.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Publication'
+
+  /api/publications/rewards/{rewardId}/buyers:
+    get:
+      summary: Obtener usuarios que compraron un reward
+      description: Obtiene la lista de usuarios que han comprado un reward específico.
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: rewardId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de usuarios que compraron el reward.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/UserProfile'
+
+  /api/publications/rewards/{id}/body:
+    patch:
+      summary: Actualizar contenido de un reward
+      description: |
+        Actualiza el título, descripción, contenido, precio de puntos y/o imagen de un reward.
+        Todos los campos son opcionales. Solo se actualizarán los campos proporcionados.
+        También permite cancelar la publicación enviando state: "Cancelled".
+        **Precios permitidos (`pointsPrice`):** 500, 1000, 2000, 5000.
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID de la publicación reward a actualizar
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  description: Nuevo título del reward
+                description:
+                  type: string
+                  description: Nueva descripción del reward
+                content:
+                  type: string
+                  description: Nuevo contenido del reward
+                pointsPrice:
+                  type: integer
+                  description: 'Nuevo precio en puntos. Valores permitidos: 500, 1000, 2000, 5000.'
+                  enum:
+                    - 500
+                    - 1000
+                    - 2000
+                    - 5000
+                state:
+                  type: string
+                  description: 'Estado de la publicación. Para cancelar: "Cancelled".'
+                  enum:
+                    - Cancelled
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                content:
+                  type: string
+                pointsPrice:
+                  type: integer
+                  enum:
+                    - 500
+                    - 1000
+                    - 2000
+                    - 5000
+                image:
+                  type: string
+                  format: binary
+                  description: Nueva imagen del reward (reemplaza la anterior)
+      responses:
+        '200':
+          description: Reward actualizado exitosamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Publication'
+        '400':
+          description: Datos inválidos (precio de puntos fuera del rango permitido o no es un reward).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      code:
+                        type: string
+                        enum:
+                          - INVALID_POINTS_PRICE
+        '403':
+          description: No tienes permiso para editar esta publicación (solo institución creadora).
+        '404':
+          description: Publicación no encontrada.
+
+  /api/publications/rewards/{id}:
+    get:
+      summary: Obtener detalle de un reward
+      description: Obtiene el detalle de un Reward específico por su ID.
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detalle del reward.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Publication'
+        '404':
+          description: Reward no encontrado.
+
   # --- Publicaciones (Trades) ---
   /api/publications/trades:
     post:
       summary: Crear nuevo intercambio (Solo Clientes)
+      description: |
+        Crea una nueva publicación de intercambio.
+        **Estados permitidos (`itemState`):** `New`, `Little_used`, `Widely_used`, `Bad_condition`.
+        **Precios permitidos (`pointsPrice`):** 5, 10, 25, 50.
       tags: [Publicaciones]
       security:
         - backendAuth: []
@@ -809,9 +2127,20 @@ paths:
                   type: string
                 itemState:
                   type: string
-                  enum: [New, Little_used, Widely_used, Bad_condition]
+                  description: "Estado del artículo. Valores permitidos: 'New', 'Little_used', 'Widely_used', 'Bad_condition'."
+                  enum:
+                    - New
+                    - Little_used
+                    - Widely_used
+                    - Bad_condition
                 pointsPrice:
                   type: integer
+                  description: 'Precio en puntos. Valores permitidos: 5, 10, 25, 50.'
+                  enum:
+                    - 5
+                    - 10
+                    - 25
+                    - 50
                 mediaUrl:
                   type: string
       responses:
@@ -1038,7 +2367,11 @@ paths:
               properties:
                 state:
                   type: string
-                  enum: [Completed, Cancelled, Pending]
+                  description: "Nuevo estado. Valores permitidos: 'Completed', 'Cancelled', 'Pending'."
+                  enum:
+                    - Completed
+                    - Cancelled
+                    - Pending
       responses:
         '200':
           description: Estado actualizado.
@@ -1076,6 +2409,93 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/Publication'
+
+  /api/publications/trades/{id}/body:
+    patch:
+      summary: Actualizar contenido de un intercambio
+      description: |
+        Actualiza el título, descripción, precio de puntos y/o imagen de un trade.
+        Todos los campos son opcionales. Solo se actualizarán los campos proporcionados.
+        **Precios permitidos (`pointsPrice`):** 5, 10, 25, 50.
+      tags: [Publicaciones]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: ID de la publicación a actualizar
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  description: Nuevo título del trade
+                description:
+                  type: string
+                  description: Nueva descripción del trade
+                pointsPrice:
+                  type: integer
+                  description: 'Nuevo precio en puntos. Valores permitidos: 5, 10, 25, 50.'
+                  enum:
+                    - 5
+                    - 10
+                    - 25
+                    - 50
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                pointsPrice:
+                  type: integer
+                  enum:
+                    - 5
+                    - 10
+                    - 25
+                    - 50
+                image:
+                  type: string
+                  format: binary
+                  description: Nueva imagen del trade (reemplaza la anterior)
+      responses:
+        '200':
+          description: Trade actualizado exitosamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Publication'
+        '400':
+          description: Datos inválidos (precio de puntos fuera del rango permitido o no es un trade).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      code:
+                        type: string
+                        enum:
+                          - INVALID_POINTS_PRICE
+        '403':
+          description: No tienes permiso para editar esta publicación.
+        '404':
+          description: Publicación no encontrada.
 
   /api/publications/{id}:
     delete:
@@ -1192,7 +2612,13 @@ paths:
               properties:
                 content:
                   type: string
-                  description: Contenido del mensaje.
+                  description: Contenido del mensaje (opcional si se envía media).
+                media:
+                  type: array
+                  items:
+                    type: string
+                    format: uri
+                  description: Lista de URLs de imágenes adjuntas.
       responses:
         '201':
           description: Mensaje enviado y guardado.
@@ -1243,6 +2669,57 @@ paths:
           description: No eres el propietario del mensaje.
         '400':
           description: Tiempo de eliminación expirado (> 5 min).
+
+  /api/chats/messages/{messageId}/status:
+    get:
+      summary: Consultar estado de un mensaje
+      description: Obtiene el estado actual de un mensaje específico (PENDING, SENT, DELIVERED, READ, FAILED).
+      tags: [Chat]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: messageId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Estado del mensaje obtenido correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      status:
+                        $ref: '#/components/schemas/MessageStatus'
+        '404':
+          description: Mensaje no encontrado.
+        '403':
+          description: No tienes acceso a este mensaje.
+
+  /api/chats/queue/stats:
+    get:
+      summary: Obtener estadísticas de la cola de mensajes
+      description: Devuelve información sobre los mensajes pendientes de reenvío en la cola (útil para debugging).
+      tags: [Chat]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Estadísticas de la cola obtenidas correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      stats:
+                        $ref: '#/components/schemas/QueueStats'
 
   # --- Notificaciones ---
   /api/notifications/token:
@@ -1321,7 +2798,8 @@ paths:
                       data:
                         $ref: '#/components/schemas/Reservation'
     patch:
-      summary: Confirmar reserva
+      summary: Confirmar reserva (y transferir EcoPoints)
+      description: Confirma la reserva, cierra la publicación y transfiere los puntos del comprador al vendedor.
       tags: [Reservas]
       security:
         - backendAuth: []
@@ -1342,7 +2820,7 @@ paths:
                   type: boolean
       responses:
         '200':
-          description: Reserva confirmada.
+          description: Reserva confirmada y puntos transferidos.
           content:
             application/json:
               schema:
@@ -1357,6 +2835,8 @@ paths:
                             $ref: '#/components/schemas/Reservation'
                           reservation_ended:
                             $ref: '#/components/schemas/ReservationEnded'
+                          points_transferred:
+                            type: integer
 
   /api/reservations/{reservationId}/cancel:
     delete:
@@ -1529,7 +3009,57 @@ paths:
                       data:
                         type: array
                         items:
-                          type: object # Placeholder, Valoration schema not defined yet
+                          $ref: '#/components/schemas/Valoration'
+    post:
+      summary: Crear valoración
+      description: |
+        Valorar la transacción finalizada (comprador a vendedor o viceversa).
+        **Puntuación (`score`):** Entero del 0 al 10.
+      tags: [Reservas]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: reservationId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                score:
+                  type: integer
+                  description: 'Puntuación (0-10).'
+                  enum:
+                    - 0
+                    - 1
+                    - 2
+                    - 3
+                    - 4
+                    - 5
+                    - 6
+                    - 7
+                    - 8
+                    - 9
+                    - 10
+                comment:
+                  type: string
+      responses:
+        '201':
+          description: Valoración creada y perfil actualizado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Valoration'
 
   # --- Detección De Imagenes ---
   /api/detect/bikes:
@@ -1589,3 +3119,255 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/WasteDetectionResponse'
+
+  # --- Guía de Reciclaje ---
+  /api/recycling-guide/search:
+    get:
+      summary: Buscar productos en la guía de reciclaje
+      description: Busca productos por nombre o palabras clave. Si no se proporciona query, devuelve todos los productos.
+      tags: [Guía de Reciclaje]
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Texto de búsqueda (ej. "botella", "pila", "ropa")
+          required: false
+      responses:
+        '200':
+          description: Resultados de la búsqueda.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      count:
+                        type: integer
+                        description: Número de resultados encontrados
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RecyclingGuideItem'
+        '500':
+          description: Error del servidor.
+
+  /api/recycling-guide/all:
+    get:
+      summary: Obtener todos los productos del catálogo
+      description: Devuelve la lista completa de productos disponibles en la guía de reciclaje, ordenados alfabéticamente.
+      tags: [Guía de Reciclaje]
+      responses:
+        '200':
+          description: Catálogo completo obtenido correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      count:
+                        type: integer
+                        description: Número total de productos en el catálogo
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RecyclingGuideItem'
+        '500':
+          description: Error del servidor.
+    delete:
+      summary: Eliminar todos los productos del catálogo
+      description: ⚠️ PRECAUCIÓN - Solo administradores pueden eliminar TODOS los productos de la guía. Esta acción es irreversible.
+      tags: [Guía de Reciclaje]
+      security:
+        - backendAuth: []
+      responses:
+        '200':
+          description: Todos los productos eliminados correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      deletedCount:
+                        type: integer
+                        description: Número de productos eliminados
+        '401':
+          description: No autenticado.
+        '403':
+          description: No tiene permisos de administrador.
+        '500':
+          description: Error del servidor.
+
+  /api/recycling-guide:
+    post:
+      summary: Añadir producto a la guía de reciclaje
+      description: Solo administradores pueden añadir nuevos productos a la guía.
+      tags: [Guía de Reciclaje]
+      security:
+        - backendAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - containerType
+              properties:
+                name:
+                  type: string
+                  description: Nombre del producto (debe ser único)
+                  example: 'Botella de vidrio'
+                containerType:
+                  type: string
+                  enum:
+                    - ElectricContainer
+                    - GlassContainer
+                    - OrganicContainer
+                    - PaperContainer
+                    - PlasticContainer
+                    - TextileContainer
+                    - Unrecyclable
+                  description: Tipo de contenedor donde debe reciclarse
+                  example: 'GlassContainer'
+                keywords:
+                  type: array
+                  items:
+                    type: string
+                  description: Palabras clave para facilitar la búsqueda
+                  example: ['botella', 'vidrio', 'cristal']
+                description:
+                  type: string
+                  description: Descripción adicional del producto
+                  example: 'Botellas de vidrio transparente o de color'
+      responses:
+        '201':
+          description: Producto añadido correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RecyclingGuideItem'
+        '400':
+          description: Datos faltantes o inválidos.
+        '401':
+          description: No autenticado.
+        '403':
+          description: No tiene permisos de administrador.
+        '409':
+          description: El producto ya existe en la guía.
+        '500':
+          description: Error del servidor.
+
+  /api/recycling-guide/{id}:
+    put:
+      summary: Actualizar producto del catálogo
+      description: Solo administradores pueden actualizar productos existentes en la guía.
+      tags: [Guía de Reciclaje]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID del producto a actualizar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Nuevo nombre del producto (opcional)
+                  example: 'Botella de plástico PET'
+                containerType:
+                  type: string
+                  enum:
+                    - ElectricContainer
+                    - GlassContainer
+                    - OrganicContainer
+                    - PaperContainer
+                    - PlasticContainer
+                    - TextileContainer
+                    - Unrecyclable
+                  description: Nuevo tipo de contenedor (opcional)
+                  example: 'PlasticContainer'
+                keywords:
+                  type: array
+                  items:
+                    type: string
+                  description: Nuevas palabras clave (opcional)
+                  example: ['botella', 'plástico', 'pet', 'envase']
+                description:
+                  type: string
+                  description: Nueva descripción (opcional)
+                  example: 'Botellas de plástico PET transparentes'
+      responses:
+        '200':
+          description: Producto actualizado correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RecyclingGuideItem'
+        '400':
+          description: No se proporcionó ningún campo para actualizar.
+        '401':
+          description: No autenticado.
+        '403':
+          description: No tiene permisos de administrador.
+        '404':
+          description: Producto no encontrado.
+        '409':
+          description: Ya existe otro producto con ese nombre.
+        '500':
+          description: Error del servidor.
+
+    delete:
+      summary: Eliminar producto del catálogo
+      description: Solo administradores pueden eliminar productos de la guía.
+      tags: [Guía de Reciclaje]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID del producto a eliminar
+      responses:
+        '200':
+          description: Producto eliminado correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          description: No autenticado.
+        '403':
+          description: No tiene permisos de administrador.
+        '404':
+          description: Producto no encontrado.
+        '500':
+          description: Error del servidor.

@@ -5,6 +5,7 @@ import { initializeFirebaseAdmin } from '#config/firebase.js';
 import { startSchedulers } from '#services/scheduler.service.js';
 import { warmupCaches } from '#services/scheduler.service.js';
 import { initializeSocket } from '#services/socket.service.js';
+import { startMessageQueue, recoverPendingMessages } from '#services/message-queue.service.js';
 import { createLogger } from '#lib/logger.js';
 import { authenticateBackendJWT, requireAdmin } from '#middlewares/auth.middleware.js';
 
@@ -17,7 +18,9 @@ import publicationRoutes from './api/routes/publication.routes.js';
 import reservationRoutes from './api/routes/reservation.routes.js';
 import chatRoutes from './api/routes/chat.routes.js';
 import notificationRoutes from './api/routes/notification.routes.js';
+import gamificationRoutes from './api/routes/gamification.routes.js';
 import swaggerUi from 'swagger-ui-express';
+import recyclingGuideRoutes from './api/routes/recycling-guide.routes.js';
 import yaml from 'yamljs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -57,7 +60,7 @@ try {
   privateSwaggerDoc = { info: { title: 'Error loading private docs' } };
 }
 
-const swaggerTitle = isProduction ? 'PESkaos AI Detection API - Public' : 'PESkaos API - Public Documentation';
+const swaggerTitle = isProduction ? 'EcoMap AI Detection API - Public' : 'EcoMap API - Public Documentation';
 
 // --- INICIALIZACION de Firebase Admin SDK ---
 initializeFirebaseAdmin();
@@ -80,7 +83,7 @@ app.get('/api-docs', (req, res, next) => {
 // Ruta para la documentación de la API privada (requiere autenticación de Admin)
 app.get('/api-docs-private', authenticateBackendJWT, requireAdmin, (req, res, next) => {
   return swaggerUi.setup(privateSwaggerDoc, {
-    customSiteTitle: 'PESkaos API - Private Admin Documentation',
+    customSiteTitle: 'EcoMap API - Private Admin Documentation',
   })(req, res, next);
 });
 
@@ -94,6 +97,8 @@ app.use('/api/publications', publicationRoutes);
 app.use('/api/reservations', reservationRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/gamification', gamificationRoutes);
+app.use('/api/recycling-guide', recyclingGuideRoutes);
 
 // ruta base para verificar que la API está corriendo
 app.get('/', (req, res) => {
@@ -113,6 +118,13 @@ httpServer.listen(PORT, () => {
   // Initialize Socket.io
   initializeSocket(httpServer);
   log.info('Socket.io initialized');
+
+  // Initialize message queue
+  startMessageQueue();
+  log.info('Message queue processor started');
+
+  // Recover pending messages from database
+  recoverPendingMessages().catch((e) => log.error('Failed to recover pending messages:', e?.message || e));
 
   // Start background schedulers only in production (avoid cron traffic in development)
   if (process.env.NODE_ENV === 'production') {

@@ -3,6 +3,7 @@
 import { prisma } from '#lib/prisma.js';
 import { signUserJWT } from '#lib/jwt.js';
 import { getAuth } from '#services/auth.service.js';
+import { uploadToS3, deleteFromS3 } from '#services/storage.service.js';
 
 // Debug helper to keep logs consistent
 const dbg = (...args) => console.log('[syncUserToPostgres]', ...args);
@@ -13,13 +14,16 @@ const dbg = (...args) => console.log('[syncUserToPostgres]', ...args);
  * Crea: user -> registered_user -> client
  */
 export const syncUserToPostgres = async (req, res) => {
-  // UID del token de Firebase (siempre presente gracias al middleware)
   const { uid: firebaseUID } = req.user;
+
+  const { role: requestRole } = req.body;
+  const validRoles = ['client', 'admin', 'institution', 'partner'];
+  const roleToAssign = validRoles.includes(requestRole) ? requestRole : 'client';
 
   dbg('Inicio handler', { firebaseUID, bodyKeys: Object.keys(req.body || {}) });
 
   try {
-    // --- 1. ¿El usuario ya existe? (Lógica de LOGIN) ---
+    // lógica de login
     dbg('Consultando si el usuario ya existe en la BD', { user_id: firebaseUID });
     const existingUser = await prisma.registered_user.findUnique({
       where: { user_id: firebaseUID },
@@ -27,6 +31,7 @@ export const syncUserToPostgres = async (req, res) => {
         client: true, // para obtener profile_picture, points, streak
         admin: true, // para rol
         institution: true, // para rol
+        partner: true, // para rol
       },
     });
 
@@ -45,9 +50,10 @@ export const syncUserToPostgres = async (req, res) => {
       }
 
       // Determinar el rol del usuario
-      let role = 'client';
-      if (existingUser.admin) role = 'admin';
-      if (existingUser.institution) role = 'institution';
+      let currentRole = 'client';
+      if (existingUser.admin) currentRole = 'admin';
+      else if (existingUser.institution) currentRole = 'institution';
+      else if (existingUser.partner) currentRole = 'partner';
 
       // Generar y guardar nuevo JWT
       const jwtPayload = {
@@ -56,11 +62,12 @@ export const syncUserToPostgres = async (req, res) => {
         name: existingUser.name,
         surname: existingUser.surname,
         username: existingUser.username || null,
-        profile_picture: existingUser.client?.profile_picture || null,
-        role,
+        profile_picture: existingUser.profile_picture || null,
+        role: currentRole,
         points: existingUser.client?.points || 0,
         streak: existingUser.client?.streak || 0,
       };
+
       const { token, expiryDate } = signUserJWT(jwtPayload);
 
       await prisma.session.create({
@@ -77,15 +84,27 @@ export const syncUserToPostgres = async (req, res) => {
         message: 'Inicio de sesión correcto.',
         jwt: token,
         expiryDate: expiryDate.toISOString(),
+        role: currentRole,
       });
     }
 
     // --- 2. Si no existe, es un REGISTRO ---
     dbg('Usuario no existe -> REGISTRO');
+
+    let s3profilePictureUrl = null;
+    if (req.file) {
+      try {
+        s3profilePictureUrl = await uploadToS3(req.file);
+        dbg('Imagen subida a S3exitosamente:', s3profilePictureUrl);
+      } catch (uploadError) {
+        console.error('Error subiendo imagen a S3:', uploadError);
+      }
+    }
+
     const { name: bodyName, email: bodyEmail, username: bodyUsername } = req.body;
     const isManualRegistration = !!(bodyName && bodyEmail); // Username es opcional
 
-    const userData = {
+    let userData = {
       uid: firebaseUID,
       email: '',
       name: '',
@@ -103,6 +122,7 @@ export const syncUserToPostgres = async (req, res) => {
       const nameParts = bodyName.split(' ');
       userData.name = nameParts[0];
       userData.surname = nameParts.slice(1).join(' ');
+      userData.profile_picture = s3profilePictureUrl;
     } else {
       // --- REGISTRO SOCIAL (Google, etc.) ---
       dbg('Detectado REGISTRO SOCIAL (obteniendo datos de Firebase)');
@@ -119,7 +139,7 @@ export const syncUserToPostgres = async (req, res) => {
 
       userData.email = userRecord.email;
       userData.username = userRecord.email ? userRecord.email.split('@')[0] : null;
-      userData.profile_picture = userRecord.photoURL || null;
+      userData.profile_picture = s3profilePictureUrl || userRecord.photoURL || null;
 
       if (userRecord.displayName) {
         const nameParts = userRecord.displayName.split(' ');
@@ -154,7 +174,8 @@ export const syncUserToPostgres = async (req, res) => {
 
     // --- 3. Crear el usuario completo en una transacción ---
     dbg('Iniciando transacción de creación de usuario');
-    const { registeredUser, client } = await prisma.$transaction(async (tx) => {
+
+    const { registeredUser } = await prisma.$transaction(async (tx) => {
       await tx.user.create({ data: { user_id: userData.uid } });
       dbg('Fila creada en tabla `user`');
 
@@ -164,24 +185,45 @@ export const syncUserToPostgres = async (req, res) => {
           name: userData.name,
           email: userData.email,
           app_language: 'es', // Valor por defecto
+          profile_picture: userData.profile_picture,
           ...(userData.surname && { surname: userData.surname }),
           ...(userData.username && { username: userData.username }),
         },
       });
       dbg('Fila creada en tabla `registered_user`');
 
-      const newClient = await tx.client.create({
-        data: {
-          user_id: userData.uid,
-          points: 0,
-          streak: 0,
-          ...(userData.profile_picture && { profile_picture: userData.profile_picture }),
-          ...(userData.phone && { phone: userData.phone }),
-        },
-      });
-      dbg('Fila creada en tabla `client`');
+      switch (roleToAssign) {
+        case 'admin':
+          await tx.admin.create({
+            data: { user_id: userData.uid },
+          });
+          break;
 
-      return { registeredUser: newRegisteredUser, client: newClient };
+        case 'institution':
+          await tx.institution.create({
+            data: { user_id: userData.uid },
+          });
+          break;
+
+        case 'partner':
+          await tx.partner.create({
+            data: { user_id: userData.uid },
+          });
+          break;
+
+        case 'client':
+          await tx.client.create({
+            data: {
+              user_id: userData.uid,
+              points: 0,
+              streak: 0,
+              ...(userData.phone && { phone: userData.phone }),
+            },
+          });
+          break;
+      }
+
+      return { registeredUser: newRegisteredUser };
     });
 
     dbg('Transacción de creación completada');
@@ -193,10 +235,10 @@ export const syncUserToPostgres = async (req, res) => {
       name: registeredUser.name,
       surname: registeredUser.surname,
       username: registeredUser.username || null,
-      profile_picture: client.profile_picture || null,
-      role: 'client', // Rol por defecto para nuevos registros
-      points: client.points,
-      streak: client.streak,
+      role: roleToAssign,
+      profile_picture: registeredUser.profile_picture || null,
+      points: roleToAssign === 'client' ? 0 : 0,
+      streak: roleToAssign === 'client' ? 0 : 0,
     };
     const { token, expiryDate } = signUserJWT(jwtPayload);
 
@@ -211,9 +253,10 @@ export const syncUserToPostgres = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Usuario registrado y sincronizado correctamente.',
+      message: `Usuario registrado como ${roleToAssign} correctamente.`,
       jwt: token,
       expiryDate: expiryDate.toISOString(),
+      role: roleToAssign,
     });
   } catch (error) {
     console.error('Error en syncUserToPostgres:', error);
@@ -377,13 +420,28 @@ export const deleteUser = async (req, res) => {
   dbg('Autenticación reciente verificada.');
 
   try {
-    // 2. Eliminar al usuario de Firebase Authentication
+    // Buscamos la URL de la imagen antes de que el usuario sea borrado
+    const userToDelete = await prisma.registered_user.findUnique({
+      where: { user_id: uid },
+      select: { profile_picture: true },
+    });
+
+    if (userToDelete?.profile_picture) {
+      dbg(`Imagen de perfil encontrada, eliminando de S3: ${userToDelete.profile_picture}`);
+      try {
+        await deleteFromS3(userToDelete.profile_picture);
+      } catch (s3Error) {
+        console.error('Error al borrar imagen de S3, continuando con eliminación de cuenta:', s3Error);
+      }
+    }
+
+    // Eliminar al usuario de Firebase Authentication
     dbg(`Iniciando borrado en Firebase Auth para UID: ${uid}`);
     const auth = getAuth();
     await auth.deleteUser(uid);
     dbg(`Usuario ${uid} eliminado de Firebase Authentication.`);
 
-    // 3. Si el borrado en Firebase fue exitoso, eliminar de la BD local
+    // Si el borrado en Firebase fue exitoso, eliminar de la BD local
     // Gracias a ON DELETE CASCADE, se borrarán todas las referencias.
     dbg(`Iniciando borrado en BD para user_id: ${uid}`);
     await prisma.user.delete({
@@ -391,7 +449,7 @@ export const deleteUser = async (req, res) => {
     });
     dbg(`Usuario ${uid} eliminado de la base de datos.`);
 
-    // 4. Enviar respuesta de éxito
+    // Enviar respuesta de éxito
     return res.status(200).json({
       success: true,
       message: 'Tu cuenta ha sido eliminada permanentemente.',
@@ -432,6 +490,77 @@ export const deleteUser = async (req, res) => {
 };
 
 /**
+ * Obtiene TODA la información del perfil de un usuario específico por su ID.
+ * Combina datos de registered_user con los datos de su rol específico (client, admin, etc.)
+ * Endpoint: GET /api/users/:userId
+ */
+export const getUserFullProfile = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const user = await prisma.registered_user.findUnique({
+      where: { user_id: userId },
+      include: {
+        client: true,
+        admin: true,
+        institution: true,
+        partner: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    // determinar el rol y extraer los datos específicos
+    let role = 'client'; // por defecto
+    let roleData = {};
+
+    if (user.admin) {
+      role = 'admin';
+      roleData = user.admin;
+    } else if (user.institution) {
+      role = 'institution';
+      roleData = user.institution;
+    } else if (user.partner) {
+      role = 'partner';
+      roleData = user.partner;
+    } else if (user.client) {
+      role = 'client';
+      roleData = user.client;
+    }
+
+    // limpiar el objeto de respuesta
+    // eliminamos las propiedades anidadas redundantes para enviar un objeto plano
+    // eslint-disable-next-line no-unused-vars
+    const { client, admin, institution, partner, ...baseUserData } = user;
+
+    const fullProfile = {
+      ...baseUserData,
+      role: role,
+      ...roleData,
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: 'Perfil de usuario recuperado exitosamente.',
+      data: fullProfile,
+    });
+  } catch (error) {
+    console.error(`Error obteniendo perfil completo del usuario ${userId}:`, error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al obtener el usuario.',
+      code: 'GET_USER_ERROR',
+    });
+  }
+};
+
+/**
  * Obtiene el perfil del usuario autenticado a través del JWT del backend.
  */
 export const getUserProfile = async (req, res) => {
@@ -451,13 +580,13 @@ export const getUserProfile = async (req, res) => {
         app_language: true,
         client: {
           select: {
-            profile_picture: true,
             address: true,
             phone: true,
             birth_date: true,
             description: true,
             points: true,
             streak: true,
+            valorations_score: true,
           },
         },
         admin: true,
@@ -495,6 +624,7 @@ export const getUserProfile = async (req, res) => {
       role,
       points: userProfile.client?.points || 0,
       streak: userProfile.client?.streak || 0,
+      valorations_score: userProfile.client?.valorations_score || 0,
     };
 
     return res.status(200).json({
@@ -513,8 +643,9 @@ export const getUserProfile = async (req, res) => {
 };
 
 /**
- * Actualiza el perfil del usuario autenticado.
- * Soporta actualización parcial de campos.
+ * @route PUT /api/users/me
+ * @description Actualiza el perfil del usuario autenticado.
+ * Soporta actualización de imagen (borrando la anterior) y datos de texto.
  */
 export const updateUserProfile = async (req, res) => {
   const { uid } = req.user;
@@ -524,12 +655,43 @@ export const updateUserProfile = async (req, res) => {
   // Extraer campos del body
   const { name, surname, username, address, phone, birth_date, description } = req.body;
 
-  // --- Validaciones críticas del backend Y preparación de datos ---
+  // --- Validaciones críticas y preparación de datos ---
   const errors = [];
   const registeredUserData = {};
   const clientData = {};
 
-  // name: si se envía, validar tipo y longitud máxima (BD constraint)
+  // lógica de imágen
+  if (req.file) {
+    try {
+      dbg('Procesando nueva imagen de perfil...');
+      // Buscar el usuario actual para obtener la URL de la imagen VIEJA
+      const currentUser = await prisma.registered_user.findUnique({
+        where: { user_id: uid },
+        select: { profile_picture: true },
+      });
+
+      // Si tenía foto anterior, borrarla de S3
+      if (currentUser?.profile_picture) {
+        await deleteFromS3(currentUser.profile_picture);
+        dbg('Imagen antigua eliminada de S3');
+      }
+
+      // Subir la nueva imagen y guardar la URL
+      const newImageUrl = await uploadToS3(req.file);
+      registeredUserData.profile_picture = newImageUrl;
+      dbg('Nueva imagen subida:', newImageUrl);
+    } catch (err) {
+      console.error('Error gestionando imagen en update:', err);
+      return res.status(500).json({
+        success: false,
+        message: 'Error al procesar la imagen de perfil.',
+        code: 'IMAGE_PROCESSING_ERROR',
+      });
+    }
+  }
+
+  // validaciones de texto
+  // name
   if (name !== undefined && name !== null) {
     if (typeof name !== 'string' || name.trim().length === 0 || name.length > 80) {
       errors.push({ field: 'name', message: 'El campo "name" debe ser un texto válido de máximo 80 caracteres.' });
@@ -538,7 +700,7 @@ export const updateUserProfile = async (req, res) => {
     }
   }
 
-  // surname: si se envía, validar longitud máxima
+  // surname
   if (surname !== undefined && surname !== null) {
     if (typeof surname !== 'string' || surname.length > 80) {
       errors.push({ field: 'surname', message: 'El campo "surname" debe tener máximo 80 caracteres.' });
@@ -547,7 +709,7 @@ export const updateUserProfile = async (req, res) => {
     }
   }
 
-  // username: si se envía, validar formato y longitud
+  // username
   if (username !== undefined && username !== null) {
     if (typeof username !== 'string' || username.trim().length === 0 || username.length > 30) {
       errors.push({ field: 'username', message: 'El campo "username" debe tener máximo 30 caracteres.' });
@@ -558,7 +720,7 @@ export const updateUserProfile = async (req, res) => {
     }
   }
 
-  // address: si se envía, validar longitud máxima
+  // address
   if (address !== undefined && address !== null) {
     if (typeof address !== 'string' || address.length > 200) {
       errors.push({ field: 'address', message: 'El campo "address" debe tener máximo 200 caracteres.' });
@@ -567,10 +729,10 @@ export const updateUserProfile = async (req, res) => {
     }
   }
 
-  // phone: ya ha sido validado y normalizado por el middleware
+  // phone
   if (phone !== undefined && phone !== null) clientData.phone = phone;
 
-  // birth_date: si se envía, validar formato ISO y que sea fecha válida
+  // birth_date
   if (birth_date !== undefined && birth_date !== null) {
     if (typeof birth_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(birth_date)) {
       errors.push({ field: 'birth_date', message: 'El campo "birth_date" debe estar en formato YYYY-MM-DD.' });
@@ -586,7 +748,7 @@ export const updateUserProfile = async (req, res) => {
     }
   }
 
-  // description: si se envía, validar longitud máxima
+  // description
   if (description !== undefined && description !== null) {
     if (typeof description !== 'string' || description.length > 1000) {
       errors.push({ field: 'description', message: 'El campo "description" debe tener máximo 1000 caracteres.' });
@@ -595,9 +757,7 @@ export const updateUserProfile = async (req, res) => {
     }
   }
 
-  // Si hay errores de validación, devolverlos
   if (errors.length > 0) {
-    dbg('Errores de validación:', errors);
     return res.status(400).json({
       success: false,
       message: 'Errores de validación en los campos enviados.',
@@ -607,98 +767,35 @@ export const updateUserProfile = async (req, res) => {
   }
 
   try {
-    // Si no hay nada que actualizar, retornar el perfil actual sin cambios
-    if (Object.keys(registeredUserData).length === 0 && Object.keys(clientData).length === 0) {
-      dbg('No hay campos para actualizar, devolviendo perfil actual');
-      const userProfile = await prisma.registered_user.findUnique({
-        where: { user_id: uid },
-        select: {
-          user_id: true,
-          email: true,
-          name: true,
-          surname: true,
-          username: true,
-          dni: true,
-          app_language: true,
-          client: {
-            select: {
-              profile_picture: true,
-              address: true,
-              phone: true,
-              birth_date: true,
-              description: true,
-              points: true,
-              streak: true,
-            },
-          },
-          admin: true,
-          institution: true,
-        },
+    const hasUpdates = Object.keys(registeredUserData).length > 0 || Object.keys(clientData).length > 0;
+    let responseMessage = 'Perfil sin cambios';
+
+    // actualizamos
+    if (hasUpdates) {
+      dbg('Datos a actualizar:', { registeredUserData, clientData });
+
+      await prisma.$transaction(async (tx) => {
+        if (Object.keys(registeredUserData).length > 0) {
+          await tx.registered_user.update({
+            where: { user_id: uid },
+            data: registeredUserData,
+          });
+        }
+        if (Object.keys(clientData).length > 0) {
+          await tx.client.update({
+            where: { user_id: uid },
+            data: clientData,
+          });
+        }
       });
 
-      if (!userProfile) {
-        return res.status(404).json({
-          success: false,
-          message: 'Usuario no encontrado.',
-          code: 'USER_NOT_FOUND',
-        });
-      }
-
-      let role = 'client';
-      if (userProfile.admin) role = 'admin';
-      if (userProfile.institution) role = 'institution';
-
-      const responseData = {
-        uid: userProfile.user_id,
-        email: userProfile.email,
-        name: userProfile.name,
-        surname: userProfile.surname,
-        username: userProfile.username,
-        dni: userProfile.dni,
-        profile_picture: userProfile.client?.profile_picture || null,
-        app_language: userProfile.app_language,
-        address: userProfile.client?.address || null,
-        phone: userProfile.client?.phone || null,
-        birth_date: userProfile.client?.birth_date ? userProfile.client.birth_date.toISOString().split('T')[0] : null,
-        description: userProfile.client?.description || null,
-        role,
-        points: userProfile.client?.points || 0,
-        streak: userProfile.client?.streak || 0,
-      };
-
-      return res.status(200).json({
-        success: true,
-        message: 'Perfil sin cambios',
-        data: responseData,
-      });
+      responseMessage = 'Perfil actualizado correctamente';
+      dbg('Transacción completada con éxito');
+    } else {
+      dbg('No hay campos para actualizar, se devolverá el perfil actual.');
     }
 
-    dbg('Datos a actualizar:', { registeredUserData, clientData });
-
-    // Actualizar en transacción
-    await prisma.$transaction(async (tx) => {
-      // Actualizar registered_user si hay datos
-      if (Object.keys(registeredUserData).length > 0) {
-        await tx.registered_user.update({
-          where: { user_id: uid },
-          data: registeredUserData,
-        });
-        dbg('registered_user actualizado');
-      }
-
-      // Actualizar client si hay datos
-      if (Object.keys(clientData).length > 0) {
-        await tx.client.update({
-          where: { user_id: uid },
-          data: clientData,
-        });
-        dbg('client actualizado');
-      }
-    });
-
-    dbg('Transacción completada con éxito');
-
-    // Obtener el perfil completo actualizado
+    // obtenemos el perfil unificado
     const userProfile = await prisma.registered_user.findUnique({
       where: { user_id: uid },
       select: {
@@ -708,10 +805,10 @@ export const updateUserProfile = async (req, res) => {
         surname: true,
         username: true,
         dni: true,
+        profile_picture: true,
         app_language: true,
         client: {
           select: {
-            profile_picture: true,
             address: true,
             phone: true,
             birth_date: true,
@@ -722,15 +819,22 @@ export const updateUserProfile = async (req, res) => {
         },
         admin: true,
         institution: true,
+        partner: true,
       },
     });
 
-    // Determinar el rol
+    if (!userProfile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
     let role = 'client';
     if (userProfile.admin) role = 'admin';
     if (userProfile.institution) role = 'institution';
 
-    // Formatear respuesta
     const responseData = {
       uid: userProfile.user_id,
       email: userProfile.email,
@@ -738,7 +842,7 @@ export const updateUserProfile = async (req, res) => {
       surname: userProfile.surname,
       username: userProfile.username,
       dni: userProfile.dni,
-      profile_picture: userProfile.client?.profile_picture || null,
+      profile_picture: userProfile.profile_picture || null,
       app_language: userProfile.app_language,
       address: userProfile.client?.address || null,
       phone: userProfile.client?.phone || null,
@@ -751,13 +855,12 @@ export const updateUserProfile = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Perfil actualizado correctamente',
+      message: responseMessage, // Mensaje dinámico según si hubo cambios o no
       data: responseData,
     });
   } catch (error) {
-    console.error('[updateUserProfile] Error:', error);
+    console.error('Error actualizando perfil:', error);
 
-    // Error de username duplicado (si se implementa unique constraint)
     if (error.code === 'P2002' && error.meta?.target?.includes('username')) {
       return res.status(409).json({
         success: false,
@@ -766,7 +869,6 @@ export const updateUserProfile = async (req, res) => {
       });
     }
 
-    // Usuario no encontrado
     if (error.code === 'P2025') {
       return res.status(404).json({
         success: false,
@@ -777,79 +879,8 @@ export const updateUserProfile = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: 'Error al actualizar el perfil.',
-      code: 'PROFILE_UPDATE_ERROR',
-    });
-  }
-};
-
-/**
- * Obtiene la información pública de un usuario por su ID.
- * Endpoint: GET /api/users/:id
- */
-export const getUserById = async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const user = await prisma.registered_user.findUnique({
-      where: { user_id: id },
-      select: {
-        user_id: true,
-        username: true,
-        name: true,
-        surname: true,
-        // Seleccionamos datos del perfil de cliente si existen
-        client: {
-          select: {
-            profile_picture: true,
-            description: true,
-            points: true,
-            streak: true,
-          },
-        },
-        // Incluimos tablas de roles para determinar el tipo de usuario
-        admin: true,
-        institution: true,
-      },
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'Usuario no encontrado.',
-        code: 'USER_NOT_FOUND',
-      });
-    }
-
-    // Determinar el rol (lógica similar a getUserProfile)
-    let role = 'client';
-    if (user.admin) role = 'admin';
-    if (user.institution) role = 'institution';
-
-    // Construir respuesta con datos públicos
-    const userData = {
-      uid: user.user_id,
-      username: user.username,
-      name: user.name,
-      surname: user.surname,
-      profile_picture: user.client?.profile_picture || null,
-      description: user.client?.description || null,
-      points: user.client?.points || 0,
-      streak: user.client?.streak || 0,
-      role,
-    };
-
-    return res.status(200).json({
-      success: true,
-      message: 'Información de usuario obtenida correctamente.',
-      data: userData,
-    });
-  } catch (error) {
-    console.error('Error en getUserById:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Error interno al obtener el usuario.',
-      code: 'GET_USER_ERROR',
+      message: 'Error interno al actualizar el perfil.',
+      code: 'SERVER_ERROR',
     });
   }
 };
@@ -985,7 +1016,6 @@ export const getUserPublicData = async (req, res) => {
         // Datos públicos del cliente
         client: {
           select: {
-            profile_picture: true,
             description: true,
             points: true,
             streak: true,
@@ -1103,5 +1133,709 @@ export const getUserPrivateData = async (req, res) => {
       message: 'Error interno al obtener datos privados.',
       code: 'SERVER_ERROR',
     });
+  }
+};
+
+/**
+ * Obtiene las valoraciones que un usuario ha escrito.
+ * Endpoint: GET /api/users/:id/valorations/made
+ */
+export const getUserValorationsMade = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const valorations = await prisma.valoration.findMany({
+      where: { valoration_owner: id },
+      include: {
+        target: {
+          // Incluimos datos de a quién valoró
+          include: { registered_user: { select: { username: true, name: true } } },
+        },
+        reservation_ended: {
+          // Incluimos contexto (qué trade fue)
+          include: {
+            reservation: {
+              include: { trade: { include: { publication: { select: { title: true } } } } },
+            },
+          },
+        },
+      },
+      orderBy: { reservation_ended: { ended_at: 'desc' } }, // Ordenar por fecha
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: valorations.length,
+      data: valorations,
+    });
+  } catch (error) {
+    console.error('Error obteniendo valoraciones hechas:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.', code: 'SERVER_ERROR' });
+  }
+};
+
+/**
+ * Obtiene las valoraciones que un usuario ha recibido.
+ * Endpoint: GET /api/users/:id/valorations/received
+ */
+export const getUserValorationsReceived = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const valorations = await prisma.valoration.findMany({
+      where: { valoration_target: id },
+      include: {
+        author: {
+          // Incluimos quién escribió la reseña
+          include: {
+            registered_user: { select: { username: true, name: true } },
+          },
+        },
+        reservation_ended: {
+          include: {
+            reservation: {
+              include: { trade: { include: { publication: { select: { title: true } } } } },
+            },
+          },
+        },
+      },
+      orderBy: { reservation_ended: { ended_at: 'desc' } },
+    });
+
+    // Cálculo opcional de la media
+    const averageScore = valorations.length > 0 ? valorations.reduce((acc, curr) => acc + curr.score, 0) / valorations.length : 0;
+
+    return res.status(200).json({
+      success: true,
+      count: valorations.length,
+      average_score: parseFloat(averageScore.toFixed(1)), // Ej: 4.5
+      data: valorations,
+    });
+  } catch (error) {
+    console.error('Error obteniendo valoraciones recibidas:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.', code: 'SERVER_ERROR' });
+  }
+};
+
+/**
+ * Obtiene el valorations_score (puntuación media) de un usuario cliente.
+ * Endpoint: GET /api/users/:id/score
+ */
+export const getUserScore = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const client = await prisma.client.findUnique({
+      where: { user_id: id },
+      select: { valorations_score: true },
+    });
+
+    if (!client) {
+      return res.status(404).json({
+        success: false,
+        message: 'Cliente no encontrado o el usuario no tiene perfil de cliente.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Puntuación obtenida correctamente.',
+      score: client.valorations_score,
+    });
+  } catch (error) {
+    console.error(`Error obteniendo score del usuario ${id}:`, error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al obtener la puntuación.',
+      code: 'SERVER_ERROR',
+    });
+  }
+};
+
+/**
+ * Obtiene todos los rewards comprados por el usuario actual (token).
+ * Endpoint: GET /api/users/me/rewards_bought
+ */
+export const getMyRewardsBought = async (req, res) => {
+  const { uid } = req.user;
+
+  try {
+    const rewards = await prisma.reward_bought_by.findMany({
+      where: { client_id: uid },
+      include: {
+        reward: {
+          include: {
+            publication: {
+              include: {
+                publication_media: true,
+                institution: {
+                  select: { registered_user: { select: { name: true } } },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { bought_at: 'desc' },
+    });
+
+    const formattedData = rewards.map((item) => ({
+      purchase_id: item.id,
+      bought_at: item.bought_at,
+      points_cost: item.points_cost,
+      reward: {
+        id: item.reward.publication_id,
+        title: item.reward.publication.title,
+        description: item.reward.publication.description,
+        image: item.reward.publication.publication_media?.media_url || null,
+        institution_name: item.reward.publication.institution?.registered_user?.name || 'Institución Desconocida',
+      },
+    }));
+
+    return res.status(200).json({
+      success: true,
+      count: formattedData.length,
+      data: formattedData,
+    });
+  } catch (error) {
+    console.error('Error obteniendo mis rewards comprados:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
+
+/**
+ * Obtiene todos los rewards comprados por un usuario específico (por ID).
+ * Endpoint: GET /api/users/:userId/rewards_bought
+ */
+export const getUserRewardsBoughtById = async (req, res) => {
+  // Nota: Usamos 'id' si definiste la ruta como /:id/..., o 'userId' si fue /:userId/...
+  // Para mantener consistencia con tus otras rutas de usuario, usaré el parámetro que definas en routes.
+  const { userId } = req.params;
+
+  try {
+    // Verificar si el usuario existe (opcional, pero recomendado)
+    const userExists = await prisma.user.findUnique({ where: { user_id: userId } });
+    if (!userExists) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado.' });
+    }
+
+    const rewards = await prisma.reward_bought_by.findMany({
+      where: { client_id: userId },
+      include: {
+        reward: {
+          include: {
+            publication: {
+              include: {
+                publication_media: true,
+                institution: {
+                  select: { registered_user: { select: { name: true } } },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { bought_at: 'desc' },
+    });
+
+    const formattedData = rewards.map((item) => ({
+      purchase_id: item.id,
+      bought_at: item.bought_at,
+      points_cost: item.points_cost,
+      reward: {
+        id: item.reward.publication_id,
+        title: item.reward.publication.title,
+        description: item.reward.publication.description,
+        image: item.reward.publication.publication_media?.media_url || null,
+        institution_name: item.reward.publication.institution?.registered_user?.name || 'Institución Desconocida',
+      },
+    }));
+
+    return res.status(200).json({
+      success: true,
+      count: formattedData.length,
+      data: formattedData,
+    });
+  } catch (error) {
+    console.error(`Error obteniendo rewards del usuario ${userId}:`, error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
+
+/**
+ * Obtiene la cantidad de puntos de un usuario cliente específico.
+ * Endpoint: GET /api/users/:userId/points
+ */
+export const getUserPoints = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const client = await prisma.client.findUnique({
+      where: { user_id: userId },
+      select: { points: true },
+    });
+
+    if (!client) {
+      return res.status(404).json({
+        success: false,
+        message: 'El usuario no existe o no tiene un perfil de cliente (no tiene puntos).',
+        code: 'CLIENT_NOT_FOUND',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      points: client.points,
+    });
+  } catch (error) {
+    console.error(`Error obteniendo puntos del usuario ${userId}:`, error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al obtener los puntos.',
+      code: 'SERVER_ERROR',
+    });
+  }
+};
+
+/**
+ * Bloquea a un usuario añadiendo su ID al vector blocked_users.
+ * Endpoint: POST /api/users/block/:userId
+ */
+export const blockUser = async (req, res) => {
+  const { uid } = req.user; // El que bloquea
+  const { userId } = req.params; // El usuario a bloquear
+
+  if (uid === userId) {
+    return res.status(400).json({ success: false, message: 'No puedes bloquearte a ti mismo.' });
+  }
+
+  try {
+    // verificar si el usuario a bloquear existe
+    const targetUser = await prisma.registered_user.findUnique({
+      where: { user_id: userId },
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: 'El usuario a bloquear no existe.' });
+    }
+
+    // actualizar el usuario actual añadiendo el ID al array (si no está ya)
+
+    // primero obtenemos el usuario actual para no duplicar IDs
+    const currentUser = await prisma.registered_user.findUnique({
+      where: { user_id: uid },
+      select: { blocked_users: true },
+    });
+
+    if (currentUser.blocked_users.includes(userId)) {
+      return res.status(409).json({ success: false, message: 'Ya has bloqueado a este usuario.' });
+    }
+
+    await prisma.registered_user.update({
+      where: { user_id: uid },
+      data: {
+        blocked_users: {
+          push: userId, // añadir el ID al array
+        },
+      },
+    });
+
+    return res.status(200).json({ success: true, message: 'Usuario bloqueado correctamente.' });
+  } catch (error) {
+    console.error('Error al bloquear usuario:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
+
+/**
+ * Obtiene la lista de usuarios bloqueados por un usuario específico.
+ * Solo para administradores.
+ * Endpoint: GET /api/users/admin/block/:userId
+ */
+export const getUserBlockedList = async (req, res) => {
+  const { uid } = req.user; // id del admin
+  const { userId } = req.params; // id del client
+
+  try {
+    // verificar si el solicitante es admin
+    const isAdmin = await prisma.admin.findUnique({ where: { user_id: uid } });
+    if (!isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Acceso denegado. Solo los administradores pueden ver esta información.',
+        code: 'FORBIDDEN_ADMIN_ONLY',
+      });
+    }
+
+    // buscar al usuario objetivo y obtener su array de bloqueados
+    const targetUser = await prisma.registered_user.findUnique({
+      where: { user_id: userId },
+      select: { blocked_users: true },
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'El usuario especificado no existe.',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    // devolver la lista
+    return res.status(200).json({
+      success: true,
+      message: `Lista de bloqueos del usuario ${userId} recuperada.`,
+      blocked_users: targetUser.blocked_users || [], // Devuelve array de IDs
+    });
+  } catch (error) {
+    console.error(`Error obteniendo bloqueos del usuario ${userId}:`, error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor.',
+      code: 'SERVER_ERROR',
+    });
+  }
+};
+
+/**
+ * Reporta a un usuario.
+ * Endpoint: POST /api/users/report/:userId
+ */
+export const reportUser = async (req, res) => {
+  const { uid: reporterId } = req.user;
+  const { userId: reportedUserId } = req.params;
+  const { reason, description } = req.body;
+
+  // validar que no se reporte a sí mismo
+  if (reporterId === reportedUserId) {
+    return res.status(400).json({ success: false, message: 'No puedes reportarte a ti mismo.' });
+  }
+
+  // validar motivo
+  const validReasons = ['inappropriate_content', 'harassment', 'fake_profile', 'spam', 'other'];
+  if (!reason || !validReasons.includes(reason)) {
+    return res.status(400).json({ success: false, message: 'Motivo de reporte inválido o faltante.' });
+  }
+
+  // si es "other", la descripción es obligatoria
+  if (reason === 'other') {
+    if (!description || description.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Si seleccionas "Otro", debes proporcionar una descripción.',
+        code: 'MISSING_DESCRIPTION_FOR_OTHER',
+      });
+    }
+  }
+
+  try {
+    // verificar existencia del usuario reportado
+    const targetUser = await prisma.registered_user.findUnique({
+      where: { user_id: reportedUserId },
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: 'El usuario a reportar no existe.' });
+    }
+
+    // crear el reporte
+    const newReport = await prisma.user_report.create({
+      data: {
+        reporter_id: reporterId,
+        reported_user_id: reportedUserId,
+        reason: reason,
+        description: description || null,
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Usuario reportado correctamente. Los administradores revisarán el caso.',
+      data: newReport,
+    });
+  } catch (error) {
+    console.error('Error al reportar usuario:', error);
+    return res.status(500).json({ success: false, message: 'Error interno al procesar el reporte.' });
+  }
+};
+
+/**
+ * Obtiene todos los reportes, solo para admins
+ * Endpoint: GET /api/users/admin/reports
+ */
+export const getAllUserReports = async (req, res) => {
+  const { uid } = req.user;
+
+  try {
+    // verificar si el solicitante es admin
+    const isAdmin = await prisma.admin.findUnique({ where: { user_id: uid } });
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: 'Acceso denegado. Solo administradores.' });
+    }
+
+    // obtener reportes con información detallada
+    const reports = await prisma.user_report.findMany({
+      include: {
+        reporter: {
+          select: { username: true, email: true },
+        },
+        reported_user: {
+          select: {
+            user_id: true,
+            username: true,
+            email: true,
+            profile_picture: true,
+            blocked_users: true,
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: reports.length,
+      data: reports,
+    });
+  } catch (error) {
+    console.error('Error obteniendo reportes:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
+
+/**
+ * Actualiza el estado de un reporte.
+ * Solo para administradores.
+ * El nuevo estado debe ser diferente al actual.
+ * Endpoint: PATCH /api/users/admin/reports/:reportId
+ */
+export const updateReportStatus = async (req, res) => {
+  const { uid } = req.user;
+  const { reportId } = req.params;
+  const { status } = req.body;
+
+  // validar que el estado sea válido según el Enum de Prisma
+  const validStatuses = ['Pending', 'Resolved', 'Dismissed'];
+
+  if (!status || !validStatuses.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: `Estado inválido. Valores permitidos: ${validStatuses.join(', ')}.`,
+      code: 'INVALID_STATUS',
+    });
+  }
+
+  try {
+    // verificar permisos de admin
+    const isAdmin = await prisma.admin.findUnique({ where: { user_id: uid } });
+    if (!isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Acceso denegado. Solo administradores pueden gestionar reportes.',
+        code: 'FORBIDDEN_ADMIN_ONLY',
+      });
+    }
+
+    // buscar el reporte existente
+    const currentReport = await prisma.user_report.findUnique({
+      where: { report_id: reportId },
+    });
+
+    if (!currentReport) {
+      return res.status(404).json({
+        success: false,
+        message: 'Reporte no encontrado.',
+        code: 'REPORT_NOT_FOUND',
+      });
+    }
+
+    // validar que el estado sea diferente
+    if (currentReport.status === status) {
+      return res.status(409).json({
+        success: false,
+        message: 'El nuevo estado debe ser diferente al actual.',
+        code: 'SAME_STATUS_ERROR',
+      });
+    }
+
+    // actualizar el reporte
+    const updatedReport = await prisma.user_report.update({
+      where: { report_id: reportId },
+      data: { status: status },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Estado del reporte actualizado a ${status}.`,
+      data: updatedReport,
+    });
+  } catch (error) {
+    console.error('Error actualizando estado del reporte:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
+
+/**
+ * Elimina un reporte específico.
+ * Solo para administradores.
+ * Endpoint: DELETE /api/users/admin/reports/:reportId
+ */
+export const deleteReport = async (req, res) => {
+  const { uid } = req.user;
+  const { reportId } = req.params;
+
+  try {
+    // verificar permisos de ADMIN
+    const isAdmin = await prisma.admin.findUnique({ where: { user_id: uid } });
+    if (!isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Acceso denegado. Solo administradores pueden eliminar reportes.',
+        code: 'FORBIDDEN_ADMIN_ONLY',
+      });
+    }
+
+    // verificar existencia del reporte
+    const report = await prisma.user_report.findUnique({
+      where: { report_id: reportId },
+    });
+
+    if (!report) {
+      return res.status(404).json({
+        success: false,
+        message: 'Reporte no encontrado.',
+        code: 'REPORT_NOT_FOUND',
+      });
+    }
+
+    // eliminar reporte
+    await prisma.user_report.delete({
+      where: { report_id: reportId },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Reporte eliminado correctamente.',
+    });
+  } catch (error) {
+    console.error('Error eliminando reporte:', error);
+    return res.status(500).json({ success: false, message: 'Error interno al eliminar el reporte.' });
+  }
+};
+
+/**
+ * Obtiene reportes filtrados por su estado.
+ * Estados válidos: Pending, Resolved, Dismissed.
+ * Endpoint: GET /api/users/admin/reports/status/:status
+ */
+export const getReportsByStatus = async (req, res) => {
+  const { uid } = req.user;
+  const { status } = req.params;
+
+  try {
+    // verificar si es admin
+    const isAdmin = await prisma.admin.findUnique({ where: { user_id: uid } });
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: 'Acceso denegado. Solo administradores.' });
+    }
+
+    // normalizar el estado (Primera mayúscula, resto minúscula)
+    const formattedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+
+    // validar que sea un estado permitido en el Enum
+    const validStatuses = ['Pending', 'Resolved', 'Dismissed'];
+    if (!validStatuses.includes(formattedStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: `Estado inválido. Usa: ${validStatuses.join(', ')}`,
+        code: 'INVALID_STATUS_PARAM',
+      });
+    }
+
+    // buscar reportes
+    const reports = await prisma.user_report.findMany({
+      where: { status: formattedStatus },
+      include: {
+        reporter: {
+          select: { username: true, email: true },
+        },
+        reported_user: {
+          select: {
+            user_id: true,
+            username: true,
+            email: true,
+            profile_picture: true,
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return res.status(200).json({
+      success: true,
+      status: formattedStatus,
+      count: reports.length,
+      data: reports,
+    });
+  } catch (error) {
+    console.error('Error obteniendo reportes por estado:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
+  }
+};
+
+/**
+ * Obtiene el detalle completo de un reporte por su ID.
+ * Endpoint: GET /api/users/admin/reports/detail/:reportId
+ */
+export const getReportById = async (req, res) => {
+  const { uid } = req.user;
+  const { reportId } = req.params;
+
+  try {
+    // verificar ADMIN
+    const isAdmin = await prisma.admin.findUnique({ where: { user_id: uid } });
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: 'Acceso denegado.' });
+    }
+
+    // buscar Reporte con todos los detalles
+    const report = await prisma.user_report.findUnique({
+      where: { report_id: reportId },
+      include: {
+        reporter: {
+          select: {
+            user_id: true,
+            username: true,
+            name: true,
+            email: true,
+            profile_picture: true,
+          },
+        },
+        reported_user: {
+          select: {
+            user_id: true,
+            username: true,
+            name: true,
+            email: true,
+            profile_picture: true,
+            blocked_users: true,
+          },
+        },
+      },
+    });
+
+    if (!report) {
+      return res.status(404).json({ success: false, message: 'Reporte no encontrado.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Detalle del reporte obtenido.',
+      data: report,
+    });
+  } catch (error) {
+    console.error('Error obteniendo detalle del reporte:', error);
+    return res.status(500).json({ success: false, message: 'Error interno.' });
   }
 };

@@ -2,8 +2,10 @@
 import express from 'express';
 const router = express.Router();
 
+import { requireRoleSecret } from '#middlewares/role.middleware.js';
 import { authenticateUser, authenticateBackendJWT } from '#middlewares/auth.middleware.js';
 import { validatePhone } from '#middlewares/validation.middleware.js';
+import { uploadImageMiddleware } from '#middlewares/upload.middleware.js';
 import {
   syncUserToPostgres,
   changeAppLanguage,
@@ -15,10 +17,22 @@ import {
   getAllClientIds,
   getAllInstitutionIds,
   getAllAdminIds,
-  getUserById,
+  getUserFullProfile,
   getUserTypeById,
-  getUserPublicData,
-  getUserPrivateData,
+  getUserValorationsMade,
+  getUserValorationsReceived,
+  getUserScore,
+  getMyRewardsBought,
+  getUserRewardsBoughtById,
+  getUserPoints,
+  blockUser,
+  getUserBlockedList,
+  reportUser,
+  getAllUserReports,
+  updateReportStatus,
+  deleteReport,
+  getReportsByStatus,
+  getReportById,
 } from '#controllers/user.controller.js';
 
 /**
@@ -26,7 +40,7 @@ import {
  * @description Sincroniza un usuario autenticado desde Firebase con PostgreSQL.
  * @access Protegido (requiere autenticación con token de Firebase)
  */
-router.post('/sync', authenticateUser, syncUserToPostgres);
+router.post('/sync', authenticateUser, uploadImageMiddleware, requireRoleSecret, syncUserToPostgres);
 
 /**
  * @route GET /api/users/me
@@ -36,25 +50,77 @@ router.post('/sync', authenticateUser, syncUserToPostgres);
 router.get('/me', authenticateBackendJWT, getUserProfile);
 
 /**
- * @route GET /api/users/:userId/public
- * @description Obtiene datos públicos de un usuario específico.
- * @access Protegido (requiere autenticación con JWT del backend)
+ * @route POST /api/users/block/:userId
+ * @description Bloquea a un usuario específico añadiéndolo a la lista de bloqueados.
+ * @access Protegido
  */
-router.get('/:id/public', authenticateBackendJWT, getUserPublicData);
+router.post('/block/:userId', authenticateBackendJWT, blockUser);
 
 /**
- * @route GET /api/users/:userId/private
- * @description Obtiene datos privados de un usuario específico.
- * @access Protegido (requiere autenticación con JWT del backend)
+ * @route GET /api/users/admin/block/:userId
+ * @description Devuelve los IDs de los usuarios bloqueados por :userId (Solo Admin).
  */
-router.get('/:id/private', authenticateBackendJWT, getUserPrivateData);
+router.get('/admin/block/:userId', authenticateBackendJWT, getUserBlockedList);
+
+/**
+ * @route GET /api/users/admin/reports
+ * @description Obtiene todos los reportes de usuarios (Solo Admin).
+ */
+router.get('/admin/reports', authenticateBackendJWT, getAllUserReports);
+
+/**
+ * @route PATCH /api/users/admin/reports/:reportId
+ * @description Actualiza el estado de un reporte específico (Solo Admin).
+ */
+router.patch('/admin/reports/:reportId', authenticateBackendJWT, updateReportStatus);
+
+/**
+ * @route DELETE /api/users/admin/reports/:reportId
+ * @description Elimina un reporte de usuario (Solo Admin).
+ */
+router.delete('/admin/reports/:reportId', authenticateBackendJWT, deleteReport);
+
+/**
+ * @route GET /api/users/admin/reports/status/:status
+ * @description Obtiene reportes filtrados por estado (Pending, Resolved, Dismissed).
+ * @access Protegido (Solo Admin)
+ * @example GET /api/users/admin/reports/status/pending
+ */
+router.get('/admin/reports/status/:status', authenticateBackendJWT, getReportsByStatus);
+
+/**
+ * @route GET /api/users/admin/reports/detail/:reportId
+ * @description Obtiene el detalle de un reporte específico.
+ * @access Protegido (Solo Admin)
+ */
+router.get('/admin/reports/detail/:reportId', authenticateBackendJWT, getReportById);
+
+/**
+ * @route POST /api/users/report/:userId
+ * @description Crea un reporte contra un usuario.
+ */
+router.post('/report/:userId', authenticateBackendJWT, reportUser);
+
+/**
+ * @route GET /api/users/me/rewards_bought
+ * @description Obtiene el historial de rewards comprados por el usuario actual.
+ * @access Protegido
+ */
+router.get('/me/rewards_bought', authenticateBackendJWT, getMyRewardsBought);
+
+/**
+ * @route GET /api/users/:userId/points
+ * @description Devuelve la cantidad de puntos de un cliente específico.
+ * @access Protegido
+ */
+router.get('/:userId/points', authenticateBackendJWT, getUserPoints);
 
 /**
  * @route PUT /api/users/me
  * @description Actualiza el perfil del usuario autenticado.
  * @access Protegido (requiere autenticación con JWT del backend)
  */
-router.put('/me', authenticateBackendJWT, validatePhone, updateUserProfile);
+router.put('/me', authenticateBackendJWT, validatePhone, uploadImageMiddleware, updateUserProfile);
 
 /**
  * @route DELETE /api/users/me
@@ -109,9 +175,35 @@ router.get('/ids/admins', authenticateBackendJWT, getAllAdminIds);
 router.get('/:id/type', authenticateBackendJWT, getUserTypeById);
 
 /**
- * @route GET /api/users/:id
- * @description Obtiene la información pública de un usuario específico.
+ * @route GET /api/users/:id/valorations/made
+ * @description Obtiene las valoraciones escritas por el usuario.
  */
-router.get('/:id', authenticateBackendJWT, getUserById);
+router.get('/:id/valorations/made', authenticateBackendJWT, getUserValorationsMade);
+
+/**
+ * @route GET /api/users/:id/valorations/received
+ * @description Obtiene las valoraciones recibidas por el usuario (su reputación).
+ */
+router.get('/:id/valorations/received', authenticateBackendJWT, getUserValorationsReceived);
+
+/**
+ * @route GET /api/users/:userId/rewards_bought
+ * @description Obtiene el historial de rewards comprados por un usuario específico.
+ * @access Protegido
+ */
+router.get('/:userId/rewards_bought', authenticateBackendJWT, getUserRewardsBoughtById);
+
+/**
+ * @route GET /api/users/:id/score
+ * @description Obtiene la puntuación media de valoraciones de un usuario.
+ */
+router.get('/:id/score', authenticateBackendJWT, getUserScore);
+
+/**
+ * @route GET /api/users/:userId
+ * @description Obtiene TODA la información de un usuario registrado por su ID.
+ * @access Protegido
+ */
+router.get('/:userId', authenticateBackendJWT, getUserFullProfile);
 
 export default router;

@@ -1,11 +1,14 @@
 import express from 'express';
 import { authenticateBackendJWT } from '#middlewares/auth.middleware.js';
+import { uploadImageMiddleware } from '#middlewares/upload.middleware.js';
 import {
   createTrade,
   createReward,
   updateRewardAvailability,
+  updateRewardBody,
   getAllRewards,
   getInstitutionRewards,
+  getRewardById,
   deletePublication,
   getAllTrades,
   getUserTrades,
@@ -17,6 +20,10 @@ import {
   getUserCancelledTrades,
   getUserPendingTrades,
   updateTradeState,
+  updateTradeBody,
+  buyReward,
+  getUserBoughtRewards,
+  getRewardBuyers,
 } from '#controllers/publication.controller.js';
 
 const router = express.Router();
@@ -29,7 +36,25 @@ const router = express.Router();
  * @route POST /api/publications/rewards
  * @description Crea una nueva publicación (Reward) - Solo Instituciones.
  */
-router.post('/rewards', authenticateBackendJWT, createReward);
+router.post('/rewards', authenticateBackendJWT, uploadImageMiddleware, createReward);
+
+/**
+ * @route POST /api/publications/rewards/:rewardId/buy
+ * @description Un cliente compra un reward. Crea registro en 'reward_bought_by'.
+ */
+router.post('/rewards/:rewardId/buy', authenticateBackendJWT, buyReward);
+
+/**
+ * @route GET /api/publications/rewards/user/:userId/bought
+ * @description Obtiene todos los rewards comprados por un cliente específico.
+ */
+router.get('/rewards/user/:userId/bought', authenticateBackendJWT, getUserBoughtRewards);
+
+/**
+ * @route GET /api/publications/rewards/:rewardId/buyers
+ * @description Obtiene la lista de usuarios que han comprado un reward específico.
+ */
+router.get('/rewards/:rewardId/buyers', authenticateBackendJWT, getRewardBuyers);
 
 /**
  * @route GET /api/publications/rewards
@@ -40,7 +65,6 @@ router.get('/rewards', authenticateBackendJWT, getAllRewards);
 /**
  * @route GET /api/publications/rewards/institution/:institutionId
  * @description Obtiene todos los rewards de una institución específica.
- * CAMBIO: Añadido prefix '/institution' para no confundir con ID de publicación.
  */
 router.get('/rewards/institution/:institutionId', authenticateBackendJWT, getInstitutionRewards);
 
@@ -50,6 +74,20 @@ router.get('/rewards/institution/:institutionId', authenticateBackendJWT, getIns
  */
 router.patch('/rewards/:id/availability', authenticateBackendJWT, updateRewardAvailability);
 
+/**
+ * @route PATCH /api/publications/rewards/:id/body
+ * @description Actualiza el contenido (título, descripción, imagen, precio, contenido) de un Reward.
+ * También permite cancelar la publicación enviando state: "Cancelled".
+ * @access Protegido (Solo institución creadora)
+ */
+router.patch('/rewards/:id/body', authenticateBackendJWT, uploadImageMiddleware, updateRewardBody);
+
+/**
+ * @route GET /api/publications/rewards/:id
+ * @description Obtiene el detalle de un Reward específico por su ID.
+ */
+router.get('/rewards/:id', authenticateBackendJWT, getRewardById);
+
 // ==========================================
 //                  TRADES
 // ==========================================
@@ -58,7 +96,7 @@ router.patch('/rewards/:id/availability', authenticateBackendJWT, updateRewardAv
  * @route POST /api/publications/trades
  * @description Crea una nueva publicación (Trade) - Solo Clientes.
  */
-router.post('/trades', authenticateBackendJWT, createTrade);
+router.post('/trades', authenticateBackendJWT, uploadImageMiddleware, createTrade);
 
 /**
  * @route GET /api/publications/trades
@@ -121,6 +159,13 @@ router.get('/trades/user/:userId/pending', authenticateBackendJWT, getUserPendin
  * @description Actualiza el estado de un Trade.
  */
 router.patch('/trades/:id/state', authenticateBackendJWT, updateTradeState);
+
+/**
+ * @route PATCH /api/publications/trades/:id/body
+ * @description Actualiza el contenido (título, descripción, imagen) de un Trade.
+ * @access Protegido (Solo creador)
+ */
+router.patch('/trades/:id/body', authenticateBackendJWT, uploadImageMiddleware, updateTradeBody);
 
 /**
  * @route GET /api/publications/trades/:id
