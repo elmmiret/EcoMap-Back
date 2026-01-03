@@ -15,6 +15,7 @@ import bikeDetectionRoutes from './api/routes/bike-detection.routes.js';
 import wasteDetectionRoutes from './api/routes/waste-detection.routes.js';
 import publicationRoutes from './api/routes/publication.routes.js';
 import reservationRoutes from './api/routes/reservation.routes.js';
+import nattechRoutes from './api/routes/nattech.routes.js';
 import chatRoutes from './api/routes/chat.routes.js';
 import notificationRoutes from './api/routes/notification.routes.js';
 import gamificationRoutes from './api/routes/gamification.routes.js';
@@ -62,8 +63,9 @@ app.get('/api-docs', (req, res, next) => {
   })(req, res, next);
 });
 
-// montar las rutas de autentificación bajo el prefijo /api/users
+// montar las rutas de autentificación bajo el prefijo /api
 app.use('/api/users', authRoutes);
+app.use('/api/external', nattechRoutes);
 app.use('/api/recycling-points', recyclingPoints);
 app.use('/api/routes', routeRoutes);
 app.use('/api', bikeDetectionRoutes);

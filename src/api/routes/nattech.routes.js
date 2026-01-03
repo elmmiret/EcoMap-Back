@@ -1,16 +1,10 @@
 import express from 'express';
 import { authenticateBackendJWT, requireAdmin } from '#middlewares/auth.middleware.js';
-import {
-  listEvents,
-  getEvent,
-  createEvent,
-  updateEvent,
-  deleteEvent
-} from '#controllers/nattech.controller.js';
+import { listEvents, getEvent, createEvent, updateEvent, deleteEvent } from '#controllers/nattech.controller.js';
 
 const router = express.Router();
 
-// rutas públicas 
+// rutas públicas
 router.get('/events', authenticateBackendJWT, listEvents);
 router.get('/events/:codi', authenticateBackendJWT, getEvent);
 
