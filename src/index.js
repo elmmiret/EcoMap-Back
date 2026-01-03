@@ -8,7 +8,6 @@ import { initializeSocket } from '#services/socket.service.js';
 import { startMessageQueue, recoverPendingMessages } from '#services/message-queue.service.js';
 import { createLogger } from '#lib/logger.js';
 import { authenticateBackendJWT, requireAdmin } from '#middlewares/auth.middleware.js';
-import { authenticateBackendJWT, requireAdmin } from '#middlewares/auth.middleware.js';
 
 import authRoutes from './api/routes/user.routes.js';
 import recyclingPoints from './api/routes/recycling-points.routes.js';
@@ -37,19 +36,6 @@ const log = createLogger('startup');
 const app = express();
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 3000;
-
-// Configuración de Swagger según el entorno
-const isProduction = process.env.NODE_ENV === 'production';
-
-// /api-docs siempre muestra la documentación pública (swagger-public.yaml)
-let publicSwaggerDoc;
-try {
-  const publicPath = path.join(__dirname, '../swagger-public.yaml');
-  publicSwaggerDoc = yaml.load(publicPath);
-} catch (err) {
-  log.error('Error loading public swagger:', err.message);
-  publicSwaggerDoc = { info: { title: 'Error loading public docs' } };
-}
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
