@@ -1,4 +1,3 @@
-import { prisma } from '#lib/prisma.js';
 import * as natTechService from '#services/nattech.service.js';
 
 // funciones públicas
@@ -21,7 +20,7 @@ export const getEvent = async (req, res) => {
     const event = await natTechService.getExternalEventByCodi(codi);
 
     if (!event) {
-        return res.status(404).json({ success: false, message: 'Evento no encontrado o no disponible.' });
+      return res.status(404).json({ success: false, message: 'Evento no encontrado o no disponible.' });
     }
 
     return res.status(200).json({ success: true, data: event });
@@ -66,9 +65,9 @@ export const updateEvent = async (req, res) => {
     console.error('Error updateEvent:', error);
 
     if (error.message.includes('no pertenece a EcoMap') || error.message.includes('no encontrado')) {
-        return res.status(404).json({ success: false, message: 'Evento no encontrado o no editable.' });
+      return res.status(404).json({ success: false, message: 'Evento no encontrado o no editable.' });
     }
-  
+
     return res.status(500).json({ success: false, message: 'Error interno al actualizar.' });
   }
 };
@@ -89,9 +88,9 @@ export const deleteEvent = async (req, res) => {
     console.error('Error deleteEvent:', error);
 
     if (error.message.includes('Tag incorrecto') || error.message.includes('no encontrado')) {
-        return res.status(403).json({ success: false, message: 'No tienes permiso para borrar este evento o no existe.' });
+      return res.status(403).json({ success: false, message: 'No tienes permiso para borrar este evento o no existe.' });
     }
-  
+
     return res.status(500).json({ success: false, message: 'Error interno al eliminar.' });
   }
 };

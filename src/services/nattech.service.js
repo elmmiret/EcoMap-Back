@@ -20,7 +20,7 @@ export const getExternalEvents = async (params = {}) => {
   // añadir parámetros excepto 'tags'
   Object.key(params).forEach((key) => {
     if (key !== 'tags') {
-        url.searchParams.append(key, params[key]);
+      url.searchParams.append(key, params[key]);
     }
   });
 
