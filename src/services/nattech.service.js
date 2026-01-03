@@ -2,6 +2,7 @@ import fetch from 'node-fetch';
 
 const BASE_URL = process.env.NATTECH_API_URL;
 const TOKEN = process.env.NATTECH_API_TOKEN;
+const ECO_TAG = process.env.NATTECH_ECO_TAG;
 
 const getHeaders = () => ({
   Authorization: TOKEN,
@@ -11,11 +12,20 @@ const getHeaders = () => ({
 
 /**
  * GET /api/events
+ * Obtiene todos los eventos (filtrados automáticamente por el tag de EcoMap)
  */
 export const getExternalEvents = async (params = {}) => {
-  // Convertir params a query string si es necesario
   const url = new URL(`${BASE_URL}/events`);
-  Object.keys(params).forEach((key) => url.searchParams.append(key, params[key]));
+
+  // añadir parámetros excepto 'tags'
+  Object.key(params).forEach((key) => {
+    if (key !== 'tags') {
+      url.searchParams.append(key, params[key]);
+    }
+  });
+
+  // forzar el tag siempre
+  url.searchParams.append('tags', ECO_TAG);
 
   const response = await fetch(url, { headers: getHeaders() });
   if (!response.ok) {
@@ -26,31 +36,35 @@ export const getExternalEvents = async (params = {}) => {
 
 /**
  * GET /api/events/{codi}
+ * Obtiene un evento en específico (siempre con el tag de EcoMap)
  */
 export const getExternalEventByCodi = async (codi) => {
   const response = await fetch(`${BASE_URL}/events/${codi}`, { headers: getHeaders() });
+
   if (!response.ok) {
     if (response.status === 404) return null;
     throw new Error(`Error NatTech API: ${response.status}`);
   }
-  return await response.json();
+
+  const event = await response.json();
+
+  // verificar que el evento tenga el tag de EcoMap
+  if (!event.tags || !event.tags.includes(ECO_TAG)) {
+    return null; // devuelve 404 "Not found"
+  }
+
+  return event;
 };
 
 /**
  * POST /api/events
- * Requisito: Tag "agenda:categories/EcoMap" hardcodeado.
+ * Crea un evento (obligatoriamente con el tag de EcoMap)
  */
 export const createExternalEvent = async (eventData) => {
-  const fixedTag = 'agenda:categories/EcoMap';
-
-  // Si tags es un array, añadimos el nuestro. Si es string, lo concatenamos o reemplazamos.
-  // Basado en swagger usualmente es string o array. Asumiremos string separado por comas o array.
-  // Para asegurar, lo mandamos como parte de los datos.
-
   const payload = {
     ...eventData,
-    // Forzamos el tag. Si ya venían tags, los mantenemos y añadimos el nuestro.
-    tags: eventData.tags ? `${eventData.tags},${fixedTag}` : fixedTag,
+    // sobreescribir o añadir el tag
+    tags: eventData.tags ? `${eventData.tags},${ECO_TAG}` : ECO_TAG,
   };
 
   const response = await fetch(`${BASE_URL}/events`, {
@@ -68,6 +82,7 @@ export const createExternalEvent = async (eventData) => {
 
 /**
  * PUT /api/events/{codi}
+ * Actualiza un evento (sin poder editar el tag de EcoMap)
  */
 export const updateExternalEvent = async (codi, eventData) => {
   const response = await fetch(`${BASE_URL}/events/${codi}`, {
