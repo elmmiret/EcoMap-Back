@@ -18,7 +18,7 @@ export const getExternalEvents = async (params = {}) => {
   const url = new URL(`${BASE_URL}/events`);
 
   // añadir parámetros excepto 'tags'
-  Object.key(params).forEach((key) => {
+  Object.keys(params).forEach((key) => {
     if (key !== 'tags') {
       url.searchParams.append(key, params[key]);
     }
