@@ -8,6 +8,8 @@ info:
 servers:
   - url: http://localhost:3001
     description: Servidor de desarrollo local
+  - url: https://peskaos-back-staging-0028.up.railway.app
+    description: Servidor de staging
   - url: https://peskaos-back-production.up.railway.app
     description: Servidor publico
 
