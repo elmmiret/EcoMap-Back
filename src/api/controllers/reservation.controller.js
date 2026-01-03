@@ -324,7 +324,7 @@ export const confirmReservation = async (req, res) => {
         client: true, // datos comprador
         reservation_ended: true,
         publication: {
-          include: { trade: true }, //precio del trade
+          include: { trade: true, client: true }, //precio del trade
         },
       },
     });
@@ -362,6 +362,7 @@ export const confirmReservation = async (req, res) => {
 
     const pointsPrice = reservation.publication.trade?.points_price || 0;
     const buyerPoints = reservation.client.points;
+    const sellerPoints = reservation.publication.client?.points || 0;
 
     // aunque se permite reservar sin puntos, al confirmar debe tener saldo.
     if (buyerPoints < pointsPrice) {
@@ -369,6 +370,15 @@ export const confirmReservation = async (req, res) => {
         success: false,
         message: `El intercambio no se puede completar. El comprador no tiene suficientes puntos (${buyerPoints}/${pointsPrice}).`,
         code: 'BUYER_INSUFFICIENT_FUNDS',
+      });
+    }
+
+    // verificar que la suma de los puntos no supere el máximo
+    if (sellerPoints + pointsPrice > MAX_USER_POINTS) {
+      return res.status(409).json({
+        success: false,
+        message: `No puedes confirmar la venta porque superarías el límite máximo de puntos (${MAX_USER_POINTS}). Gasta puntos antes de continuar.`,
+        code: 'SELLER_MAX_POINTS_EXCEEDED',
       });
     }
 
