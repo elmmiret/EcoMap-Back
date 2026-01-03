@@ -8,6 +8,7 @@ import { initializeSocket } from '#services/socket.service.js';
 import { startMessageQueue, recoverPendingMessages } from '#services/message-queue.service.js';
 import { createLogger } from '#lib/logger.js';
 import { authenticateBackendJWT, requireAdmin } from '#middlewares/auth.middleware.js';
+import { authenticateBackendJWT, requireAdmin } from '#middlewares/auth.middleware.js';
 
 import authRoutes from './api/routes/user.routes.js';
 import recyclingPoints from './api/routes/recycling-points.routes.js';
@@ -50,17 +51,39 @@ try {
   publicSwaggerDoc = { info: { title: 'Error loading public docs' } };
 }
 
-// /api-docs-private siempre muestra la documentación completa (swagger.yaml) - requiere autenticación admin
-let privateSwaggerDoc;
-try {
-  const privatePath = path.join(__dirname, '../swagger.yaml');
-  privateSwaggerDoc = yaml.load(privatePath);
-} catch (err) {
-  log.error('Error loading private swagger:', err.message);
-  privateSwaggerDoc = { info: { title: 'Error loading private docs' } };
-}
+const isDevelopment = process.env.NODE_ENV === 'development';
 
-const swaggerTitle = isProduction ? 'EcoMap AI Detection API - Public' : 'EcoMap API - Public Documentation';
+// En desarrollo, /api-docs muestra directamente el swagger privado sin autenticación
+let publicSwaggerDoc;
+let privateSwaggerDoc;
+
+if (isDevelopment) {
+  // En desarrollo: cargar solo el privado para /api-docs
+  try {
+    const privatePath = path.join(__dirname, '../swagger.yaml');
+    publicSwaggerDoc = yaml.load(privatePath); // Usar privado en /api-docs
+  } catch (err) {
+    log.error('Error loading swagger:', err.message);
+    publicSwaggerDoc = { info: { title: 'Error loading docs' } };
+  }
+} else {
+  // En otros entornos: cargar público y privado separados
+  try {
+    const publicPath = path.join(__dirname, '../swagger-public.yaml');
+    publicSwaggerDoc = yaml.load(publicPath);
+  } catch (err) {
+    log.error('Error loading public swagger:', err.message);
+    publicSwaggerDoc = { info: { title: 'Error loading public docs' } };
+  }
+
+  try {
+    const privatePath = path.join(__dirname, '../swagger.yaml');
+    privateSwaggerDoc = yaml.load(privatePath);
+  } catch (err) {
+    log.error('Error loading private swagger:', err.message);
+    privateSwaggerDoc = { info: { title: 'Error loading private docs' } };
+  }
+}
 
 // --- INICIALIZACION de Firebase Admin SDK ---
 initializeFirebaseAdmin();
@@ -71,21 +94,31 @@ app.use(express.urlencoded({ extended: true }));
 
 // Servir Swagger UI assets (CSS, JS, etc.)
 app.use('/api-docs', swaggerUi.serve);
-app.use('/api-docs-private', swaggerUi.serve);
+if (!isDevelopment) {
+  app.use('/api-docs-private', swaggerUi.serve);
+}
 
-// Ruta para la documentación de la API pública
-app.get('/api-docs', (req, res, next) => {
-  return swaggerUi.setup(publicSwaggerDoc, {
-    customSiteTitle: swaggerTitle,
-  })(req, res, next);
-});
+if (isDevelopment) {
+  // En desarrollo: /api-docs muestra el swagger privado sin autenticación
+  app.get('/api-docs', (req, res, next) => {
+    return swaggerUi.setup(publicSwaggerDoc, {
+      customSiteTitle: 'EcoMap API - Development (Full Documentation)',
+    })(req, res, next);
+  });
+} else {
+  // En otros entornos: /api-docs muestra público, /api-docs-private requiere autenticación
+  app.get('/api-docs', (req, res, next) => {
+    return swaggerUi.setup(publicSwaggerDoc, {
+      customSiteTitle: 'EcoMap API - Public Documentation',
+    })(req, res, next);
+  });
 
-// Ruta para la documentación de la API privada (requiere autenticación de Admin)
-app.get('/api-docs-private', authenticateBackendJWT, requireAdmin, (req, res, next) => {
-  return swaggerUi.setup(privateSwaggerDoc, {
-    customSiteTitle: 'EcoMap API - Private Admin Documentation',
-  })(req, res, next);
-});
+  app.get('/api-docs-private', authenticateBackendJWT, requireAdmin, (req, res, next) => {
+    return swaggerUi.setup(privateSwaggerDoc, {
+      customSiteTitle: 'EcoMap API - Private Admin Documentation',
+    })(req, res, next);
+  });
+}
 
 // montar las rutas de autentificación bajo el prefijo /api/users
 app.use('/api/users', authRoutes);
