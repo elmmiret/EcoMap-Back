@@ -70,7 +70,6 @@ export const createReservation = async (req, res) => {
       data: {
         trade_id: tradeId,
         client_id: uid,
-        // reservation_date se crea solo por el @default(now())
       },
     });
 
@@ -322,143 +321,110 @@ export const confirmReservation = async (req, res) => {
     const reservation = await prisma.reservation.findUnique({
       where: { reservation_id: reservationId },
       include: {
-        reservation_ended: true, // para verificar si ya existe
-        trade: {
-          include: {
-            publication: true, // necesario para acceder al client_id (dueño)
-          },
+        client: true, // datos comprador
+        reservation_ended: true,
+        publication: {
+          include: { trade: true, client: true }, //precio del trade
         },
-        client: true,
       },
     });
 
     if (!reservation) {
-      return res.status(404).json({
-        success: false,
-        message: 'Reserva no encontrada.',
-        code: 'RESERVATION_NOT_FOUND',
-      });
+      return res.status(404).json({ success: false, message: 'Reserva no encontrada.' });
     }
 
-    // Definimos las variables necesarias
-    const sellerId = reservation.trade.publication.client_id;
-    const buyerId = reservation.client_id;
-    const pointsCost = reservation.trade.points_price;
-
-    // Verificar permisos: ¿Es el usuario el dueño del Trade?
-    if (sellerId !== uid) {
-      return res.status(403).json({
-        success: false,
-        message: 'No tienes permiso para confirmar esta reserva. Solo el propietario del artículo puede hacerlo.',
-        code: 'FORBIDDEN_NOT_OWNER',
-      });
-    }
-
-    // verificar si ya estaba confirmada
-    if (reservation.confirmed || reservation.reservation_ended) {
+    // verificar que la reserva no haya sido confirmada anteriormente
+    if (reservation.reservation_ended) {
       return res.status(409).json({
         success: false,
-        message: 'Esta reserva ya ha sido confirmada anteriormente.',
-        code: 'ALREADY_CONFIRMED',
+        message: 'Esta reserva ya ha sido confirmada y finalizada anteriormente.',
+        code: 'RESERVATION_ALREADY_COMPLETED',
       });
     }
 
-    // Validar saldo del comprador
-    if (reservation.client.points < pointsCost) {
-      return res.status(402).json({
-        // 402 Payment Required
+    // verificar que quien confirma es el dueño
+    if (reservation.publication.client_id !== uid) {
+      return res.status(403).json({
         success: false,
-        message: `El comprador no tiene suficientes EcoPoints (${reservation.client.points}/${pointsCost}). No se puede completar la venta.`,
+        message: 'Solo el propietario de la publicación puede confirmar el intercambio.',
+      });
+    }
+
+    // verificar estado actual
+    if (reservation.status !== 'Pending') {
+      return res.status(409).json({
+        success: false,
+        message: 'Esta reserva ya ha sido procesada o cancelada.',
+      });
+    }
+
+    // lógica de puntos
+
+    const pointsPrice = reservation.publication.trade?.points_price || 0;
+    const buyerPoints = reservation.client.points;
+    const sellerPoints = reservation.publication.client?.points || 0;
+
+    // aunque se permite reservar sin puntos, al confirmar debe tener saldo.
+    if (buyerPoints < pointsPrice) {
+      return res.status(400).json({
+        success: false,
+        message: `El intercambio no se puede completar. El comprador no tiene suficientes puntos (${buyerPoints}/${pointsPrice}).`,
         code: 'BUYER_INSUFFICIENT_FUNDS',
       });
     }
 
-    // Validar límite del vendedor (Necesitamos buscar sus puntos actuales primero)
-    const seller = await prisma.client.findUnique({
-      where: { user_id: sellerId },
-      select: { points: true },
-    });
-
-    if (!seller) {
-      return res.status(404).json({ success: false, message: 'Perfil de vendedor no encontrado.' });
-    }
-
-    if (seller.points + pointsCost > MAX_USER_POINTS) {
+    // verificar que la suma de los puntos no supere el máximo
+    if (sellerPoints + pointsPrice > MAX_USER_POINTS) {
       return res.status(409).json({
         success: false,
-        message: `La venta excedería tu límite máximo de EcoPoints (${MAX_USER_POINTS}). ¡Gasta puntos antes de ganar más!`,
-        code: 'SELLER_MAX_POINTS_REACHED',
+        message: `No puedes confirmar la venta porque superarías el límite máximo de puntos (${MAX_USER_POINTS}). Gasta puntos antes de continuar.`,
+        code: 'SELLER_MAX_POINTS_EXCEEDED',
       });
     }
 
-    // 4. Ejecutar la lógica en transacción (Todo o nada)
-    const result = await prisma.$transaction(async (tx) => {
-      // --- A. Gestión de Puntos ---
-
-      // 1. Restar al Comprador
+    // transacción
+    await prisma.$transaction(async (tx) => {
+      // restar al comprador
       await tx.client.update({
-        where: { user_id: buyerId },
-        data: { points: { decrement: pointsCost } },
+        where: { user_id: reservation.client_id },
+        data: { points: { decrement: pointsPrice } },
       });
 
-      await tx.point_history.create({
-        data: {
-          user_id: buyerId,
-          amount: -pointsCost, // Negativo
-          source: 'ECO_TRADER_SALE',
-          description: `Compra en EcoTrader: ${reservation.trade.publication.title}`,
-        },
-      });
-
-      // 2. Sumar al Vendedor
+      // sumar al vendedor
       await tx.client.update({
-        where: { user_id: sellerId },
-        data: { points: { increment: pointsCost } },
+        where: { user_id: uid },
+        data: { points: { increment: pointsPrice } },
       });
 
-      await tx.point_history.create({
-        data: {
-          user_id: sellerId,
-          amount: pointsCost, // Positivo
-          source: 'ECO_TRADER_SALE',
-          description: `Venda en EcoTrader: ${reservation.trade.publication.title}`,
-        },
-      });
-
-      // --- B. Gestión de Estados ---
-
-      // 3. Confirmar Reserva
-      const updatedRes = await tx.reservation.update({
+      // Reserva -> Completed
+      await tx.reservation.update({
         where: { reservation_id: reservationId },
-        data: { confirmed: true },
+        data: { status: 'Completed' },
       });
 
-      // 4. Crear registro de finalización
-      const endedRes = await tx.reservation_ended.create({
-        data: { reservation_id: reservationId },
-      });
-
-      // 5. Cerrar publicación
+      // Publicación -> Completed
       await tx.publication.update({
-        where: { publication_id: reservation.trade.publication_id },
+        where: { publication_id: reservation.publication_id },
         data: { publication_state: 'Completed' },
       });
 
-      return { reservation: updatedRes, reservation_ended: endedRes };
+      // crear reservation_ended
+      await tx.reservation_ended.create({
+        data: {
+          reservation_id: reservationId,
+          end_date: new Date(),
+          status: 'Completed',
+        },
+      });
     });
 
     return res.status(200).json({
       success: true,
-      message: 'Reserva confirmada y finalizada correctamente.',
-      data: result,
+      message: `Intercambio confirmado. Has recibido ${pointsPrice} puntos.`,
     });
   } catch (error) {
     console.error(`Error confirmando reserva ${reservationId}:`, error);
-    return res.status(500).json({
-      success: false,
-      message: 'Error interno al confirmar la reserva.',
-      code: 'SERVER_ERROR',
-    });
+    return res.status(500).json({ success: false, message: 'Error interno al confirmar.' });
   }
 };
 
