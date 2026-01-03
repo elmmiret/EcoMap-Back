@@ -4,23 +4,23 @@ import { listEvents, getEvent, createEvent, updateEvent, deleteEvent } from '#co
 
 const router = express.Router();
 
-// ----------------- rutas públicas -----------------
+// ----------------- rutas públicas (autenticadas pero cualquier rol) -----------------
 
-// GET /api/external/events
+// GET /api/external/events (filtrado forzoso por tag EcoMap)
 router.get('/events', authenticateBackendJWT, listEvents);
 
-// GET /api/external/events/:codi
+// GET /api/external/events/:codi (solo si tiene tag EcoMap)
 router.get('/events/:codi', authenticateBackendJWT, getEvent);
 
 // ----------------- rutas exclusivas para usuarios 'admin' -----------------
 
-// POST /api/external/events
+// POST /api/external/events (tag EcoMap forzado)
 router.post('/events', authenticateBackendJWT, requireAdmin, createEvent);
 
-// PUT /api/external/events/:codi
+// PUT /api/external/events/:codi (tags inmutables)
 router.put('/events/:codi', authenticateBackendJWT, requireAdmin, updateEvent);
 
-// DELETE /api/external/events/:codi
+// DELETE /api/external/events/:codi (verifica tag EcoMap antes de borrar)
 router.delete('/events/:codi', authenticateBackendJWT, requireAdmin, deleteEvent);
 
 export default router;

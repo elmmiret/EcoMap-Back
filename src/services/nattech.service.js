@@ -20,7 +20,7 @@ export const getExternalEvents = async (params = {}) => {
   // añadir parámetros excepto 'tags'
   Object.key(params).forEach((key) => {
     if (key !== 'tags') {
-      url.searchParams.append(key, params[key]);
+        url.searchParams.append(key, params[key]);
     }
   });
 
@@ -85,10 +85,22 @@ export const createExternalEvent = async (eventData) => {
  * Actualiza un evento (sin poder editar el tag de EcoMap)
  */
 export const updateExternalEvent = async (codi, eventData) => {
+  const currentEvent = await getExternalEventByCodi(codi);
+  if (!currentEvent) {
+    throw new Error('Evento no encontrado o no pertenece a EcoMap');
+  }
+
+  const { tags, ...dataToUpdate } = eventData;
+
+  const payload = {
+    ...dataToUpdate,
+    tags: currentEvent.tags, // mantener los tags originales intactos
+  };
+
   const response = await fetch(`${BASE_URL}/events/${codi}`, {
     method: 'PUT',
     headers: getHeaders(),
-    body: JSON.stringify(eventData),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
@@ -99,8 +111,15 @@ export const updateExternalEvent = async (codi, eventData) => {
 
 /**
  * DELETE /api/events/{codi}
+ * Borra un evento (solamente si tiene el tag de EcoMap)
  */
 export const deleteExternalEvent = async (codi) => {
+  const event = await getExternalEventByCodi(codi);
+
+  if (!event) {
+    throw new Error('Evento no encontrado o acceso denegado (Tag incorrecto)');
+  }
+
   const response = await fetch(`${BASE_URL}/events/${codi}`, {
     method: 'DELETE',
     headers: getHeaders(),
