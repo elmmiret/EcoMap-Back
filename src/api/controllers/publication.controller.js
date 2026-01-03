@@ -524,7 +524,7 @@ export const deletePublication = async (req, res) => {
       if (publication.publication_state === 'Completed') {
         return res.status(409).json({
           success: false,
-          message: 'No puedes eliminar una publicación que ya ha sido completada/finalizada.',
+          message: 'No puedes eliminar una publicación que ha sido completada/finalizada.',
         });
       }
     } else {
@@ -1193,10 +1193,10 @@ export const updateTradeBody = async (req, res) => {
 };
 
 /**
- * Registra la compra de un Reward por parte de un cliente.
- * - Crea el registro en 'reward_bought_by'.
- * - Deduce los puntos del cliente (opcional, pero recomendado).
- * - Mantiene el historial del precio en el momento de la compra.
+ * Registra la compra de un Reward.
+ * - Verifica disponibilidad.
+ * - Verifica y RESTA puntos al cliente.
+ * - Crea registro en 'reward_bought_by'.
  * Endpoint: POST /api/publications/rewards/:rewardId/buy
  */
 export const buyReward = async (req, res) => {

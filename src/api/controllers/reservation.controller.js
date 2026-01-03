@@ -330,22 +330,31 @@ export const confirmReservation = async (req, res) => {
     });
 
     if (!reservation) {
-      return res.status(404).json({ success: false, message: 'Reserva no encontrada.'});
+      return res.status(404).json({ success: false, message: 'Reserva no encontrada.' });
+    }
+
+    // verificar que la reserva no haya sido confirmada anteriormente
+    if (reservation.reservation_ended) {
+      return res.status(409).json({
+        success: false,
+        message: 'Esta reserva ya ha sido confirmada y finalizada anteriormente.',
+        code: 'RESERVATION_ALREADY_COMPLETED',
+      });
     }
 
     // verificar que quien confirma es el dueño
     if (reservation.publication.client_id !== uid) {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Solo el propietario de la publicación puede confirmar el intercambio.' 
+      return res.status(403).json({
+        success: false,
+        message: 'Solo el propietario de la publicación puede confirmar el intercambio.',
       });
     }
 
     // verificar estado actual
     if (reservation.status !== 'Pending') {
-      return res.status(409).json({ 
-        success: false, 
-        message: 'Esta reserva ya ha sido procesada o cancelada.' 
+      return res.status(409).json({
+        success: false,
+        message: 'Esta reserva ya ha sido procesada o cancelada.',
       });
     }
 
@@ -359,23 +368,22 @@ export const confirmReservation = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: `El intercambio no se puede completar. El comprador no tiene suficientes puntos (${buyerPoints}/${pointsPrice}).`,
-        code: 'BUYER_INSUFFICIENT_FUNDS'
+        code: 'BUYER_INSUFFICIENT_FUNDS',
       });
     }
 
     // transacción
     await prisma.$transaction(async (tx) => {
-      
       // restar al comprador
       await tx.client.update({
         where: { user_id: reservation.client_id },
-        data: { points: { decrement: pointsPrice } }
+        data: { points: { decrement: pointsPrice } },
       });
 
       // sumar al vendedor
       await tx.client.update({
         where: { user_id: uid },
-        data: { points: { increment: pointsPrice } }
+        data: { points: { increment: pointsPrice } },
       });
 
       // Reserva -> Completed
@@ -404,7 +412,6 @@ export const confirmReservation = async (req, res) => {
       success: true,
       message: `Intercambio confirmado. Has recibido ${pointsPrice} puntos.`,
     });
-    
   } catch (error) {
     console.error(`Error confirmando reserva ${reservationId}:`, error);
     return res.status(500).json({ success: false, message: 'Error interno al confirmar.' });
