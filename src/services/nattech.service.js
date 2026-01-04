@@ -34,7 +34,7 @@ const mapToExternalFormat = (data) => {
   const localitat = data.address || data.localitat || data.adreca;
   const latitud = data.lat || data.latitud;
   const longitud = data.lon || data.longitud;
-  
+
   let fotos_urls = [];
   if (data.image) fotos_urls = [data.image];
   else if (data.fotos_urls) fotos_urls = data.fotos_urls;
@@ -43,11 +43,11 @@ const mapToExternalFormat = (data) => {
 
   // devolver objeto mapeado
   return {
-    ...rest,        // Altres camps que no coneixem
-    nom,            // Obligatori
-    descripcio,     // Obligatori
-    data_inici,     // Obligatori (YYYY-MM-DD)
-    data_fi,        // Obligatori (YYYY-MM-DD)
+    ...rest, // Altres camps que no coneixem
+    nom, // Obligatori
+    descripcio, // Obligatori
+    data_inici, // Obligatori (YYYY-MM-DD)
+    data_fi, // Obligatori (YYYY-MM-DD)
     localitat,
     latitud,
     longitud,

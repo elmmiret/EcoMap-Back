@@ -44,11 +44,11 @@ export const createEvent = async (req, res) => {
     });
   } catch (error) {
     console.error('Error createEvent:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Error interno al crear evento.', 
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al crear evento.',
       error: error.message, // <--- ESTO TE DIRÁ LA CAUSA EXACTA
-      details: error.response?.data || 'Sin detalles adicionales'
+      details: error.response?.data || 'Sin detalles adicionales',
     });
   }
 };
