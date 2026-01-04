@@ -47,7 +47,7 @@ export const createEvent = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Error interno al crear evento.',
-      error: error.message, // <--- ESTO TE DIRÁ LA CAUSA EXACTA
+      error: error.message,
       details: error.response?.data || 'Sin detalles adicionales',
     });
   }

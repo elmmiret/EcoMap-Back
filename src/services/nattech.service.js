@@ -11,19 +11,18 @@ const getHeaders = () => ({
 });
 
 const mapToExternalFormat = (data) => {
-  const formatDate = (dateStr) => {
-    if (!dateStr) return undefined;
+  const formatDate = (dateInput) => {
+    if (!dateInput) return undefined;
     try {
-      // Si ja ve com a YYYY-MM-DD, el deixem
-      if (typeof dateStr === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        return dateStr;
+      if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+        return dateInput;
       }
-      const dateObj = new Date(dateStr);
-      // toISOString() -> "2025-12-01T10:00:00.000Z" -> agafem els primers 10
-      return dateObj.toISOString().substring(0, 10);
+
+      const dateStr = dateInput instanceof Date ? dateInput.toISOString() : dateInput;
+      return dateStr.split('T')[0];
     } catch (e) {
-      console.warn('[NatTech] Error formatejant data:', dateStr);
-      return dateStr; // Retornem tal qual si falla
+      console.warn('[NatTech] Error formatejant data:', dateInput);
+      return dateInput;
     }
   };
 
@@ -39,19 +38,18 @@ const mapToExternalFormat = (data) => {
   if (data.image) fotos_urls = [data.image];
   else if (data.fotos_urls) fotos_urls = data.fotos_urls;
 
-  const { name, description, startDate, endDate, address, lat, lon, image, tags, ...rest } = data;
-
   // devolver objeto mapeado
   return {
-    ...rest, // Altres camps que no coneixem
-    nom, // Obligatori
-    descripcio, // Obligatori
-    data_inici, // Obligatori (YYYY-MM-DD)
-    data_fi, // Obligatori (YYYY-MM-DD)
+    nom,
+    descripcio,
+    data_inici,
+    data_fi,
     localitat,
     latitud,
     longitud,
     fotos_urls,
+    codi: data.codi,
+    id: data.id,
   };
 };
 
@@ -78,7 +76,19 @@ export const getExternalEvents = async (params = {}) => {
   if (!response.ok) {
     throw new Error(`Error NatTech API: ${response.status} ${response.statusText}`);
   }
-  return await response.json();
+
+  const events = await response.json();
+
+  if (Array.isArray(events)) {
+    return events.filter((event) => {
+      const eventTags = event.tags || '';
+      const tagsString = Array.isArray(eventTags) ? eventTags.join(',') : eventTags;
+
+      return tagsString.includes(ECO_TAG);
+    });
+  }
+
+  return events;
 };
 
 /**
@@ -143,14 +153,25 @@ export const updateExternalEvent = async (codi, eventData) => {
     throw new Error('Evento no encontrado o no pertenece a EcoMap');
   }
 
-  const mappedData = mapToExternalFormat(eventData);
+  const safeBase = mapToExternalFormat(currentEvent);
 
-  const { tags, ...dataToUpdate } = mappedData;
+  const changes = mapToExternalFormat(eventData);
+
+  const mergedData = { ...safeBase };
+
+  Object.keys(changes).forEach((key) => {
+    // Solo aplicamos el cambio si el usuario envió algo (no undefined)
+    if (changes[key] !== undefined) {
+      mergedData[key] = changes[key];
+    }
+  });
 
   const payload = {
-    ...dataToUpdate,
+    ...mergedData,
     tags: currentEvent.tags, // mantener los tags originales intactos
   };
+
+  console.log('[NatTech] Update Payload:', JSON.stringify(payload));
 
   const response = await fetch(`${BASE_URL}/events/${codi}`, {
     method: 'PUT',

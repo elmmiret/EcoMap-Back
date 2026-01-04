@@ -624,10 +624,15 @@ components:
           description: URL de la imagen
       example:
         name: 'Taller de Reciclaje EcoMap'
+        urlactivitat: 'https://example.com/evento-reciclaje'
         description: 'Aprende a reciclar correctamente.'
         startDate: '2025-12-01T10:00:00Z'
         endDate: '2025-12-01T12:00:00Z'
         address: 'Parc de la Ciutadella'
+        entrades: 'Gratis'
+        horari: '10:00 - 12:00'
+        latitud: 41.3870
+        longitud: 2.1800
 
     ExternalEvent:
       type: object
