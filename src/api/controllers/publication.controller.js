@@ -19,7 +19,7 @@ export const createTrade = async (req, res) => {
   } = req.body;
   const imageFile = req.file; // Archivo subido (si existe)
 
-  // Validaciones básicas
+  // validaciones básicas
   if (!title || !itemState || pointsPrice === undefined) {
     return res.status(400).json({
       success: false,
@@ -28,7 +28,7 @@ export const createTrade = async (req, res) => {
     });
   }
 
-  // Validar item state
+  // validar estado del objeto
   const validItemStates = ['New', 'Little_used', 'Widely_used', 'Bad_condition'];
 
   if (!validItemStates.includes(itemState)) {
@@ -39,7 +39,7 @@ export const createTrade = async (req, res) => {
     });
   }
 
-  // Validar que el precio de puntos sea uno de los valores permitidos
+  // validar que el precio de puntos sea uno de los valores permitidos
   const allowedPointsPrices = gamificationService.POINTS_RULES.ECO_TRADER_SALE || [5, 10, 25, 50];
   if (!allowedPointsPrices.includes(Number(pointsPrice))) {
     return res.status(400).json({
@@ -56,11 +56,12 @@ export const createTrade = async (req, res) => {
       try {
         mediaUrl = await uploadToS3(imageFile);
       } catch (uploadError) {
-        console.error('Error subiendo imagen a S3:', uploadError);
+        console.error('Error detallado S3:', uploadError);
         return res.status(500).json({
           success: false,
-          message: 'Error al subir la imagen.',
+          message: 'Error al subir la imagen a S3. Verifica credenciales y permisos.',
           code: 'IMAGE_UPLOAD_ERROR',
+          detail: uploadError.message,
         });
       }
     }
@@ -553,16 +554,19 @@ export const deletePublication = async (req, res) => {
 
 /**
  * Obtiene todas las publicaciones de un usuario específico.
- * Endpoint: /api/publications/trades/user/:userId
+ * Endpoint: /api/publications/trades/user/:username
  */
 export const getUserTrades = async (req, res) => {
-  // CAMBIO: Extraemos 'userId' en lugar de 'id'
-  const { userId } = req.params;
+  const { username } = req.params;
 
   try {
     const publications = await prisma.publication.findMany({
       where: {
-        client_id: userId,
+        client: {
+          registered_user: {
+            username: username,
+          },
+        },
       },
       include: {
         trade: true,
@@ -913,17 +917,20 @@ export const getAllPendingTrades = async (req, res) => {
 
 /**
  * Obtiene las publicaciones completadas de un usuario específico.
- * Endpoint: /api/publications/trades/user/:userId/completed
+ * Endpoint: /api/publications/trades/user/:username/completed
  */
 export const getUserCompletedTrades = async (req, res) => {
-  // CAMBIO: Extraemos 'userId'
-  const { userId } = req.params;
+  const { username } = req.params;
   try {
     const publications = await prisma.publication.findMany({
       where: {
-        client_id: userId,
+        client: {
+          registered_user: {
+            username: username,
+          },
+        },
         publication_state: 'Completed',
-        trade: { isNot: null }, // Importante: filtro de trade
+        trade: { isNot: null },
       },
       include: {
         trade: true,
@@ -944,15 +951,18 @@ export const getUserCompletedTrades = async (req, res) => {
 
 /**
  * Obtiene las publicaciones canceladas de un usuario específico.
- * Endpoint: /api/publications/trades/user/:userId/cancelled
+ * Endpoint: /api/publications/trades/user/:username/cancelled
  */
 export const getUserCancelledTrades = async (req, res) => {
-  // CAMBIO: Extraemos 'userId'
-  const { userId } = req.params;
+  const { username } = req.params;
   try {
     const publications = await prisma.publication.findMany({
       where: {
-        client_id: userId,
+        client: {
+          registered_user: {
+            username: username,
+          },
+        },
         publication_state: 'Cancelled',
         trade: { isNot: null },
       },
@@ -975,15 +985,18 @@ export const getUserCancelledTrades = async (req, res) => {
 
 /**
  * Obtiene las publicaciones pendientes de un usuario específico.
- * Endpoint: /api/publications/trades/user/:userId/pending
+ * Endpoint: /api/publications/trades/user/:username/pending
  */
 export const getUserPendingTrades = async (req, res) => {
-  // CAMBIO: Extraemos 'userId'
-  const { userId } = req.params;
+  const { username } = req.params;
   try {
     const publications = await prisma.publication.findMany({
       where: {
-        client_id: userId,
+        client: {
+          registered_user: {
+            username: username,
+          },
+        },
         publication_state: 'Pending',
         trade: { isNot: null },
       },
