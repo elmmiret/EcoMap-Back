@@ -3541,7 +3541,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiResponse'
 
-  /api/external/events/{codi}:
+  /api/external/events/{nom}:
     get:
       summary: Obtener detalle de evento
       description: >-
@@ -3552,11 +3552,11 @@ paths:
         - backendAuth: []
       parameters:
         - in: path
-          name: codi
+          name: nom
           schema:
             type: string
           required: true
-          description: Código identificador del evento externo.
+          description: Nombre del evento externo.
       responses:
         '200':
           description: Detalle del evento.
@@ -3593,11 +3593,11 @@ paths:
         - backendAuth: []
       parameters:
         - in: path
-          name: codi
+          name: nom
           schema:
             type: string
           required: true
-          description: Código del evento a actualizar.
+          description: Nombre del evento a actualizar.
       requestBody:
         required: true
         content:
@@ -3629,11 +3629,11 @@ paths:
         - backendAuth: []
       parameters:
         - in: path
-          name: codi
+          name: nom
           schema:
             type: string
           required: true
-          description: Código del evento a eliminar.
+          description: Nombre del evento a eliminar.
       responses:
         '200':
           description: Evento eliminado correctamente.
