@@ -1780,16 +1780,25 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
+              required:
+                - title
+                - content
+                - pointsPrice
               properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Imagen de la recompensa.
                 title:
                   type: string
                 description:
                   type: string
                 content:
                   type: string
+                  description: Contenido o código del reward.
                 pointsPrice:
                   type: integer
                   description: 'Precio en puntos. Valores permitidos: 500, 1000, 2000, 5000.'
@@ -1798,8 +1807,6 @@ paths:
                     - 1000
                     - 2000
                     - 5000
-                mediaUrl:
-                  type: string
       responses:
         '201':
           description: Recompensa creada.
@@ -1812,6 +1819,10 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/Publication'
+        '403':
+          description: No autorizado (Solo instituciones).
+        '500':
+          description: Error del servidor.
     get:
       summary: Obtener todas las recompensas
       tags: [Publicaciones]
@@ -2126,22 +2137,28 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
+              required:
+                - title
+                - itemState
+                - pointsPrice
               properties:
+                image:
+                  type: string
+                  format: binary
+                  description: Imagen del producto (jpeg, png)
                 title:
                   type: string
+                  description: Título del intercambio.
                 description:
                   type: string
+                  description: Descripción detallada.
                 itemState:
                   type: string
-                  description: "Estado del artículo. Valores permitidos: 'New', 'Little_used', 'Widely_used', 'Bad_condition'."
-                  enum:
-                    - New
-                    - Little_used
-                    - Widely_used
-                    - Bad_condition
+                  enum: [New, Little_used, Widely_used, Bad_condition]
+                  description: Estado físico del objeto.
                 pointsPrice:
                   type: integer
                   description: 'Precio en puntos. Valores permitidos: 5, 10, 25, 50.'
@@ -2150,8 +2167,6 @@ paths:
                     - 10
                     - 25
                     - 50
-                mediaUrl:
-                  type: string
       responses:
         '201':
           description: Intercambio creado.
@@ -2164,6 +2179,10 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/Publication'
+        '400':
+          description: Faltan datos o formato incorrecto.
+        '500':
+          description: Error del servidor.
     get:
       summary: Obtener todos los intercambios activos
       tags: [Publicaciones]
