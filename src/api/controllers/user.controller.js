@@ -17,7 +17,7 @@ export const syncUserToPostgres = async (req, res) => {
   const { uid: firebaseUID } = req.user;
 
   const { role: requestRole } = req.body;
-  const validRoles = ['client', 'admin', 'institution', 'partner'];
+  const validRoles = ['client', 'admin', 'institution'];
   const roleToAssign = validRoles.includes(requestRole) ? requestRole : 'client';
 
   dbg('Inicio handler', { firebaseUID, bodyKeys: Object.keys(req.body || {}) });
@@ -31,7 +31,6 @@ export const syncUserToPostgres = async (req, res) => {
         client: true, // para obtener profile_picture, points, streak
         admin: true, // para rol
         institution: true, // para rol
-        partner: true, // para rol
       },
     });
 
@@ -51,9 +50,10 @@ export const syncUserToPostgres = async (req, res) => {
 
       // Determinar el rol del usuario
       let currentRole = 'client';
-      if (existingUser.admin) currentRole = 'admin';
-      else if (existingUser.institution) currentRole = 'institution';
-      else if (existingUser.partner) currentRole = 'partner';
+      if (requestRole === 'admin') currentRole = 'admin';
+      else if (requestRole === 'institution') currentRole = 'institution';
+      //if (existingUser.admin) currentRole = 'admin';
+      //else if (existingUser.institution) currentRole = 'institution';
 
       // Generar y guardar nuevo JWT
       const jwtPayload = {
@@ -201,12 +201,6 @@ export const syncUserToPostgres = async (req, res) => {
 
         case 'institution':
           await tx.institution.create({
-            data: { user_id: userData.uid },
-          });
-          break;
-
-        case 'partner':
-          await tx.partner.create({
             data: { user_id: userData.uid },
           });
           break;
@@ -504,7 +498,6 @@ export const getUserFullProfile = async (req, res) => {
         client: true,
         admin: true,
         institution: true,
-        partner: true,
       },
     });
 
@@ -526,9 +519,6 @@ export const getUserFullProfile = async (req, res) => {
     } else if (user.institution) {
       role = 'institution';
       roleData = user.institution;
-    } else if (user.partner) {
-      role = 'partner';
-      roleData = user.partner;
     } else if (user.client) {
       role = 'client';
       roleData = user.client;
@@ -537,7 +527,7 @@ export const getUserFullProfile = async (req, res) => {
     // limpiar el objeto de respuesta
     // eliminamos las propiedades anidadas redundantes para enviar un objeto plano
     // eslint-disable-next-line no-unused-vars
-    const { client, admin, institution, partner, ...baseUserData } = user;
+    const { client, admin, institution, ...baseUserData } = user;
 
     const fullProfile = {
       ...baseUserData,
@@ -603,9 +593,10 @@ export const getUserProfile = async (req, res) => {
     }
 
     // Determinar el rol
-    let role = 'client';
-    if (userProfile.admin) role = 'admin';
-    if (userProfile.institution) role = 'institution';
+    let role = '';
+    if (userProfile.client) role = 'client';
+    else if (userProfile.admin) role = 'admin';
+    else if (userProfile.institution) role = 'institution';
 
     // Formatear la respuesta para que coincida con el contrato de la API
     const responseData = {
@@ -819,7 +810,6 @@ export const updateUserProfile = async (req, res) => {
         },
         admin: true,
         institution: true,
-        partner: true,
       },
     });
 

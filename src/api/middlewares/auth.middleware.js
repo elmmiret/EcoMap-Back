@@ -154,7 +154,6 @@ export const requireAdmin = (req, res, next) => {
     });
   }
 
-  // Usuario es admin, continuar
   next();
 };
 

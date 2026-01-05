@@ -598,6 +598,65 @@ components:
           type: string
           format: date-time
 
+    # --- External Events Schema ---
+    ExternalEventInput:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Nombre o título del evento
+        description:
+          type: string
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        address:
+          type: string
+        lat:
+          type: number
+          format: float
+        lon:
+          type: number
+          format: float
+        image:
+          type: string
+          description: URL de la imagen
+      example:
+        name: 'Taller de Reciclaje EcoMap'
+        urlactivitat: 'https://example.com/evento-reciclaje'
+        description: 'Aprende a reciclar correctamente.'
+        startDate: '2025-12-01T10:00:00Z'
+        endDate: '2025-12-01T12:00:00Z'
+        address: 'Parc de la Ciutadella'
+        entrades: 'Gratis'
+        horari: '10:00 - 12:00'
+        latitud: 41.3870
+        longitud: 2.1800
+
+    ExternalEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        codi:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        tags:
+          type: string
+          description: String con tags separados por comas
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+
 paths:
   # --- Health Check ---
   /:
@@ -3369,5 +3428,192 @@ paths:
           description: No tiene permisos de administrador.
         '404':
           description: Producto no encontrado.
+        '500':
+          description: Error del servidor.
+
+  # --- Nattech Service ---
+  /api/external/events:
+    get:
+      summary: Listar eventos de EcoMap
+      description: >-
+        Obtiene la lista de eventos de la API externa (NatTech).
+        Filtra automáticamente para mostrar solo los eventos con el tag 'agenda:categories/EcoMap'.
+      tags: [Eventos Externos (NatTech)]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+          description: Número de página.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+          description: Elementos por página.
+        - in: query
+          name: keyword
+          schema:
+            type: string
+          description: Palabra clave para buscar en el título o descripción.
+      responses:
+        '200':
+          description: Lista de eventos obtenida correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ExternalEvent'
+        '500':
+          description: Error al conectar con el servicio externo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+    post:
+      summary: Crear nuevo evento externo
+      description: >-
+        Crea un evento en la plataforma externa. 
+        Se añade automáticamente el tag 'agenda:categories/EcoMap'.
+        Requiere permisos de Administrador.
+      tags: [Eventos Externos (NatTech)]
+      security:
+        - backendAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExternalEventInput'
+      responses:
+        '201':
+          description: Evento creado exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          description: No autorizado (Solo administradores).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '500':
+          description: Error interno o error de la API externa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /api/external/events/{codi}:
+    get:
+      summary: Obtener detalle de evento
+      description: >-
+        Obtiene un evento específico por su código. 
+        Solo devuelve resultados si el evento contiene el tag 'agenda:categories/EcoMap'.
+      tags: [Eventos Externos (NatTech)]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: codi
+          schema:
+            type: string
+          required: true
+          description: Código identificador del evento externo.
+      responses:
+        '200':
+          description: Detalle del evento.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ExternalEvent'
+        '404':
+          description: Evento no encontrado o no pertenece a EcoMap.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '500':
+          description: Error del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+    put:
+      summary: Actualizar evento externo
+      description: >-
+        Actualiza los datos de un evento existente.
+        Los tags originales se mantienen intactos.
+        Requiere permisos de Administrador.
+      tags: [Eventos Externos (NatTech)]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: codi
+          schema:
+            type: string
+          required: true
+          description: Código del evento a actualizar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExternalEventInput'
+      responses:
+        '200':
+          description: Evento actualizado correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          description: No autorizado (Solo administradores).
+        '404':
+          description: Evento no encontrado o no pertenece a EcoMap.
+        '500':
+          description: Error del servidor.
+
+    delete:
+      summary: Eliminar evento externo
+      description: >-
+        Elimina un evento de la plataforma externa.
+        Solo se permite si el evento pertenece a EcoMap.
+        Requiere permisos de Administrador.
+      tags: [Eventos Externos (NatTech)]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: codi
+          schema:
+            type: string
+          required: true
+          description: Código del evento a eliminar.
+      responses:
+        '200':
+          description: Evento eliminado correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          description: No autorizado o el evento no pertenece a EcoMap.
         '500':
           description: Error del servidor.
