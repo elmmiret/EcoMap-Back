@@ -132,25 +132,25 @@ router.get('/trades/status/pending', authenticateBackendJWT, getAllPendingTrades
  * @description Obtiene todos los trades de un usuario específico.
  * CAMBIO: '/user/:userId' elimina la ambigüedad de si es ID de trade o de usuario.
  */
-router.get('/trades/user/:userId', authenticateBackendJWT, getUserTrades);
+router.get('/trades/user/:username', authenticateBackendJWT, getUserTrades);
 
 /**
  * @route GET /api/publications/trades/user/:userId/completed
  * @description Obtiene trades completados de un usuario.
  */
-router.get('/trades/user/:userId/completed', authenticateBackendJWT, getUserCompletedTrades);
+router.get('/trades/user/:username/completed', authenticateBackendJWT, getUserCompletedTrades);
 
 /**
  * @route GET /api/publications/trades/user/:userId/cancelled
  * @description Obtiene trades cancelados de un usuario.
  */
-router.get('/trades/user/:userId/cancelled', authenticateBackendJWT, getUserCancelledTrades);
+router.get('/trades/user/:username/cancelled', authenticateBackendJWT, getUserCancelledTrades);
 
 /**
  * @route GET /api/publications/trades/user/:userId/pending
  * @description Obtiene trades pendientes de un usuario.
  */
-router.get('/trades/user/:userId/pending', authenticateBackendJWT, getUserPendingTrades);
+router.get('/trades/user/:username/pending', authenticateBackendJWT, getUserPendingTrades);
 
 // --- Gestión Individual de Trades ---
 

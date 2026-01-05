@@ -2266,7 +2266,7 @@ paths:
                         items:
                           $ref: '#/components/schemas/Publication'
 
-  /api/publications/trades/user/{userId}:
+  /api/publications/trades/user/{username}:
     get:
       summary: Obtener intercambios de un usuario
       tags: [Publicaciones]
@@ -2274,7 +2274,7 @@ paths:
         - backendAuth: []
       parameters:
         - in: path
-          name: userId
+          name: username
           required: true
           schema:
             type: string
@@ -2293,7 +2293,7 @@ paths:
                         items:
                           $ref: '#/components/schemas/Publication'
 
-  /api/publications/trades/user/{userId}/completed:
+  /api/publications/trades/user/{username}/completed:
     get:
       summary: Obtener intercambios completados de un usuario
       tags: [Publicaciones]
@@ -2301,7 +2301,7 @@ paths:
         - backendAuth: []
       parameters:
         - in: path
-          name: userId
+          name: username
           required: true
           schema:
             type: string
@@ -2320,7 +2320,7 @@ paths:
                         items:
                           $ref: '#/components/schemas/Publication'
 
-  /api/publications/trades/user/{userId}/cancelled:
+  /api/publications/trades/user/{username}/cancelled:
     get:
       summary: Obtener intercambios cancelados de un usuario
       tags: [Publicaciones]
@@ -2328,7 +2328,7 @@ paths:
         - backendAuth: []
       parameters:
         - in: path
-          name: userId
+          name: username
           required: true
           schema:
             type: string
@@ -2347,7 +2347,7 @@ paths:
                         items:
                           $ref: '#/components/schemas/Publication'
 
-  /api/publications/trades/user/{userId}/pending:
+  /api/publications/trades/user/{username}/pending:
     get:
       summary: Obtener intercambios pendientes de un usuario
       tags: [Publicaciones]
@@ -2355,7 +2355,7 @@ paths:
         - backendAuth: []
       parameters:
         - in: path
-          name: userId
+          name: username
           required: true
           schema:
             type: string
