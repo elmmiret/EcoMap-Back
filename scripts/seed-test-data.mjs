@@ -173,7 +173,7 @@ async function seedTestData() {
                     if (reportsCreated % 10 === 0) {
                         console.log(`   ✅ ${reportsCreated} reportes creados...`);
                     }
-                } catch (error) {
+                } catch {
                     // Silently ignore duplicate reports or other errors
                 }
             }

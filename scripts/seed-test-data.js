@@ -64,7 +64,7 @@ async function seedTestData() {
         console.log('🌱 Iniciando seed de datos de prueba...\n');
 
         // 1. Create Firebase users and sync them with database
-        const createdUsers: any[] = [];
+        const createdUsers = [];
 
         for (const user of testUsers) {
             console.log(`📝 Creando usuario: ${user.email}...`);
@@ -119,7 +119,7 @@ async function seedTestData() {
                 });
 
                 console.log(`✅ Usuario creado: ${user.email} (UID: ${firebaseUser.uid})\n`);
-            } catch (error: any) {
+            } catch (error) {
                 if (error.code === 'auth/email-already-exists') {
                     console.log(`⏭️  Usuario ya existe: ${user.email}\n`);
                     // Get existing user
@@ -167,7 +167,7 @@ async function seedTestData() {
                         `✅ Reporte creado: ${reporter.username} → ${reportedUser.username} (${reason}, ${status})`
                     );
                 } catch (error) {
-                    console.error(`❌ Error creando reporte:`, (error as any).message);
+                    console.error(`❌ Error creando reporte:`, error.message);
                 }
             }
 
@@ -193,7 +193,7 @@ async function seedTestData() {
                         console.log(
                             `✅ Reporte adicional creado: ${reporter.username} → ${reported.username}`
                         );
-                    } catch (error) {
+                    } catch {
                         // Silently ignore if report already exists
                     }
                 }
