@@ -19,7 +19,7 @@ export const createTrade = async (req, res) => {
   } = req.body;
   const imageFile = req.file; // Archivo subido (si existe)
 
-  // Validaciones básicas
+  // validaciones básicas
   if (!title || !itemState || pointsPrice === undefined) {
     return res.status(400).json({
       success: false,
@@ -28,7 +28,7 @@ export const createTrade = async (req, res) => {
     });
   }
 
-  // Validar item state
+  // validar estado del objeto
   const validItemStates = ['New', 'Little_used', 'Widely_used', 'Bad_condition'];
 
   if (!validItemStates.includes(itemState)) {
@@ -39,7 +39,7 @@ export const createTrade = async (req, res) => {
     });
   }
 
-  // Validar que el precio de puntos sea uno de los valores permitidos
+  // validar que el precio de puntos sea uno de los valores permitidos
   const allowedPointsPrices = gamificationService.POINTS_RULES.ECO_TRADER_SALE || [5, 10, 25, 50];
   if (!allowedPointsPrices.includes(Number(pointsPrice))) {
     return res.status(400).json({
@@ -56,11 +56,12 @@ export const createTrade = async (req, res) => {
       try {
         mediaUrl = await uploadToS3(imageFile);
       } catch (uploadError) {
-        console.error('Error subiendo imagen a S3:', uploadError);
+        console.error('Error detallado S3:', uploadError);
         return res.status(500).json({
           success: false,
-          message: 'Error al subir la imagen.',
+          message: 'Error al subir la imagen a S3. Verifica credenciales y permisos.',
           code: 'IMAGE_UPLOAD_ERROR',
+          detail: uploadError.message
         });
       }
     }
