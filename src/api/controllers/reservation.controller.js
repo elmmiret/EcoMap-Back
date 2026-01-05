@@ -412,7 +412,7 @@ export const confirmReservation = async (req, res) => {
       await tx.reservation_ended.create({
         data: {
           reservation_id: reservationId,
-          end_date: new Date()
+          end_date: new Date(),
         },
       });
     });

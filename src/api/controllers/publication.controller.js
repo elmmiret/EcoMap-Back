@@ -426,9 +426,9 @@ export const updateRewardBody = async (req, res) => {
       } catch (err) {
         console.error('Error procesando la iamgen en S3:', err);
         return res.status(500).json({ success: false, message: 'Error al procesar la imagen.' });
-      }  
+      }
     }
-  
+
     // actualizar datos
     await prisma.$transaction(async (tx) => {
       // actualizar tabla padre (publication)
