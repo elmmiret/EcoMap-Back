@@ -81,6 +81,7 @@ model registered_user {
 
 model user {
   user_id         String           @id
+  blocked         Boolean          @default(false)
   registered_user registered_user?
 }
 

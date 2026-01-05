@@ -23,6 +23,20 @@ export const syncUserToPostgres = async (req, res) => {
   dbg('Inicio handler', { firebaseUID, bodyKeys: Object.keys(req.body || {}) });
 
   try {
+    // Primero verificar si el usuario está bloqueado
+    const userBlockStatus = await prisma.user.findUnique({
+      where: { user_id: firebaseUID },
+      select: { blocked: true },
+    });
+
+    if (userBlockStatus && userBlockStatus.blocked) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been blocked. Please contact support.',
+        code: 'ACCOUNT_BLOCKED',
+      });
+    }
+
     // lógica de login
     dbg('Consultando si el usuario ya existe en la BD', { user_id: firebaseUID });
     const existingUser = await prisma.registered_user.findUnique({
@@ -1398,7 +1412,7 @@ export const getUserPoints = async (req, res) => {
  * Bloquea a un usuario añadiendo su ID al vector blocked_users.
  * Endpoint: POST /api/users/block/:userId
  */
-export const blockUser = async (req, res) => {
+export const addUserToBlockedList = async (req, res) => {
   const { uid } = req.user; // El que bloquea
   const { userId } = req.params; // El usuario a bloquear
 
@@ -1984,6 +1998,178 @@ export const createUserByAdmin = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: error.message || 'Error al crear usuario.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * Bloquear una cuenta de usuario
+ * Solo los administradores pueden bloquear usuarios
+ */
+export const blockUser = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    // Verificar que el usuario existe
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+      include: {
+        registered_user: {
+          select: {
+            username: true,
+            email: true,
+            admin: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+      });
+    }
+
+    // No permitir bloquear administradores
+    if (user.registered_user?.admin) {
+      return res.status(403).json({
+        success: false,
+        message: 'No se puede bloquear una cuenta de administrador.',
+      });
+    }
+
+    // Verificar si ya está bloqueado
+    if (user.blocked) {
+      return res.status(400).json({
+        success: false,
+        message: 'El usuario ya está bloqueado.',
+      });
+    }
+
+    // Bloquear el usuario
+    await prisma.user.update({
+      where: { user_id: userId },
+      data: { blocked: true },
+    });
+
+    // Invalidar todas las sesiones activas del usuario
+    await prisma.session.deleteMany({
+      where: { user_id: userId },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Usuario bloqueado exitosamente.',
+      data: {
+        userId,
+        username: user.registered_user?.username,
+        email: user.registered_user?.email,
+      },
+    });
+  } catch (error) {
+    console.error('Error bloqueando usuario:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al bloquear usuario.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * Desbloquear una cuenta de usuario
+ * Solo los administradores pueden desbloquear usuarios
+ */
+export const unblockUser = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    // Verificar que el usuario existe
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+      include: {
+        registered_user: {
+          select: {
+            username: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+      });
+    }
+
+    // Verificar si no está bloqueado
+    if (!user.blocked) {
+      return res.status(400).json({
+        success: false,
+        message: 'El usuario no está bloqueado.',
+      });
+    }
+
+    // Desbloquear el usuario
+    await prisma.user.update({
+      where: { user_id: userId },
+      data: { blocked: false },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Usuario desbloqueado exitosamente.',
+      data: {
+        userId,
+        username: user.registered_user?.username,
+        email: user.registered_user?.email,
+      },
+    });
+  } catch (error) {
+    console.error('Error desbloqueando usuario:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al desbloquear usuario.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * Obtener el estado de bloqueo de un usuario
+ */
+export const getUserBlockStatus = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+      select: { blocked: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        userId,
+        blocked: user.blocked,
+      },
+    });
+  } catch (error) {
+    console.error('Error obteniendo estado de bloqueo:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al obtener estado de bloqueo.',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
