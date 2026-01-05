@@ -18,7 +18,8 @@
     "test:ui": "vitest --ui",
     "coverage": "vitest run --coverage",
     "token:firebase": "node scripts/generate-firebase-token.js",
-    "seed:guide": "node scripts/seed-guide.js"
+    "seed:guide": "node scripts/seed-guide.js",
+    "seed:recycling": "node scripts/seed-recycling-guide.mjs"
   },
   "imports": {
     "#lib/*": "./src/lib/*",

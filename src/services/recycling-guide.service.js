@@ -33,11 +33,11 @@ export const searchProducts = async (query) => {
 };
 
 /**
- * Obtiene todos los productos (útil para un índice A-Z)
+ * Obtiene todos los productos (ordenados por fecha de creación, más recientes primero)
  */
 export const getAllProducts = async () => {
   return prisma.recycling_guide_item.findMany({
-    orderBy: { name: 'asc' },
+    orderBy: { created_at: 'desc' },
   });
 };
 
