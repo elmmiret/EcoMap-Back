@@ -711,6 +711,9 @@ export const updateUserProfile = async (req, res) => {
 
   registeredUserData.email = email || registeredUserData.email;
   registeredUserData.dni = dni || registeredUserData.dni;
+  //clientData.address = address || clientData.address;
+  //clientData.phone = phone || clientData.phone;
+  //clientData.description = description || clientData.description;
 
   // username
   if (username !== undefined && username !== null) {
