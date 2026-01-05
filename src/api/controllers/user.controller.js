@@ -1835,3 +1835,102 @@ export const getReportById = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Error interno.' });
   }
 };
+
+/**
+ * Admin: Create new user (client or institution)
+ * This creates a user in Firebase Auth and then syncs to PostgreSQL
+ */
+export const createUserByAdmin = async (req, res) => {
+  const { email, name, username, role } = req.body;
+
+  if (!email || !name || !role) {
+    return res.status(400).json({
+      success: false,
+      message: 'Email, nombre y rol son obligatorios.',
+    });
+  }
+
+  if (!['client', 'institution'].includes(role)) {
+    return res.status(400).json({
+      success: false,
+      message: 'El rol debe ser "client" o "institution".',
+    });
+  }
+
+  try {
+    const auth = getAuth();
+    
+    // Generate a random temporary password
+    const tempPassword = Math.random().toString(36).slice(-12) + 'Aa1!';
+    
+    // Create user in Firebase
+    const userRecord = await auth.createUser({
+      email,
+      password: tempPassword,
+      displayName: name,
+      emailVerified: false,
+    });
+
+    console.log('Usuario creado en Firebase:', userRecord.uid);
+
+    // Create user in PostgreSQL
+    const nameParts = name.split(' ');
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    const newUser = await prisma.registered_user.create({
+      data: {
+        user_id: userRecord.uid,
+        email,
+        name: firstName,
+        surname: lastName,
+        username: username || email.split('@')[0],
+        app_language: 'es',
+      },
+    });
+
+    // Create role-specific entry
+    if (role === 'client') {
+      await prisma.client.create({
+        data: {
+          user_id: userRecord.uid,
+          points: 0,
+          streak: 0,
+        },
+      });
+    } else if (role === 'institution') {
+      await prisma.institution.create({
+        data: {
+          user_id: userRecord.uid,
+        },
+      });
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: 'Usuario creado exitosamente.',
+      data: {
+        uid: userRecord.uid,
+        email,
+        name,
+        username: username || email.split('@')[0],
+        role,
+        tempPassword, // Send this to admin so they can share with user
+      },
+    });
+  } catch (error) {
+    console.error('Error creando usuario:', error);
+    
+    if (error.code === 'auth/email-already-exists') {
+      return res.status(409).json({
+        success: false,
+        message: 'Ya existe un usuario con ese email.',
+      });
+    }
+    
+    return res.status(500).json({
+      success: false,
+      message: 'Error al crear usuario.',
+    });
+  }
+};

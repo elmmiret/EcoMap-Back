@@ -19,6 +19,7 @@ import {
   getAllAdminIds,
   getUserFullProfile,
   getUserTypeById,
+  getUserPublicData,
   getUserValorationsMade,
   getUserValorationsReceived,
   getUserScore,
@@ -33,6 +34,7 @@ import {
   deleteReport,
   getReportsByStatus,
   getReportById,
+  createUserByAdmin,
 } from '#controllers/user.controller.js';
 
 /**
@@ -94,6 +96,13 @@ router.get('/admin/reports/status/:status', authenticateBackendJWT, getReportsBy
  * @access Protegido (Solo Admin)
  */
 router.get('/admin/reports/detail/:reportId', authenticateBackendJWT, getReportById);
+
+/**
+ * @route POST /api/users/admin/create
+ * @description Crea un nuevo usuario (cliente o institución) desde el dashboard de admin.
+ * @access Protegido (Solo Admin con secret key)
+ */
+router.post('/admin/create', authenticateBackendJWT, requireRoleSecret(['admin', 'institution']), createUserByAdmin);
 
 /**
  * @route POST /api/users/report/:userId
@@ -198,6 +207,13 @@ router.get('/:userId/rewards_bought', authenticateBackendJWT, getUserRewardsBoug
  * @description Obtiene la puntuación media de valoraciones de un usuario.
  */
 router.get('/:id/score', authenticateBackendJWT, getUserScore);
+
+/**
+ * @route GET /api/users/:id/public
+ * @description Obtiene datos públicos no sensibles de un usuario.
+ * @access Protegido (Backend JWT)
+ */
+router.get('/:id/public', authenticateBackendJWT, getUserPublicData);
 
 /**
  * @route GET /api/users/:userId
