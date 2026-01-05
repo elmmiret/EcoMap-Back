@@ -420,11 +420,13 @@ export const updateRewardBody = async (req, res) => {
     }
 
     let newMediaUrl = null;
-    try {
-      newMediaUrl = await uploadToS3(imageFile);
-    } catch (err) {
-      console.error('Error procesando la iamgen en S3:', err);
-      return res.status(500).json({ success: false, message: 'Error al procesar la imagen.' });
+    if (imageFile) {
+      try {
+        newMediaUrl = await uploadToS3(imageFile);
+      } catch (err) {
+        console.error('Error procesando la iamgen en S3:', err);
+        return res.status(500).json({ success: false, message: 'Error al procesar la imagen.' });
+      }
     }
 
     // actualizar datos
