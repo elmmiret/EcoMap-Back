@@ -2145,7 +2145,7 @@ paths:
                 - itemState
                 - pointsPrice
               properties:
-                image:
+                file:
                   type: string
                   format: binary
                   description: Imagen del producto (jpeg, png)
