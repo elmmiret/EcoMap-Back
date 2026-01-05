@@ -396,13 +396,13 @@ export const confirmReservation = async (req, res) => {
         data: { points: { increment: pointsPrice } },
       });
 
-      // Reserva -> Completed
+      // reserva -> confirmed: true
       await tx.reservation.update({
         where: { reservation_id: reservationId },
-        data: { status: 'Completed' },
+        data: { confirmed: true },
       });
 
-      // Publicación -> Completed
+      // publicación -> completed
       await tx.publication.update({
         where: { publication_id: reservation.publication_id },
         data: { publication_state: 'Completed' },
@@ -412,8 +412,7 @@ export const confirmReservation = async (req, res) => {
       await tx.reservation_ended.create({
         data: {
           reservation_id: reservationId,
-          end_date: new Date(),
-          status: 'Completed',
+          end_date: new Date()
         },
       });
     });
