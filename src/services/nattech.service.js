@@ -20,7 +20,7 @@ const mapToExternalFormat = (data) => {
 
       const dateStr = dateInput instanceof Date ? dateInput.toISOString() : dateInput;
       return dateStr.split('T')[0];
-    } catch (e) {
+    } catch {
       console.warn('[NatTech] Error formatejant data:', dateInput);
       return dateInput;
     }

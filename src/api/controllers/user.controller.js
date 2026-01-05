@@ -1835,3 +1835,156 @@ export const getReportById = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Error interno.' });
   }
 };
+
+/**
+ * Admin: Create new user (client or institution)
+ * This creates a user in Firebase Auth and then syncs to PostgreSQL
+ */
+export const createUserByAdmin = async (req, res) => {
+  const { email, name, username, role } = req.body;
+
+  if (!email || !name || !role) {
+    return res.status(400).json({
+      success: false,
+      message: 'Email, nombre y rol son obligatorios.',
+    });
+  }
+
+  if (!['client', 'institution'].includes(role)) {
+    return res.status(400).json({
+      success: false,
+      message: 'El rol debe ser "client" o "institution".',
+    });
+  }
+
+  try {
+    const auth = getAuth();
+
+    // Check if user already exists in PostgreSQL
+    const existingUser = await prisma.registered_user.findFirst({
+      where: { email },
+    });
+
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: 'Ya existe un usuario con ese email en la base de datos.',
+      });
+    }
+
+    // Generate a random temporary password
+    const tempPassword = Math.random().toString(36).slice(-12) + 'Aa1!';
+
+    // Create user in Firebase with retry logic
+    let userRecord;
+    let retries = 3;
+    let lastError;
+
+    while (retries > 0) {
+      try {
+        userRecord = await auth.createUser({
+          email,
+          password: tempPassword,
+          displayName: name,
+          emailVerified: false,
+        });
+        console.log('Usuario creado en Firebase:', userRecord.uid);
+        break; // Success, exit retry loop
+      } catch (firebaseError) {
+        lastError = firebaseError;
+        console.error(`Error en Firebase (intentos restantes: ${retries - 1}):`, firebaseError.code);
+
+        if (firebaseError.code === 'auth/email-already-exists') {
+          return res.status(409).json({
+            success: false,
+            message: 'Ya existe un usuario con ese email en Firebase.',
+          });
+        }
+
+        // If it's a network error, retry
+        if (
+          firebaseError.code === 'app/network-timeout' ||
+          firebaseError.message?.includes('getaddrinfo') ||
+          firebaseError.message?.includes('ENOTFOUND') ||
+          firebaseError.message?.includes('EAI_AGAIN')
+        ) {
+          retries--;
+          if (retries > 0) {
+            console.log('Error de red detectado, reintentando en 2 segundos...');
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            continue;
+          }
+        }
+
+        throw firebaseError;
+      }
+    }
+
+    if (!userRecord) {
+      throw lastError || new Error('No se pudo crear el usuario en Firebase después de reintentar');
+    }
+
+    // Create user in PostgreSQL
+    const nameParts = name.split(' ');
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    // First, create the base user entry
+    await prisma.user.create({
+      data: {
+        user_id: userRecord.uid,
+      },
+    });
+
+    // Then create the registered_user entry
+    await prisma.registered_user.create({
+      data: {
+        user_id: userRecord.uid,
+        email,
+        name: firstName,
+        surname: lastName,
+        username: username || email.split('@')[0],
+        app_language: 'es',
+      },
+    });
+
+    // Create role-specific entry
+    if (role === 'client') {
+      await prisma.client.create({
+        data: {
+          user_id: userRecord.uid,
+          points: 0,
+          streak: 0,
+        },
+      });
+    } else if (role === 'institution') {
+      await prisma.institution.create({
+        data: {
+          user_id: userRecord.uid,
+        },
+      });
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: 'Usuario creado exitosamente.',
+      data: {
+        uid: userRecord.uid,
+        email,
+        name,
+        username: username || email.split('@')[0],
+        role,
+        tempPassword, // Send this to admin so they can share with user
+      },
+    });
+  } catch (error) {
+    console.error('Error creando usuario:', error);
+    console.error('Error stack:', error.stack);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Error al crear usuario.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
