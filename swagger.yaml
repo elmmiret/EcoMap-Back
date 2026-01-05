@@ -753,6 +753,7 @@ paths:
                         $ref: '#/components/schemas/UserProfile'
     put:
       summary: Actualizar perfil del usuario
+      description: Actualiza los datos del perfil del usuario autenticado. Los campos que no se precisen deben ser enviados como null o ser eliminados. Además, solamente 'client' puede actualizar 'address', 'phone', 'birth_date' y 'description' (fallará si un admin/institution intenta actualizar estos campos).
       tags: [Usuarios]
       security:
         - backendAuth: []
@@ -769,6 +770,10 @@ paths:
                   type: string
                 username:
                   type: string
+                email:
+                  type: string
+                dni:
+                  type: string
                 address:
                   type: string
                 phone:
@@ -780,6 +785,10 @@ paths:
                   example: '1990-01-01'
                 description:
                   type: string
+                profile_picture:
+                  type: string
+                  format: uri
+                  description: URL de la nueva imagen de perfil
       responses:
         '200':
           description: Perfil actualizado.

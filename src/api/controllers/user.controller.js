@@ -644,7 +644,7 @@ export const updateUserProfile = async (req, res) => {
   dbg(`Solicitud de actualización de perfil para usuario: ${uid}`);
 
   // Extraer campos del body
-  const { name, surname, username, address, phone, birth_date, description } = req.body;
+  const { name, surname, username, address, email, dni, phone, birth_date, description } = req.body;
 
   // --- Validaciones críticas y preparación de datos ---
   const errors = [];
@@ -699,6 +699,12 @@ export const updateUserProfile = async (req, res) => {
       registeredUserData.surname = surname.trim();
     }
   }
+
+  registeredUserData.email = email || registeredUserData.email;
+  registeredUserData.dni = dni || registeredUserData.dni;
+  //clientData.address = address || clientData.address;
+  //clientData.phone = phone || clientData.phone;
+  //clientData.description = description || clientData.description;
 
   // username
   if (username !== undefined && username !== null) {
