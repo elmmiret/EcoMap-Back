@@ -217,7 +217,7 @@ export const requireAdminOrInstitution = (req, res, next) => {
     });
   }
 
-  if (req.user.role !== 'admin' && req.user.role !== 'institution') {
+  if (req.user.role !== 'admin' || req.user.role !== 'institution') {
     return res.status(403).json({
       success: false,
       message: 'Admin or institution privileges required',
