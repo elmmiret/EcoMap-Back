@@ -1927,6 +1927,28 @@ paths:
         '409':
           description: Sincronización ya en progreso.
 
+  /api/recycling-points/{region}/reset:
+    post:
+      summary: Reiniciar estado de caché a ERROR (Solo Admin)
+      description: Desbloquea una caché que está atascada en estado SYNCING
+      tags: [Puntos de Reciclaje]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: region
+          required: true
+          schema:
+            type: string
+            example: navarra
+      responses:
+        '200':
+          description: Estado de caché reiniciado correctamente.
+        '404':
+          description: Región no encontrada.
+        '500':
+          description: Error al reiniciar la caché.
+
   # --- Rutas ---
   /api/routes:
     get:

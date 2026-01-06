@@ -38,6 +38,7 @@ import {
   blockUser,
   unblockUser,
   getUserBlockStatus,
+  getDashboardStats,
 } from '#controllers/user.controller.js';
 
 /**
@@ -127,6 +128,13 @@ router.post('/admin/account/unblock/:userId', authenticateBackendJWT, requireAdm
  * @access Protegido (Solo Admin)
  */
 router.get('/admin/account/status/:userId', authenticateBackendJWT, requireAdmin, getUserBlockStatus);
+
+/**
+ * @route GET /api/users/admin/dashboard/stats
+ * @description Obtiene estadísticas generales para el dashboard de administración.
+ * @access Protegido (Solo Admin)
+ */
+router.get('/admin/dashboard/stats', authenticateBackendJWT, requireAdmin, getDashboardStats);
 
 /**
  * @route POST /api/users/report/:userId

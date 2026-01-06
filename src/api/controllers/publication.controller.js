@@ -147,13 +147,15 @@ export const createReward = async (req, res) => {
   }
 
   try {
-    // verificar que el usuario sea institution
+    // verificar que el usuario sea institution o admin
     const isInstitution = await prisma.institution.findUnique({ where: { user_id: uid } });
-    if (!isInstitution) {
+    const isAdmin = await prisma.admin.findUnique({ where: { user_id: uid } });
+
+    if (!isInstitution && !isAdmin) {
       return res.status(403).json({
         success: false,
-        message: 'Permiso denegado. Solo las instituciones pueden crear recompensas.',
-        code: 'FORBIDDEN_INSTITUTION_ONLY',
+        message: 'Permiso denegado. Solo las instituciones y administradores pueden crear recompensas.',
+        code: 'FORBIDDEN_INSTITUTION_OR_ADMIN_ONLY',
       });
     }
 
@@ -181,14 +183,14 @@ export const createReward = async (req, res) => {
     }
 
     const newReward = await prisma.$transaction(async (tx) => {
-      // crear publicación vinculada a la Institución
+      // crear publicación vinculada a la Institución o Admin
       const publication = await tx.publication.create({
         data: {
           title,
           description,
           date: new Date(),
           publication_state: 'Pending', // O 'Completed' si se publican directamente
-          institution_id: uid, // Vinculamos a INSTITUCIÓN
+          institution_id: isInstitution ? uid : null, // Vinculamos a INSTITUCIÓN si es institución
           client_id: null, // No hay cliente
         },
       });
@@ -655,6 +657,7 @@ export const getAllTrades = async (req, res) => {
               publication_id: true,
               title: true,
               description: true,
+              publication_state: true,
               publication_media: {
                 select: { media_url: true },
               },
@@ -680,7 +683,8 @@ export const getAllTrades = async (req, res) => {
         ? trade.publication.description.substring(0, 100) + (trade.publication.description.length > 100 ? '...' : '')
         : null,
       price: trade.points_price,
-      state: trade.item_state,
+      item_state: trade.item_state,
+      publication_state: trade.publication.publication_state,
       image: trade.publication.publication_media?.media_url || null,
       author: trade.publication.client?.registered_user?.username || 'Anónimo',
       date: trade.created_at,

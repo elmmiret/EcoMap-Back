@@ -66,6 +66,7 @@ model registered_user {
   email        String            @unique
   profile_picture String?
   app_language app_language_type
+  created_at   DateTime          @default(now())
   admin        admin?
   client       client?
   institution  institution?
