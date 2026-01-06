@@ -10,7 +10,7 @@ export const items = [
     keywords_ca: ['fruita', 'menjar', 'pela', 'plàtan', 'taronja', 'mandarina', 'mango'],
     description_es: 'Cualquier resto de fruta o verdura va al orgánico.',
     description_en: 'Any fruit or vegetable scraps go to organic waste.',
-    description_ca: 'Qualsevol resta de fruita o verdura va a l\'orgànic.',
+    description_ca: "Qualsevol resta de fruita o verdura va a l'orgànic.",
   },
   {
     name_es: 'Espina de pescado',
@@ -34,7 +34,7 @@ export const items = [
     keywords_ca: ['cartró', 'pizza', 'greix', 'oli', 'caixa', 'caixa de pizza'],
     description_es: 'Si el cartón está manchado de aceite o comida, no se puede reciclar como papel. Va al orgánico.',
     description_en: 'If the cardboard is stained with oil or food, it cannot be recycled as paper. Goes to organic waste.',
-    description_ca: 'Si el cartró està tacat d\'oli o menjar, no es pot reciclar com a paper. Va a l\'orgànic.',
+    description_ca: "Si el cartró està tacat d'oli o menjar, no es pot reciclar com a paper. Va a l'orgànic.",
   },
   {
     name_es: 'Tapón de corcho',
@@ -46,7 +46,7 @@ export const items = [
     keywords_ca: ['vi', 'suro', 'ampolla', 'tap', 'cava', 'xampany'],
     description_es: 'Si es corcho natural, al orgánico. Si es sintético/plástico, al amarillo.',
     description_en: 'If natural cork, to organic. If synthetic/plastic, to yellow container.',
-    description_ca: 'Si és suro natural, a l\'orgànic. Si és sintètic/plàstic, al groc.',
+    description_ca: "Si és suro natural, a l'orgànic. Si és sintètic/plàstic, al groc.",
   },
   {
     name_es: 'Posos de café',
@@ -65,7 +65,7 @@ export const items = [
   {
     name_es: 'Botella de agua',
     name_en: 'Water bottle',
-    name_ca: 'Ampolla d\'aigua',
+    name_ca: "Ampolla d'aigua",
     container_type: 'PlasticContainer',
     keywords_es: ['plastico', 'envase', 'agua', 'bebida', 'botella', 'plástico'],
     keywords_en: ['plastic', 'container', 'water', 'drink', 'bottle'],
@@ -108,7 +108,7 @@ export const items = [
     keywords_ca: ['iogurt', 'plàstic', 'làctic', 'tapa'],
     description_es: 'El envase y la tapa metálica van al amarillo.',
     description_en: 'The container and metal lid go to yellow.',
-    description_ca: 'L\'envàs i la tapa metàl·lica van al groc.',
+    description_ca: "L'envàs i la tapa metàl·lica van al groc.",
   },
   {
     name_es: 'Bolsa de patatas fritas',
@@ -120,7 +120,7 @@ export const items = [
     keywords_ca: ['bossa', 'plàstic', 'aperitiu', 'embolcall', 'patates', 'xips'],
     description_es: 'Los envoltorios plásticos y metalizados van al contenedor de envases.',
     description_en: 'Plastic and metallized wrappers go to the packaging container.',
-    description_ca: 'Els embolcalls plàstics i metal·litzats van al contenidor d\'envasos.',
+    description_ca: "Els embolcalls plàstics i metal·litzats van al contenidor d'envasos.",
   },
 
   // --- PAPER (Azul) ---
@@ -172,7 +172,7 @@ export const items = [
     keywords_ca: ['vidre', 'ampolla', 'alcohol', 'vi'],
     description_es: 'Solo vidrio. Quita el tapón (el corcho al orgánico, la chapa al amarillo).',
     description_en: 'Glass only. Remove the cap (cork to organic, metal cap to yellow).',
-    description_ca: 'Només vidre. Treu el tap (el suro a l\'orgànic, la xapa al groc).',
+    description_ca: "Només vidre. Treu el tap (el suro a l'orgànic, la xapa al groc).",
   },
   {
     name_es: 'Tarro de mermelada',
@@ -212,7 +212,7 @@ export const items = [
     keywords_ca: ['electrodomèstic', 'aparell', 'cable', 'electrònica', 'assecador'],
     description_es: 'Los aparatos eléctricos nunca van al contenedor normal. Llévalos al punto limpio.',
     description_en: 'Electrical appliances never go to regular bins. Take them to the recycling center.',
-    description_ca: 'Els aparells elèctrics mai van al contenidor normal. Porta\'ls al punt net.',
+    description_ca: "Els aparells elèctrics mai van al contenidor normal. Porta'ls al punt net.",
   },
 
   // --- UNRECYCLABLE (Gris / Resto) ---

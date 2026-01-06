@@ -9,7 +9,7 @@ const getLanguageFields = (lang = 'es') => {
   // Validate and default to Spanish if invalid
   const validLangs = ['es', 'en', 'ca'];
   const language = validLangs.includes(lang) ? lang : 'es';
-  
+
   return {
     name: `name_${language}`,
     keywords: `keywords_${language}`,
@@ -25,7 +25,7 @@ const getLanguageFields = (lang = 'es') => {
  */
 const transformItem = (item, lang = 'es') => {
   const fields = getLanguageFields(lang);
-  
+
   return {
     item_id: item.item_id,
     name: item[fields.name],
@@ -69,7 +69,7 @@ export const searchProducts = async (query, lang = 'es') => {
     },
   });
 
-  return results.map(item => transformItem(item, lang));
+  return results.map((item) => transformItem(item, lang));
 };
 
 /**
@@ -81,7 +81,7 @@ export const getAllProducts = async (lang = 'es') => {
     orderBy: { created_at: 'desc' },
   });
 
-  return results.map(item => transformItem(item, lang));
+  return results.map((item) => transformItem(item, lang));
 };
 
 /**
@@ -112,7 +112,7 @@ export const createProduct = async (data) => {
  */
 export const updateProduct = async (itemId, data) => {
   const updateData = {};
-  
+
   // Map language-specific fields
   if (data.name_es !== undefined) updateData.name_es = data.name_es;
   if (data.name_en !== undefined) updateData.name_en = data.name_en;

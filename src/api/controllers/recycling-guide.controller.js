@@ -54,18 +54,14 @@ export const getAllItems = async (req, res) => {
 // Endpoint para añadir ítems (Protegido para admins idealmente)
 export const addItem = async (req, res) => {
   try {
-    const { 
-      name_es, name_en, name_ca,
-      containerType, 
-      keywords_es, keywords_en, keywords_ca,
-      description_es, description_en, description_ca 
-    } = req.body;
+    const { name_es, name_en, name_ca, containerType, keywords_es, keywords_en, keywords_ca, description_es, description_en, description_ca } =
+      req.body;
 
     // Validación básica - requerir al menos los nombres en los 3 idiomas
     if (!name_es || !name_en || !name_ca || !containerType) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Nombres en los 3 idiomas (name_es, name_en, name_ca) y tipo de contenedor son obligatorios' 
+      return res.status(400).json({
+        success: false,
+        message: 'Nombres en los 3 idiomas (name_es, name_en, name_ca) y tipo de contenedor son obligatorios',
       });
     }
 
@@ -93,12 +89,8 @@ export const addItem = async (req, res) => {
 export const updateItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { 
-      name_es, name_en, name_ca,
-      containerType, 
-      keywords_es, keywords_en, keywords_ca,
-      description_es, description_en, description_ca 
-    } = req.body;
+    const { name_es, name_en, name_ca, containerType, keywords_es, keywords_en, keywords_ca, description_es, description_en, description_ca } =
+      req.body;
 
     // Construir objeto de datos solo con campos proporcionados
     const updateData = {};

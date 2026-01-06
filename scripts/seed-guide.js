@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log('🌱 Seeding recycling guide items...');
-  
+
   let created = 0;
   let updated = 0;
 
