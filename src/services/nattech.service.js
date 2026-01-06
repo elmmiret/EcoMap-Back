@@ -68,7 +68,7 @@ export const getExternalEvents = async (params = {}) => {
   });
 
   // forzar el tag siempre
-  url.searchParams.append('tags', ECO_TAG);
+  //url.searchParams.append('tags', ECO_TAG);
 
   console.log(`[NatTech] GET ${url.toString()}`);
 
@@ -79,14 +79,14 @@ export const getExternalEvents = async (params = {}) => {
 
   const events = await response.json();
 
-  if (Array.isArray(events)) {
+  /*if (Array.isArray(events)) {
     return events.filter((event) => {
       const eventTags = event.tags || '';
       const tagsString = Array.isArray(eventTags) ? eventTags.join(',') : eventTags;
 
       return tagsString.includes(ECO_TAG);
     });
-  }
+  }*/
 
   return events;
 };
