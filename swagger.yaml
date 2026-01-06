@@ -567,18 +567,19 @@ components:
     # --- Recycling Guide Schema ---
     RecyclingGuideItem:
       type: object
+      description: Producto de la guía de reciclaje. Las respuestas públicas devuelven solo el idioma solicitado con campos genéricos (name, keywords, description).
       properties:
         item_id:
           type: string
           format: uuid
         name:
           type: string
-          description: Nombre del producto (ej. "Botella de plástico")
+          description: Nombre del producto en el idioma solicitado
         keywords:
           type: array
           items:
             type: string
-          description: Palabras clave para búsqueda
+          description: Palabras clave en el idioma solicitado
         container_type:
           type: string
           enum:
@@ -593,10 +594,51 @@ components:
         description:
           type: string
           nullable: true
-          description: Descripción adicional del producto
+          description: Descripción del producto en el idioma solicitado
         created_at:
           type: string
           format: date-time
+
+    RecyclingGuideItemInput:
+      type: object
+      description: Esquema para crear/actualizar productos (requiere todos los idiomas)
+      properties:
+        name_es:
+          type: string
+          description: Nombre en español
+        name_en:
+          type: string
+          description: Nombre en inglés
+        name_ca:
+          type: string
+          description: Nombre en catalán
+        keywords_es:
+          type: array
+          items:
+            type: string
+          description: Palabras clave en español
+        keywords_en:
+          type: array
+          items:
+            type: string
+          description: Palabras clave en inglés
+        keywords_ca:
+          type: array
+          items:
+            type: string
+          description: Palabras clave en catalán
+        description_es:
+          type: string
+          nullable: true
+          description: Descripción en español
+        description_en:
+          type: string
+          nullable: true
+          description: Descripción en inglés
+        description_ca:
+          type: string
+          nullable: true
+          description: Descripción en catalán
 
     # --- External Events Schema ---
     ExternalEventInput:
@@ -3456,7 +3498,7 @@ paths:
   /api/recycling-guide/search:
     get:
       summary: Buscar productos en la guía de reciclaje
-      description: Busca productos por nombre o palabras clave. Si no se proporciona query, devuelve todos los productos.
+      description: Busca productos por nombre o palabras clave. Si no se proporciona query, devuelve todos los productos. Los resultados se devuelven en el idioma solicitado.
       tags: [Guía de Reciclaje]
       parameters:
         - in: query
@@ -3464,6 +3506,14 @@ paths:
           schema:
             type: string
           description: Texto de búsqueda (ej. "botella", "pila", "ropa")
+          required: false
+        - in: query
+          name: lang
+          schema:
+            type: string
+            enum: [es, en, ca]
+            default: es
+          description: Idioma de respuesta (es=Español, en=Inglés, ca=Catalán)
           required: false
       responses:
         '200':
@@ -3488,8 +3538,17 @@ paths:
   /api/recycling-guide/all:
     get:
       summary: Obtener todos los productos del catálogo
-      description: Devuelve la lista completa de productos disponibles en la guía de reciclaje, ordenados alfabéticamente.
+      description: Devuelve la lista completa de productos disponibles en la guía de reciclaje en el idioma solicitado.
       tags: [Guía de Reciclaje]
+      parameters:
+        - in: query
+          name: lang
+          schema:
+            type: string
+            enum: [es, en, ca]
+            default: es
+          description: Idioma de respuesta (es=Español, en=Inglés, ca=Catalán)
+          required: false
       responses:
         '200':
           description: Catálogo completo obtenido correctamente.
@@ -3538,7 +3597,7 @@ paths:
   /api/recycling-guide:
     post:
       summary: Añadir producto a la guía de reciclaje
-      description: Solo administradores pueden añadir nuevos productos a la guía.
+      description: Solo administradores pueden añadir nuevos productos a la guía. Se requieren traducciones en los 3 idiomas.
       tags: [Guía de Reciclaje]
       security:
         - backendAuth: []
@@ -3549,13 +3608,23 @@ paths:
             schema:
               type: object
               required:
-                - name
+                - name_es
+                - name_en
+                - name_ca
                 - containerType
               properties:
-                name:
+                name_es:
                   type: string
-                  description: Nombre del producto (debe ser único)
+                  description: Nombre del producto en español
                   example: 'Botella de vidrio'
+                name_en:
+                  type: string
+                  description: Nombre del producto en inglés
+                  example: 'Glass bottle'
+                name_ca:
+                  type: string
+                  description: Nombre del producto en catalán
+                  example: 'Ampolla de vidre'
                 containerType:
                   type: string
                   enum:
@@ -3568,16 +3637,36 @@ paths:
                     - Unrecyclable
                   description: Tipo de contenedor donde debe reciclarse
                   example: 'GlassContainer'
-                keywords:
+                keywords_es:
                   type: array
                   items:
                     type: string
-                  description: Palabras clave para facilitar la búsqueda
+                  description: Palabras clave en español
                   example: ['botella', 'vidrio', 'cristal']
-                description:
+                keywords_en:
+                  type: array
+                  items:
+                    type: string
+                  description: Palabras clave en inglés
+                  example: ['bottle', 'glass']
+                keywords_ca:
+                  type: array
+                  items:
+                    type: string
+                  description: Palabras clave en catalán
+                  example: ['ampolla', 'vidre']
+                description_es:
                   type: string
-                  description: Descripción adicional del producto
+                  description: Descripción en español
                   example: 'Botellas de vidrio transparente o de color'
+                description_en:
+                  type: string
+                  description: Descripción en inglés
+                  example: 'Transparent or colored glass bottles'
+                description_ca:
+                  type: string
+                  description: Descripción en catalán
+                  example: 'Ampolles de vidre transparent o de color'
       responses:
         '201':
           description: Producto añadido correctamente.
@@ -3596,8 +3685,6 @@ paths:
           description: No autenticado.
         '403':
           description: No tiene permisos de administrador.
-        '409':
-          description: El producto ya existe en la guía.
         '500':
           description: Error del servidor.
 
@@ -3623,10 +3710,18 @@ paths:
             schema:
               type: object
               properties:
-                name:
+                name_es:
                   type: string
-                  description: Nuevo nombre del producto (opcional)
+                  description: Nuevo nombre en español (opcional)
                   example: 'Botella de plástico PET'
+                name_en:
+                  type: string
+                  description: Nuevo nombre en inglés (opcional)
+                  example: 'PET plastic bottle'
+                name_ca:
+                  type: string
+                  description: Nuevo nombre en catalán (opcional)
+                  example: 'Ampolla de plàstic PET'
                 containerType:
                   type: string
                   enum:
@@ -3639,16 +3734,36 @@ paths:
                     - Unrecyclable
                   description: Nuevo tipo de contenedor (opcional)
                   example: 'PlasticContainer'
-                keywords:
+                keywords_es:
                   type: array
                   items:
                     type: string
-                  description: Nuevas palabras clave (opcional)
+                  description: Nuevas palabras clave en español (opcional)
                   example: ['botella', 'plástico', 'pet', 'envase']
-                description:
+                keywords_en:
+                  type: array
+                  items:
+                    type: string
+                  description: Nuevas palabras clave en inglés (opcional)
+                  example: ['bottle', 'plastic', 'pet', 'container']
+                keywords_ca:
+                  type: array
+                  items:
+                    type: string
+                  description: Nuevas palabras clave en catalán (opcional)
+                  example: ['ampolla', 'plàstic', 'pet', 'envàs']
+                description_es:
                   type: string
-                  description: Nueva descripción (opcional)
+                  description: Nueva descripción en español (opcional)
                   example: 'Botellas de plástico PET transparentes'
+                description_en:
+                  type: string
+                  description: Nueva descripción en inglés (opcional)
+                  example: 'Transparent PET plastic bottles'
+                description_ca:
+                  type: string
+                  description: Nueva descripción en catalán (opcional)
+                  example: 'Ampolles de plàstic PET transparents'
       responses:
         '200':
           description: Producto actualizado correctamente.

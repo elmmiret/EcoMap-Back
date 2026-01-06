@@ -2,15 +2,18 @@ import * as guideService from '#services/recycling-guide.service.js';
 
 export const search = async (req, res) => {
   try {
-    const { q } = req.query; // ?q=botella
+    const { q, lang } = req.query; // ?q=botella&lang=es
+
+    // Default to Spanish if no language specified (backward compatibility)
+    const language = lang || 'es';
 
     if (!q) {
       // Si no hay query, devolvemos todo o una lista vacía según prefieras
-      const allItems = await guideService.getAllProducts();
+      const allItems = await guideService.getAllProducts(language);
       return res.status(200).json({ success: true, data: allItems });
     }
 
-    const results = await guideService.searchProducts(q);
+    const results = await guideService.searchProducts(q, language);
 
     res.status(200).json({
       success: true,
@@ -29,7 +32,10 @@ export const search = async (req, res) => {
 // Endpoint para obtener todos los productos del catálogo
 export const getAllItems = async (req, res) => {
   try {
-    const allItems = await guideService.getAllProducts();
+    const { lang } = req.query; // ?lang=es
+    const language = lang || 'es'; // Default to Spanish
+
+    const allItems = await guideService.getAllProducts(language);
 
     res.status(200).json({
       success: true,
@@ -48,26 +54,37 @@ export const getAllItems = async (req, res) => {
 // Endpoint para añadir ítems (Protegido para admins idealmente)
 export const addItem = async (req, res) => {
   try {
-    const { name, containerType, keywords, description } = req.body;
+    const { 
+      name_es, name_en, name_ca,
+      containerType, 
+      keywords_es, keywords_en, keywords_ca,
+      description_es, description_en, description_ca 
+    } = req.body;
 
-    // Validación básica
-    if (!name || !containerType) {
-      return res.status(400).json({ success: false, message: 'Nombre y tipo de contenedor son obligatorios' });
+    // Validación básica - requerir al menos los nombres en los 3 idiomas
+    if (!name_es || !name_en || !name_ca || !containerType) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Nombres en los 3 idiomas (name_es, name_en, name_ca) y tipo de contenedor son obligatorios' 
+      });
     }
 
     const newItem = await guideService.createProduct({
-      name,
+      name_es,
+      name_en,
+      name_ca,
       container_type: containerType,
-      keywords: keywords || [],
-      description,
+      keywords_es: keywords_es || [],
+      keywords_en: keywords_en || [],
+      keywords_ca: keywords_ca || [],
+      description_es,
+      description_en,
+      description_ca,
     });
 
     res.status(201).json({ success: true, data: newItem });
   } catch (error) {
-    // Manejo de duplicados (Prisma error P2002)
-    if (error.code === 'P2002') {
-      return res.status(409).json({ success: false, message: 'Este producto ya existe en la guía.' });
-    }
+    console.error('Error adding recycling guide item:', error);
     res.status(500).json({ success: false, message: 'Error interno.' });
   }
 };
@@ -76,14 +93,25 @@ export const addItem = async (req, res) => {
 export const updateItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, containerType, keywords, description } = req.body;
+    const { 
+      name_es, name_en, name_ca,
+      containerType, 
+      keywords_es, keywords_en, keywords_ca,
+      description_es, description_en, description_ca 
+    } = req.body;
 
     // Construir objeto de datos solo con campos proporcionados
     const updateData = {};
-    if (name !== undefined) updateData.name = name;
+    if (name_es !== undefined) updateData.name_es = name_es;
+    if (name_en !== undefined) updateData.name_en = name_en;
+    if (name_ca !== undefined) updateData.name_ca = name_ca;
     if (containerType !== undefined) updateData.container_type = containerType;
-    if (keywords !== undefined) updateData.keywords = keywords;
-    if (description !== undefined) updateData.description = description;
+    if (keywords_es !== undefined) updateData.keywords_es = keywords_es;
+    if (keywords_en !== undefined) updateData.keywords_en = keywords_en;
+    if (keywords_ca !== undefined) updateData.keywords_ca = keywords_ca;
+    if (description_es !== undefined) updateData.description_es = description_es;
+    if (description_en !== undefined) updateData.description_en = description_en;
+    if (description_ca !== undefined) updateData.description_ca = description_ca;
 
     // Validar que al menos un campo esté presente
     if (Object.keys(updateData).length === 0) {
@@ -102,13 +130,6 @@ export const updateItem = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Producto no encontrado en la guía.',
-      });
-    }
-    // Manejo de duplicados (Prisma error P2002)
-    if (error.code === 'P2002') {
-      return res.status(409).json({
-        success: false,
-        message: 'Ya existe otro producto con ese nombre.',
       });
     }
     console.error('Error updating recycling guide item:', error);
