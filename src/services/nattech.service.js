@@ -33,6 +33,8 @@ const mapToExternalFormat = (data) => {
   const localitat = data.address || data.localitat || data.adreca;
   const latitud = data.lat || data.latitud;
   const longitud = data.lon || data.longitud;
+  const entrades = data.entrades;
+  const horari = data.horari;
 
   let fotos_urls = [];
   if (data.image) fotos_urls = [data.image];
@@ -50,6 +52,8 @@ const mapToExternalFormat = (data) => {
     fotos_urls,
     codi: data.codi,
     id: data.id,
+    entrades,
+    horari,
   };
 };
 
