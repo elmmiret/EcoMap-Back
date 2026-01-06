@@ -810,7 +810,7 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
@@ -828,17 +828,17 @@ paths:
                   type: string
                 phone:
                   type: string
-                  example: '+34 612345678'
+                  description: 'Teléfono del usuario'
                 birth_date:
                   type: string
                   format: date
-                  example: '1990-01-01'
+                  description: 'Fecha de nacimiento del usuario'
                 description:
                   type: string
-                profile_picture:
+                file:
                   type: string
-                  format: uri
-                  description: URL de la nueva imagen de perfil
+                  format: binary
+                  description: Imagen de perfil del usuario
       responses:
         '200':
           description: Perfil actualizado.

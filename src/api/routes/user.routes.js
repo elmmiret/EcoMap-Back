@@ -161,7 +161,7 @@ router.get('/:userId/points', authenticateBackendJWT, getUserPoints);
  * @description Actualiza el perfil del usuario autenticado.
  * @access Protegido (requiere autenticación con JWT del backend)
  */
-router.put('/me', authenticateBackendJWT, validatePhone, uploadImageMiddleware, updateUserProfile);
+router.put('/me', authenticateBackendJWT, uploadImageMiddleware, validatePhone, updateUserProfile);
 
 /**
  * @route DELETE /api/users/me
