@@ -3653,7 +3653,7 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               required:
@@ -3665,15 +3665,12 @@ paths:
                 name_es:
                   type: string
                   description: Nombre del producto en español
-                  example: 'Botella de vidrio'
                 name_en:
                   type: string
                   description: Nombre del producto en inglés
-                  example: 'Glass bottle'
                 name_ca:
                   type: string
                   description: Nombre del producto en catalán
-                  example: 'Ampolla de vidre'
                 containerType:
                   type: string
                   enum:
@@ -3685,41 +3682,34 @@ paths:
                     - TextileContainer
                     - Unrecyclable
                   description: Tipo de contenedor donde debe reciclarse
-                  example: 'GlassContainer'
                 keywords_es:
                   type: array
                   items:
                     type: string
                   description: Palabras clave en español
-                  example: ['botella', 'vidrio', 'cristal']
                 keywords_en:
                   type: array
                   items:
                     type: string
                   description: Palabras clave en inglés
-                  example: ['bottle', 'glass']
                 keywords_ca:
                   type: array
                   items:
                     type: string
                   description: Palabras clave en catalán
-                  example: ['ampolla', 'vidre']
                 description_es:
                   type: string
                   description: Descripción en español
-                  example: 'Botellas de vidrio transparente o de color'
                 description_en:
                   type: string
                   description: Descripción en inglés
-                  example: 'Transparent or colored glass bottles'
                 description_ca:
                   type: string
                   description: Descripción en catalán
-                  example: 'Ampolles de vidre transparent o de color'
-                image_url:
+                file:
                   type: string
-                  description: URL de la imagen representativa (opcional)
-                  example: 'https://example.com/images/glass-bottle.jpg'
+                  format: binary
+                  description: Imagen representativa del producto (opcional)
       responses:
         '201':
           description: Producto añadido correctamente.
@@ -3759,7 +3749,7 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
@@ -3819,8 +3809,8 @@ paths:
                   example: 'Ampolles de plàstic PET transparents'
                 image_url:
                   type: string
+                  format: binary
                   description: Nueva URL de imagen (opcional)
-                  example: 'https://example.com/images/plastic-bottle.jpg'
       responses:
         '200':
           description: Producto actualizado correctamente.

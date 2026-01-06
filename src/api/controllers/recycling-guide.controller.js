@@ -1,4 +1,5 @@
 import * as guideService from '#services/recycling-guide.service.js';
+import { uploadToS3, deleteFromS3 } from '#services/storage.service.js';
 
 export const search = async (req, res) => {
   try {
@@ -56,6 +57,7 @@ export const addItem = async (req, res) => {
   try {
     const { name_es, name_en, name_ca, containerType, keywords_es, keywords_en, keywords_ca, description_es, description_en, description_ca } =
       req.body;
+    const imageFile = req.file; // Archivo subido (si existe)
 
     // Validación básica - requerir al menos los nombres en los 3 idiomas
     if (!name_es || !name_en || !name_ca || !containerType) {
@@ -65,17 +67,50 @@ export const addItem = async (req, res) => {
       });
     }
 
+    // Subir imagen a S3 si existe
+    let imageUrl = null;
+    if (imageFile) {
+      try {
+        imageUrl = await uploadToS3(imageFile);
+      } catch (uploadError) {
+        console.error('Error uploading image to S3:', uploadError);
+        return res.status(500).json({
+          success: false,
+          message: 'Error al subir la imagen.',
+          code: 'IMAGE_UPLOAD_ERROR',
+        });
+      }
+    }
+
+    // Parsear arrays si vienen como strings (multipart/form-data)
+    const parseArray = (value) => {
+      if (!value) return [];
+      if (Array.isArray(value)) return value;
+      // Si es un string que parece JSON array, parsearlo
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [value];
+        } catch {
+          // Si no es JSON, dividir por comas o devolver como array de un elemento
+          return value.includes(',') ? value.split(',').map(s => s.trim()) : [value];
+        }
+      }
+      return [];
+    };
+
     const newItem = await guideService.createProduct({
       name_es,
       name_en,
       name_ca,
       container_type: containerType,
-      keywords_es: keywords_es || [],
-      keywords_en: keywords_en || [],
-      keywords_ca: keywords_ca || [],
+      keywords_es: parseArray(keywords_es),
+      keywords_en: parseArray(keywords_en),
+      keywords_ca: parseArray(keywords_ca),
       description_es,
       description_en,
       description_ca,
+      image_url: imageUrl,
     });
 
     res.status(201).json({ success: true, data: newItem });
@@ -91,6 +126,16 @@ export const updateItem = async (req, res) => {
     const { id } = req.params;
     const { name_es, name_en, name_ca, containerType, keywords_es, keywords_en, keywords_ca, description_es, description_en, description_ca } =
       req.body;
+    const imageFile = req.file; // Nueva imagen (si existe)
+
+    // Obtener el producto actual para verificar si tiene imagen antigua
+    const currentProduct = await guideService.getProductById(id);
+    if (!currentProduct) {
+      return res.status(404).json({
+        success: false,
+        message: 'Producto no encontrado en la guía.',
+      });
+    }
 
     // Construir objeto de datos solo con campos proporcionados
     const updateData = {};
@@ -98,12 +143,52 @@ export const updateItem = async (req, res) => {
     if (name_en !== undefined) updateData.name_en = name_en;
     if (name_ca !== undefined) updateData.name_ca = name_ca;
     if (containerType !== undefined) updateData.container_type = containerType;
-    if (keywords_es !== undefined) updateData.keywords_es = keywords_es;
-    if (keywords_en !== undefined) updateData.keywords_en = keywords_en;
-    if (keywords_ca !== undefined) updateData.keywords_ca = keywords_ca;
+    
+    // Parsear arrays si vienen como strings (multipart/form-data)
+    const parseArray = (value) => {
+      if (!value) return undefined; // No actualizar si no se proporciona
+      if (Array.isArray(value)) return value;
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [value];
+        } catch {
+          return value.includes(',') ? value.split(',').map(s => s.trim()) : [value];
+        }
+      }
+      return undefined;
+    };
+    
+    if (keywords_es !== undefined) updateData.keywords_es = parseArray(keywords_es);
+    if (keywords_en !== undefined) updateData.keywords_en = parseArray(keywords_en);
+    if (keywords_ca !== undefined) updateData.keywords_ca = parseArray(keywords_ca);
     if (description_es !== undefined) updateData.description_es = description_es;
     if (description_en !== undefined) updateData.description_en = description_en;
     if (description_ca !== undefined) updateData.description_ca = description_ca;
+
+    // Subir nueva imagen a S3 si existe
+    if (imageFile) {
+      try {
+        const newImageUrl = await uploadToS3(imageFile);
+        updateData.image_url = newImageUrl;
+
+        // Borrar imagen antigua de S3 si existía
+        if (currentProduct.image_url) {
+          try {
+            await deleteFromS3(currentProduct.image_url);
+          } catch (s3Error) {
+            console.warn('Advertencia: No se pudo borrar la imagen antigua de S3:', s3Error);
+          }
+        }
+      } catch (uploadError) {
+        console.error('Error uploading image to S3:', uploadError);
+        return res.status(500).json({
+          success: false,
+          message: 'Error al subir la imagen.',
+          code: 'IMAGE_UPLOAD_ERROR',
+        });
+      }
+    }
 
     // Validar que al menos un campo esté presente
     if (Object.keys(updateData).length === 0) {
