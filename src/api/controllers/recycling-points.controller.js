@@ -280,3 +280,45 @@ export async function forceRefreshByRegion(req, res) {
     });
   }
 }
+
+// POST /api/recycling-points/:region/reset
+// Reset cache status to ERROR to unlock stuck SYNCING state (admin endpoint)
+export async function resetCacheByRegion(req, res) {
+  const { region } = req.params;
+
+  // Validate region
+  if (!isLocationSupported(region)) {
+    return res.status(404).json({
+      success: false,
+      message: `Región no encontrada: ${region}`,
+      code: 'REGION_NOT_FOUND',
+    });
+  }
+
+  const config = getSourceConfig(region);
+  const { source } = config;
+
+  try {
+    // Import markStatus from cache service
+    const { markStatus } = await import('#services/cache.service.js');
+
+    // Reset status to ERROR to unlock
+    await markStatus(source, 'ERROR', {
+      error_message: 'Cache reset manually by admin',
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Estado de caché de ${region} reiniciado a ERROR`,
+      region,
+      source,
+    });
+  } catch (error) {
+    console.error('[controller] error resetting cache:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al reiniciar la caché',
+      code: 'CACHE_RESET_ERROR',
+    });
+  }
+}

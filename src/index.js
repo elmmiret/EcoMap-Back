@@ -1,5 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import cors from 'cors';
 import { createServer } from 'http';
 import { initializeFirebaseAdmin } from '#config/firebase.js';
 import { startSchedulers } from '#services/scheduler.service.js';
@@ -16,6 +17,7 @@ import bikeDetectionRoutes from './api/routes/bike-detection.routes.js';
 import wasteDetectionRoutes from './api/routes/waste-detection.routes.js';
 import publicationRoutes from './api/routes/publication.routes.js';
 import reservationRoutes from './api/routes/reservation.routes.js';
+import nattechRoutes from './api/routes/nattech.routes.js';
 import chatRoutes from './api/routes/chat.routes.js';
 import notificationRoutes from './api/routes/notification.routes.js';
 import gamificationRoutes from './api/routes/gamification.routes.js';
@@ -37,30 +39,39 @@ const app = express();
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 3000;
 
-// Configuración de Swagger según el entorno
-const isProduction = process.env.NODE_ENV === 'production';
+const isDevelopment = process.env.NODE_ENV === 'development';
 
-// /api-docs siempre muestra la documentación pública (swagger-public.yaml)
+// En desarrollo, /api-docs muestra directamente el swagger privado sin autenticación
 let publicSwaggerDoc;
-try {
-  const publicPath = path.join(__dirname, '../swagger-public.yaml');
-  publicSwaggerDoc = yaml.load(publicPath);
-} catch (err) {
-  log.error('Error loading public swagger:', err.message);
-  publicSwaggerDoc = { info: { title: 'Error loading public docs' } };
-}
-
-// /api-docs-private siempre muestra la documentación completa (swagger.yaml) - requiere autenticación admin
 let privateSwaggerDoc;
-try {
-  const privatePath = path.join(__dirname, '../swagger.yaml');
-  privateSwaggerDoc = yaml.load(privatePath);
-} catch (err) {
-  log.error('Error loading private swagger:', err.message);
-  privateSwaggerDoc = { info: { title: 'Error loading private docs' } };
-}
 
-const swaggerTitle = isProduction ? 'EcoMap AI Detection API - Public' : 'EcoMap API - Public Documentation';
+if (isDevelopment) {
+  // En desarrollo: cargar solo el privado para /api-docs
+  try {
+    const privatePath = path.join(__dirname, '../swagger.yaml');
+    publicSwaggerDoc = yaml.load(privatePath); // Usar privado en /api-docs
+  } catch (err) {
+    log.error('Error loading swagger:', err.message);
+    publicSwaggerDoc = { info: { title: 'Error loading docs' } };
+  }
+} else {
+  // En otros entornos: cargar público y privado separados
+  try {
+    const publicPath = path.join(__dirname, '../swagger-public.yaml');
+    publicSwaggerDoc = yaml.load(publicPath);
+  } catch (err) {
+    log.error('Error loading public swagger:', err.message);
+    publicSwaggerDoc = { info: { title: 'Error loading public docs' } };
+  }
+
+  try {
+    const privatePath = path.join(__dirname, '../swagger.yaml');
+    privateSwaggerDoc = yaml.load(privatePath);
+  } catch (err) {
+    log.error('Error loading private swagger:', err.message);
+    privateSwaggerDoc = { info: { title: 'Error loading private docs' } };
+  }
+}
 
 // --- INICIALIZACION de Firebase Admin SDK ---
 initializeFirebaseAdmin();
@@ -69,26 +80,72 @@ initializeFirebaseAdmin();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// CORS configuration for dashboard
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
+  'http://127.0.0.1:5175',
+  process.env.DASHBOARD_URL, // Production dashboard URL from .env
+];
+
+// Allow Vercel preview and production URLs
+if (process.env.VERCEL_URL) {
+  allowedOrigins.push(`https://${process.env.VERCEL_URL}`);
+}
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, etc.)
+      if (!origin) return callback(null, true);
+
+      // Check if origin is in allowed list or matches Vercel pattern
+      if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app') || origin.includes('peskaos-dashboard')) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Role-Secret'],
+  })
+);
+
 // Servir Swagger UI assets (CSS, JS, etc.)
 app.use('/api-docs', swaggerUi.serve);
-app.use('/api-docs-private', swaggerUi.serve);
+if (!isDevelopment) {
+  app.use('/api-docs-private', swaggerUi.serve);
+}
 
-// Ruta para la documentación de la API pública
-app.get('/api-docs', (req, res, next) => {
-  return swaggerUi.setup(publicSwaggerDoc, {
-    customSiteTitle: swaggerTitle,
-  })(req, res, next);
-});
+if (isDevelopment) {
+  // En desarrollo: /api-docs muestra el swagger privado sin autenticación
+  app.get('/api-docs', (req, res, next) => {
+    return swaggerUi.setup(publicSwaggerDoc, {
+      customSiteTitle: 'EcoMap API - Development (Full Documentation)',
+    })(req, res, next);
+  });
+} else {
+  // En otros entornos: /api-docs muestra público, /api-docs-private requiere autenticación
+  app.get('/api-docs', (req, res, next) => {
+    return swaggerUi.setup(publicSwaggerDoc, {
+      customSiteTitle: 'EcoMap API - Public Documentation',
+    })(req, res, next);
+  });
 
-// Ruta para la documentación de la API privada (requiere autenticación de Admin)
-app.get('/api-docs-private', authenticateBackendJWT, requireAdmin, (req, res, next) => {
-  return swaggerUi.setup(privateSwaggerDoc, {
-    customSiteTitle: 'EcoMap API - Private Admin Documentation',
-  })(req, res, next);
-});
+  app.get('/api-docs-private', authenticateBackendJWT, requireAdmin, (req, res, next) => {
+    return swaggerUi.setup(privateSwaggerDoc, {
+      customSiteTitle: 'EcoMap API - Private Admin Documentation',
+    })(req, res, next);
+  });
+}
 
-// montar las rutas de autentificación bajo el prefijo /api/users
+// montar las rutas de autentificación bajo el prefijo /api
 app.use('/api/users', authRoutes);
+app.use('/api/external', nattechRoutes);
 app.use('/api/recycling-points', recyclingPoints);
 app.use('/api/routes', routeRoutes);
 app.use('/api', bikeDetectionRoutes);

@@ -598,6 +598,65 @@ components:
           type: string
           format: date-time
 
+    # --- External Events Schema ---
+    ExternalEventInput:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Nombre o título del evento
+        description:
+          type: string
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        address:
+          type: string
+        lat:
+          type: number
+          format: float
+        lon:
+          type: number
+          format: float
+        image:
+          type: string
+          description: URL de la imagen
+      example:
+        name: 'Taller de Reciclaje EcoMap'
+        urlactivitat: 'https://example.com/evento-reciclaje'
+        description: 'Aprende a reciclar correctamente.'
+        startDate: '2025-12-01T10:00:00Z'
+        endDate: '2025-12-01T12:00:00Z'
+        address: 'Parc de la Ciutadella'
+        entrades: 'Gratis'
+        horari: '10:00 - 12:00'
+        latitud: 41.3870
+        longitud: 2.1800
+
+    ExternalEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        codi:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        tags:
+          type: string
+          description: String con tags separados por comas
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+
 paths:
   # --- Health Check ---
   /:
@@ -694,6 +753,7 @@ paths:
                         $ref: '#/components/schemas/UserProfile'
     put:
       summary: Actualizar perfil del usuario
+      description: Actualiza los datos del perfil del usuario autenticado. Los campos que no se precisen deben ser enviados como null o ser eliminados. Además, solamente 'client' puede actualizar 'address', 'phone', 'birth_date' y 'description' (fallará si un admin/institution intenta actualizar estos campos).
       tags: [Usuarios]
       security:
         - backendAuth: []
@@ -710,6 +770,10 @@ paths:
                   type: string
                 username:
                   type: string
+                email:
+                  type: string
+                dni:
+                  type: string
                 address:
                   type: string
                 phone:
@@ -721,6 +785,10 @@ paths:
                   example: '1990-01-01'
                 description:
                   type: string
+                profile_picture:
+                  type: string
+                  format: uri
+                  description: URL de la nueva imagen de perfil
       responses:
         '200':
           description: Perfil actualizado.
@@ -1484,13 +1552,236 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiResponse'
         '404':
-          description: El usuario especificado no existe.
+          description: Usuario no encontrado.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponse'
         '500':
           description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /api/users/admin/account/block/{userId}:
+    post:
+      summary: Bloquear cuenta de usuario (Solo Administradores)
+      description: >-
+        Bloquea la cuenta de un usuario para que no pueda hacer login en la aplicación.
+        Al bloquear un usuario, todas sus sesiones activas se invalidan automáticamente.
+        No se puede bloquear una cuenta de administrador.
+      tags: [Usuarios - Admin]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          schema:
+            type: string
+          required: true
+          description: ID del usuario cuya cuenta se desea bloquear
+      responses:
+        '200':
+          description: Cuenta bloqueada exitosamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          userId:
+                            type: string
+                          username:
+                            type: string
+                          email:
+                            type: string
+        '400':
+          description: El usuario ya está bloqueado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          description: No autorizado (intentando bloquear un administrador).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          description: Usuario no encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '500':
+          description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /api/users/admin/account/unblock/{userId}:
+    post:
+      summary: Desbloquear cuenta de usuario (Solo Administradores)
+      description: >-
+        Desbloquea la cuenta de un usuario permitiéndole volver a hacer login en la aplicación.
+      tags: [Usuarios - Admin]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          schema:
+            type: string
+          required: true
+          description: ID del usuario cuya cuenta se desea desbloquear
+      responses:
+        '200':
+          description: Cuenta desbloqueada exitosamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          userId:
+                            type: string
+                          username:
+                            type: string
+                          email:
+                            type: string
+        '400':
+          description: El usuario no está bloqueado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          description: Usuario no encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '500':
+          description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /api/users/admin/account/status/{userId}:
+    get:
+      summary: Obtener estado de bloqueo de cuenta (Solo Administradores)
+      description: >-
+        Obtiene el estado de bloqueo de una cuenta de usuario.
+      tags: [Usuarios - Admin]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          schema:
+            type: string
+          required: true
+          description: ID del usuario cuyo estado se desea consultar
+      responses:
+        '200':
+          description: Estado de bloqueo obtenido exitosamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          userId:
+                            type: string
+                          blocked:
+                            type: boolean
+                            description: true si la cuenta está bloqueada, false si no lo está
+        '404':
+          description: Usuario no encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '500':
+          description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /api/users/report/{userId}:
+    post:
+      summary: Reportar a un usuario
+      description: |
+        Permite a un usuario autenticado reportar a otro usuario por comportamiento inapropiado.
+        **Tipos de reporte disponibles (report_reason_type):**
+        - `inappropriate_content` - Contenido inapropiado
+        - `harassment` - Acoso
+        - `fake_profile` - Perfil falso
+        - `spam` - Spam
+        - `other` - Otro (requiere descripción obligatoria)
+      tags: [Usuarios - Reportes]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+          description: ID del usuario a reportar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  enum:
+                    - inappropriate_content
+                    - harassment
+                    - fake_profile
+                    - spam
+                    - other
+                  description: Motivo del reporte
+                description:
+                  type: string
+                  description: Descripción adicional (obligatoria si reason es "other")
+      responses:
+        '201':
+          description: Usuario reportado correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserReport'
+        '400':
+          description: Motivo inválido o falta descripción para "other".
+        '404':
+          description: Usuario a reportar no encontrado.
           content:
             application/json:
               schema:
@@ -1636,6 +1927,28 @@ paths:
         '409':
           description: Sincronización ya en progreso.
 
+  /api/recycling-points/{region}/reset:
+    post:
+      summary: Reiniciar estado de caché a ERROR (Solo Admin)
+      description: Desbloquea una caché que está atascada en estado SYNCING
+      tags: [Puntos de Reciclaje]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: region
+          required: true
+          schema:
+            type: string
+            example: navarra
+      responses:
+        '200':
+          description: Estado de caché reiniciado correctamente.
+        '404':
+          description: Región no encontrada.
+        '500':
+          description: Error al reiniciar la caché.
+
   # --- Rutas ---
   /api/routes:
     get:
@@ -1771,16 +2084,25 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
+              required:
+                - title
+                - content
+                - pointsPrice
               properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Imagen de la recompensa.
                 title:
                   type: string
                 description:
                   type: string
                 content:
                   type: string
+                  description: Contenido o código del reward.
                 pointsPrice:
                   type: integer
                   description: 'Precio en puntos. Valores permitidos: 500, 1000, 2000, 5000.'
@@ -1789,8 +2111,6 @@ paths:
                     - 1000
                     - 2000
                     - 5000
-                mediaUrl:
-                  type: string
       responses:
         '201':
           description: Recompensa creada.
@@ -1803,6 +2123,10 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/Publication'
+        '403':
+          description: No autorizado (Solo instituciones).
+        '500':
+          description: Error del servidor.
     get:
       summary: Obtener todas las recompensas
       tags: [Publicaciones]
@@ -2117,22 +2441,28 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
+              required:
+                - title
+                - itemState
+                - pointsPrice
               properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Imagen del producto (jpeg, png)
                 title:
                   type: string
+                  description: Título del intercambio.
                 description:
                   type: string
+                  description: Descripción detallada.
                 itemState:
                   type: string
-                  description: "Estado del artículo. Valores permitidos: 'New', 'Little_used', 'Widely_used', 'Bad_condition'."
-                  enum:
-                    - New
-                    - Little_used
-                    - Widely_used
-                    - Bad_condition
+                  enum: [New, Little_used, Widely_used, Bad_condition]
+                  description: Estado físico del objeto.
                 pointsPrice:
                   type: integer
                   description: 'Precio en puntos. Valores permitidos: 5, 10, 25, 50.'
@@ -2141,8 +2471,6 @@ paths:
                     - 10
                     - 25
                     - 50
-                mediaUrl:
-                  type: string
       responses:
         '201':
           description: Intercambio creado.
@@ -2155,6 +2483,10 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/Publication'
+        '400':
+          description: Faltan datos o formato incorrecto.
+        '500':
+          description: Error del servidor.
     get:
       summary: Obtener todos los intercambios activos
       tags: [Publicaciones]
@@ -2238,7 +2570,7 @@ paths:
                         items:
                           $ref: '#/components/schemas/Publication'
 
-  /api/publications/trades/user/{userId}:
+  /api/publications/trades/user/{username}:
     get:
       summary: Obtener intercambios de un usuario
       tags: [Publicaciones]
@@ -2246,7 +2578,7 @@ paths:
         - backendAuth: []
       parameters:
         - in: path
-          name: userId
+          name: username
           required: true
           schema:
             type: string
@@ -2265,7 +2597,7 @@ paths:
                         items:
                           $ref: '#/components/schemas/Publication'
 
-  /api/publications/trades/user/{userId}/completed:
+  /api/publications/trades/user/{username}/completed:
     get:
       summary: Obtener intercambios completados de un usuario
       tags: [Publicaciones]
@@ -2273,7 +2605,7 @@ paths:
         - backendAuth: []
       parameters:
         - in: path
-          name: userId
+          name: username
           required: true
           schema:
             type: string
@@ -2292,7 +2624,7 @@ paths:
                         items:
                           $ref: '#/components/schemas/Publication'
 
-  /api/publications/trades/user/{userId}/cancelled:
+  /api/publications/trades/user/{username}/cancelled:
     get:
       summary: Obtener intercambios cancelados de un usuario
       tags: [Publicaciones]
@@ -2300,7 +2632,7 @@ paths:
         - backendAuth: []
       parameters:
         - in: path
-          name: userId
+          name: username
           required: true
           schema:
             type: string
@@ -2319,7 +2651,7 @@ paths:
                         items:
                           $ref: '#/components/schemas/Publication'
 
-  /api/publications/trades/user/{userId}/pending:
+  /api/publications/trades/user/{username}/pending:
     get:
       summary: Obtener intercambios pendientes de un usuario
       tags: [Publicaciones]
@@ -2327,7 +2659,7 @@ paths:
         - backendAuth: []
       parameters:
         - in: path
-          name: userId
+          name: username
           required: true
           schema:
             type: string
@@ -3369,5 +3701,192 @@ paths:
           description: No tiene permisos de administrador.
         '404':
           description: Producto no encontrado.
+        '500':
+          description: Error del servidor.
+
+  # --- Nattech Service ---
+  /api/external/events:
+    get:
+      summary: Listar eventos de EcoMap
+      description: >-
+        Obtiene la lista de eventos de la API externa (NatTech).
+        Filtra automáticamente para mostrar solo los eventos con el tag 'agenda:categories/EcoMap'.
+      tags: [Eventos Externos (NatTech)]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+          description: Número de página.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+          description: Elementos por página.
+        - in: query
+          name: keyword
+          schema:
+            type: string
+          description: Palabra clave para buscar en el título o descripción.
+      responses:
+        '200':
+          description: Lista de eventos obtenida correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ExternalEvent'
+        '500':
+          description: Error al conectar con el servicio externo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+    post:
+      summary: Crear nuevo evento externo
+      description: >-
+        Crea un evento en la plataforma externa. 
+        Se añade automáticamente el tag 'agenda:categories/EcoMap'.
+        Requiere permisos de Administrador.
+      tags: [Eventos Externos (NatTech)]
+      security:
+        - backendAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExternalEventInput'
+      responses:
+        '201':
+          description: Evento creado exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          description: No autorizado (Solo administradores).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '500':
+          description: Error interno o error de la API externa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /api/external/events/{nom}:
+    get:
+      summary: Obtener detalle de evento
+      description: >-
+        Obtiene un evento específico por su código. 
+        Solo devuelve resultados si el evento contiene el tag 'agenda:categories/EcoMap'.
+      tags: [Eventos Externos (NatTech)]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: nom
+          schema:
+            type: string
+          required: true
+          description: Nombre del evento externo.
+      responses:
+        '200':
+          description: Detalle del evento.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ExternalEvent'
+        '404':
+          description: Evento no encontrado o no pertenece a EcoMap.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '500':
+          description: Error del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+    put:
+      summary: Actualizar evento externo
+      description: >-
+        Actualiza los datos de un evento existente.
+        Los tags originales se mantienen intactos.
+        Requiere permisos de Administrador.
+      tags: [Eventos Externos (NatTech)]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: nom
+          schema:
+            type: string
+          required: true
+          description: Nombre del evento a actualizar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExternalEventInput'
+      responses:
+        '200':
+          description: Evento actualizado correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          description: No autorizado (Solo administradores).
+        '404':
+          description: Evento no encontrado o no pertenece a EcoMap.
+        '500':
+          description: Error del servidor.
+
+    delete:
+      summary: Eliminar evento externo
+      description: >-
+        Elimina un evento de la plataforma externa.
+        Solo se permite si el evento pertenece a EcoMap.
+        Requiere permisos de Administrador.
+      tags: [Eventos Externos (NatTech)]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: nom
+          schema:
+            type: string
+          required: true
+          description: Nombre del evento a eliminar.
+      responses:
+        '200':
+          description: Evento eliminado correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          description: No autorizado o el evento no pertenece a EcoMap.
         '500':
           description: Error del servidor.

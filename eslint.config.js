@@ -4,7 +4,7 @@ import globals from 'globals';
 export default [
   js.configs.recommended,
   {
-    files: ['**/*.js'],
+    files: ['**/*.js', '**/*.mjs'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -19,6 +19,6 @@ export default [
     },
   },
   {
-    ignores: ['node_modules/', 'docs/', 'dist/', 'ecomap_data/', '*.config.js'],
+    ignores: ['node_modules/', 'docs/', 'dist/', 'ecomap_data/', '*.config.js', '*.yaml', '*.yml'],
   },
 ];

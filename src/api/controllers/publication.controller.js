@@ -19,7 +19,7 @@ export const createTrade = async (req, res) => {
   } = req.body;
   const imageFile = req.file; // Archivo subido (si existe)
 
-  // Validaciones básicas
+  // validaciones básicas
   if (!title || !itemState || pointsPrice === undefined) {
     return res.status(400).json({
       success: false,
@@ -28,7 +28,7 @@ export const createTrade = async (req, res) => {
     });
   }
 
-  // Validar item state
+  // validar estado del objeto
   const validItemStates = ['New', 'Little_used', 'Widely_used', 'Bad_condition'];
 
   if (!validItemStates.includes(itemState)) {
@@ -39,7 +39,7 @@ export const createTrade = async (req, res) => {
     });
   }
 
-  // Validar que el precio de puntos sea uno de los valores permitidos
+  // validar que el precio de puntos sea uno de los valores permitidos
   const allowedPointsPrices = gamificationService.POINTS_RULES.ECO_TRADER_SALE || [5, 10, 25, 50];
   if (!allowedPointsPrices.includes(Number(pointsPrice))) {
     return res.status(400).json({
@@ -56,11 +56,12 @@ export const createTrade = async (req, res) => {
       try {
         mediaUrl = await uploadToS3(imageFile);
       } catch (uploadError) {
-        console.error('Error subiendo imagen a S3:', uploadError);
+        console.error('Error detallado S3:', uploadError);
         return res.status(500).json({
           success: false,
-          message: 'Error al subir la imagen.',
+          message: 'Error al subir la imagen a S3. Verifica credenciales y permisos.',
           code: 'IMAGE_UPLOAD_ERROR',
+          detail: uploadError.message,
         });
       }
     }
@@ -146,13 +147,15 @@ export const createReward = async (req, res) => {
   }
 
   try {
-    // verificar que el usuario sea institution
+    // verificar que el usuario sea institution o admin
     const isInstitution = await prisma.institution.findUnique({ where: { user_id: uid } });
-    if (!isInstitution) {
+    const isAdmin = await prisma.admin.findUnique({ where: { user_id: uid } });
+
+    if (!isInstitution && !isAdmin) {
       return res.status(403).json({
         success: false,
-        message: 'Permiso denegado. Solo las instituciones pueden crear recompensas.',
-        code: 'FORBIDDEN_INSTITUTION_ONLY',
+        message: 'Permiso denegado. Solo las instituciones y administradores pueden crear recompensas.',
+        code: 'FORBIDDEN_INSTITUTION_OR_ADMIN_ONLY',
       });
     }
 
@@ -180,14 +183,14 @@ export const createReward = async (req, res) => {
     }
 
     const newReward = await prisma.$transaction(async (tx) => {
-      // crear publicación vinculada a la Institución
+      // crear publicación vinculada a la Institución o Admin
       const publication = await tx.publication.create({
         data: {
           title,
           description,
           date: new Date(),
           publication_state: 'Pending', // O 'Completed' si se publican directamente
-          institution_id: uid, // Vinculamos a INSTITUCIÓN
+          institution_id: isInstitution ? uid : null, // Vinculamos a INSTITUCIÓN si es institución
           client_id: null, // No hay cliente
         },
       });
@@ -420,11 +423,13 @@ export const updateRewardBody = async (req, res) => {
     }
 
     let newMediaUrl = null;
-    try {
-      newMediaUrl = await uploadToS3(imageFile);
-    } catch (err) {
-      console.error('Error procesando la iamgen en S3:', err);
-      return res.status(500).json({ success: false, message: 'Error al procesar la imagen.' });
+    if (imageFile) {
+      try {
+        newMediaUrl = await uploadToS3(imageFile);
+      } catch (err) {
+        console.error('Error procesando la iamgen en S3:', err);
+        return res.status(500).json({ success: false, message: 'Error al procesar la imagen.' });
+      }
     }
 
     // actualizar datos
@@ -524,7 +529,7 @@ export const deletePublication = async (req, res) => {
       if (publication.publication_state === 'Completed') {
         return res.status(409).json({
           success: false,
-          message: 'No puedes eliminar una publicación que ya ha sido completada/finalizada.',
+          message: 'No puedes eliminar una publicación que ha sido completada/finalizada.',
         });
       }
     } else {
@@ -551,16 +556,19 @@ export const deletePublication = async (req, res) => {
 
 /**
  * Obtiene todas las publicaciones de un usuario específico.
- * Endpoint: /api/publications/trades/user/:userId
+ * Endpoint: /api/publications/trades/user/:username
  */
 export const getUserTrades = async (req, res) => {
-  // CAMBIO: Extraemos 'userId' en lugar de 'id'
-  const { userId } = req.params;
+  const { username } = req.params;
 
   try {
     const publications = await prisma.publication.findMany({
       where: {
-        client_id: userId,
+        client: {
+          registered_user: {
+            username: username,
+          },
+        },
       },
       include: {
         trade: true,
@@ -649,6 +657,7 @@ export const getAllTrades = async (req, res) => {
               publication_id: true,
               title: true,
               description: true,
+              publication_state: true,
               publication_media: {
                 select: { media_url: true },
               },
@@ -674,7 +683,8 @@ export const getAllTrades = async (req, res) => {
         ? trade.publication.description.substring(0, 100) + (trade.publication.description.length > 100 ? '...' : '')
         : null,
       price: trade.points_price,
-      state: trade.item_state,
+      item_state: trade.item_state,
+      publication_state: trade.publication.publication_state,
       image: trade.publication.publication_media?.media_url || null,
       author: trade.publication.client?.registered_user?.username || 'Anónimo',
       date: trade.created_at,
@@ -911,17 +921,20 @@ export const getAllPendingTrades = async (req, res) => {
 
 /**
  * Obtiene las publicaciones completadas de un usuario específico.
- * Endpoint: /api/publications/trades/user/:userId/completed
+ * Endpoint: /api/publications/trades/user/:username/completed
  */
 export const getUserCompletedTrades = async (req, res) => {
-  // CAMBIO: Extraemos 'userId'
-  const { userId } = req.params;
+  const { username } = req.params;
   try {
     const publications = await prisma.publication.findMany({
       where: {
-        client_id: userId,
+        client: {
+          registered_user: {
+            username: username,
+          },
+        },
         publication_state: 'Completed',
-        trade: { isNot: null }, // Importante: filtro de trade
+        trade: { isNot: null },
       },
       include: {
         trade: true,
@@ -942,15 +955,18 @@ export const getUserCompletedTrades = async (req, res) => {
 
 /**
  * Obtiene las publicaciones canceladas de un usuario específico.
- * Endpoint: /api/publications/trades/user/:userId/cancelled
+ * Endpoint: /api/publications/trades/user/:username/cancelled
  */
 export const getUserCancelledTrades = async (req, res) => {
-  // CAMBIO: Extraemos 'userId'
-  const { userId } = req.params;
+  const { username } = req.params;
   try {
     const publications = await prisma.publication.findMany({
       where: {
-        client_id: userId,
+        client: {
+          registered_user: {
+            username: username,
+          },
+        },
         publication_state: 'Cancelled',
         trade: { isNot: null },
       },
@@ -973,15 +989,18 @@ export const getUserCancelledTrades = async (req, res) => {
 
 /**
  * Obtiene las publicaciones pendientes de un usuario específico.
- * Endpoint: /api/publications/trades/user/:userId/pending
+ * Endpoint: /api/publications/trades/user/:username/pending
  */
 export const getUserPendingTrades = async (req, res) => {
-  // CAMBIO: Extraemos 'userId'
-  const { userId } = req.params;
+  const { username } = req.params;
   try {
     const publications = await prisma.publication.findMany({
       where: {
-        client_id: userId,
+        client: {
+          registered_user: {
+            username: username,
+          },
+        },
         publication_state: 'Pending',
         trade: { isNot: null },
       },
@@ -1193,10 +1212,10 @@ export const updateTradeBody = async (req, res) => {
 };
 
 /**
- * Registra la compra de un Reward por parte de un cliente.
- * - Crea el registro en 'reward_bought_by'.
- * - Deduce los puntos del cliente (opcional, pero recomendado).
- * - Mantiene el historial del precio en el momento de la compra.
+ * Registra la compra de un Reward.
+ * - Verifica disponibilidad.
+ * - Verifica y RESTA puntos al cliente.
+ * - Crea registro en 'reward_bought_by'.
  * Endpoint: POST /api/publications/rewards/:rewardId/buy
  */
 export const buyReward = async (req, res) => {
