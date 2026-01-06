@@ -104,9 +104,9 @@ router.get('/admin/reports/detail/:reportId', authenticateBackendJWT, getReportB
 /**
  * @route POST /api/users/admin/create
  * @description Crea un nuevo usuario (cliente o institución) desde el dashboard de admin.
- * @access Protegido (Solo Admin con secret key)
+ * @access Protegido (Solo Admin)
  */
-router.post('/admin/create', authenticateBackendJWT, requireRoleSecret, createUserByAdmin);
+router.post('/admin/create', authenticateBackendJWT, requireAdmin, createUserByAdmin);
 
 /**
  * @route POST /api/users/admin/account/block/:userId
