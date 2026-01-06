@@ -915,7 +915,7 @@ export const getAllUserIds = async (req, res) => {
     return res.status(200).json({
       success: true,
       count: userList.length,
-      users: userList
+      users: userList,
     });
   } catch (error) {
     console.error('Error getting all user IDs:', error);

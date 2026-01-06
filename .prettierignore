@@ -1,2 +1,8 @@
 dist
 docs
+node_modules
+ecomap_data
+
+# Ignore YAML files (Swagger documentation)
+*.yaml
+*.yml
