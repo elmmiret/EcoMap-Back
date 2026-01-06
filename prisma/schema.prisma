@@ -473,6 +473,7 @@ model recycling_guide_item {
   description_es String?      // Spanish description
   description_en String?      // English description
   description_ca String?      // Catalan description
+  image_url      String?      // Representative image URL
   created_at     DateTime     @default(now())
 
   @@index([name_es])
