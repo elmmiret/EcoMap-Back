@@ -98,6 +98,20 @@ export const authenticateBackendJWT = async (req, res, next) => {
       });
     }
 
+    // Verificar que el usuario no esté bloqueado
+    const user = await prisma.user.findUnique({
+      where: { user_id: decoded.uid },
+      select: { blocked: true },
+    });
+
+    if (user && user.blocked) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been blocked. Please contact support.',
+        code: 'ACCOUNT_BLOCKED',
+      });
+    }
+
     req.user = decoded; // payload contains uid, email, etc.
     req.token = token;
 

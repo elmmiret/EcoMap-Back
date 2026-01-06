@@ -1,5 +1,5 @@
 import express from 'express';
-import { getRecyclingPointsByRegion, getStatusByRegion, forceRefreshByRegion } from '#controllers/recycling-points.controller.js';
+import { getRecyclingPointsByRegion, getStatusByRegion, forceRefreshByRegion, resetCacheByRegion } from '#controllers/recycling-points.controller.js';
 import { authenticateBackendJWT, requireAdmin } from '#middlewares/auth.middleware.js';
 
 const router = express.Router();
@@ -27,5 +27,13 @@ router.get('/:region/status', authenticateBackendJWT, requireAdmin, getStatusByR
  * @param {string} region - Región (navarra | barcelona)
  */
 router.post('/:region/refresh', authenticateBackendJWT, requireAdmin, forceRefreshByRegion);
+
+/**
+ * @route POST /api/recycling-points/:region/reset
+ * @description Reinicia el estado de la caché a ERROR para desbloquear un estado SYNCING atascado.
+ * @access Protegido (requiere admin)
+ * @param {string} region - Región (navarra | barcelona)
+ */
+router.post('/:region/reset', authenticateBackendJWT, requireAdmin, resetCacheByRegion);
 
 export default router;

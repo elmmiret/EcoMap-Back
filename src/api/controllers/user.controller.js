@@ -23,6 +23,20 @@ export const syncUserToPostgres = async (req, res) => {
   dbg('Inicio handler', { firebaseUID, bodyKeys: Object.keys(req.body || {}) });
 
   try {
+    // Primero verificar si el usuario está bloqueado
+    const userBlockStatus = await prisma.user.findUnique({
+      where: { user_id: firebaseUID },
+      select: { blocked: true },
+    });
+
+    if (userBlockStatus && userBlockStatus.blocked) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been blocked. Please contact support.',
+        code: 'ACCOUNT_BLOCKED',
+      });
+    }
+
     // lógica de login
     dbg('Consultando si el usuario ya existe en la BD', { user_id: firebaseUID });
     const existingUser = await prisma.registered_user.findUnique({
@@ -37,23 +51,20 @@ export const syncUserToPostgres = async (req, res) => {
     if (existingUser) {
       dbg('Usuario existente encontrado -> INICIO DE SESIÓN', { user_id: existingUser.user_id });
 
-      // Limpiar sesiones expiradas para este usuario
+      // Limpiar TODAS las sesiones anteriores de este usuario
       const { count: deletedCount } = await prisma.session.deleteMany({
         where: {
           user_id: firebaseUID,
-          expiry_date: { lt: new Date() },
         },
       });
       if (deletedCount > 0) {
-        dbg('Sesiones expiradas eliminadas', { count: deletedCount });
+        dbg('Sesiones anteriores eliminadas', { count: deletedCount });
       }
 
       // Determinar el rol del usuario
       let currentRole = 'client';
-      if (requestRole === 'admin') currentRole = 'admin';
-      else if (requestRole === 'institution') currentRole = 'institution';
-      //if (existingUser.admin) currentRole = 'admin';
-      //else if (existingUser.institution) currentRole = 'institution';
+      if (existingUser.admin) currentRole = 'admin';
+      else if (existingUser.institution) currentRole = 'institution';
 
       // Generar y guardar nuevo JWT
       const jwtPayload = {
@@ -887,11 +898,25 @@ export const updateUserProfile = async (req, res) => {
 export const getAllUserIds = async (req, res) => {
   try {
     const users = await prisma.registered_user.findMany({
-      select: { user_id: true },
+      select: {
+        user_id: true,
+        username: true,
+        email: true,
+      },
     });
-    // Mapeamos para devolver un array simple de strings: ["id1", "id2", ...]
-    const ids = users.map((u) => u.user_id);
-    return res.status(200).json({ success: true, count: ids.length, ids });
+
+    // Mapear a formato esperado por el frontend
+    const userList = users.map((u) => ({
+      userId: u.user_id,
+      username: u.username,
+      email: u.email,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      count: userList.length,
+      users: userList,
+    });
   } catch (error) {
     console.error('Error getting all user IDs:', error);
     return res.status(500).json({ success: false, message: 'Error al obtener IDs de usuarios' });
@@ -1398,7 +1423,7 @@ export const getUserPoints = async (req, res) => {
  * Bloquea a un usuario añadiendo su ID al vector blocked_users.
  * Endpoint: POST /api/users/block/:userId
  */
-export const blockUser = async (req, res) => {
+export const addUserToBlockedList = async (req, res) => {
   const { uid } = req.user; // El que bloquea
   const { userId } = req.params; // El usuario a bloquear
 
@@ -1988,3 +2013,357 @@ export const createUserByAdmin = async (req, res) => {
     });
   }
 };
+
+/**
+ * Bloquear una cuenta de usuario
+ * Solo los administradores pueden bloquear usuarios
+ */
+export const blockUser = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    // Verificar que el usuario existe
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+      include: {
+        registered_user: {
+          select: {
+            username: true,
+            email: true,
+            admin: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+      });
+    }
+
+    // No permitir bloquear administradores
+    if (user.registered_user?.admin) {
+      return res.status(403).json({
+        success: false,
+        message: 'No se puede bloquear una cuenta de administrador.',
+      });
+    }
+
+    // Verificar si ya está bloqueado
+    if (user.blocked) {
+      return res.status(400).json({
+        success: false,
+        message: 'El usuario ya está bloqueado.',
+      });
+    }
+
+    // Bloquear el usuario
+    await prisma.user.update({
+      where: { user_id: userId },
+      data: { blocked: true },
+    });
+
+    // Invalidar todas las sesiones activas del usuario
+    await prisma.session.deleteMany({
+      where: { user_id: userId },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Usuario bloqueado exitosamente.',
+      data: {
+        userId,
+        username: user.registered_user?.username,
+        email: user.registered_user?.email,
+      },
+    });
+  } catch (error) {
+    console.error('Error bloqueando usuario:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al bloquear usuario.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * Desbloquear una cuenta de usuario
+ * Solo los administradores pueden desbloquear usuarios
+ */
+export const unblockUser = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    // Verificar que el usuario existe
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+      include: {
+        registered_user: {
+          select: {
+            username: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+      });
+    }
+
+    // Verificar si no está bloqueado
+    if (!user.blocked) {
+      return res.status(400).json({
+        success: false,
+        message: 'El usuario no está bloqueado.',
+      });
+    }
+
+    // Desbloquear el usuario
+    await prisma.user.update({
+      where: { user_id: userId },
+      data: { blocked: false },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Usuario desbloqueado exitosamente.',
+      data: {
+        userId,
+        username: user.registered_user?.username,
+        email: user.registered_user?.email,
+      },
+    });
+  } catch (error) {
+    console.error('Error desbloqueando usuario:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al desbloquear usuario.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * Obtener el estado de bloqueo de un usuario
+ */
+export const getUserBlockStatus = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+      select: { blocked: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        userId,
+        blocked: user.blocked,
+      },
+    });
+  } catch (error) {
+    console.error('Error obteniendo estado de bloqueo:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al obtener estado de bloqueo.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+// GET /api/users/admin/dashboard/stats
+// Get dashboard statistics (admin only)
+export async function getDashboardStats(req, res) {
+  try {
+    // Total de usuarios
+    const totalUsers = await prisma.user.count();
+
+    // Total de usuarios bloqueados
+    const blockedUsers = await prisma.user.count({
+      where: { blocked: true },
+    });
+
+    // Total de reportes por estado
+    const totalReports = await prisma.user_report.count();
+    const pendingReports = await prisma.user_report.count({
+      where: { status: 'Pending' },
+    });
+    const dismissedReports = await prisma.user_report.count({
+      where: { status: 'Dismissed' },
+    });
+    const resolvedReports = await prisma.user_report.count({
+      where: { status: 'Resolved' },
+    });
+
+    // Estado de las cachés de puntos de reciclaje (solo lectura)
+    let cacheStatus = {
+      navarra: { status: 'UNKNOWN', error: null },
+      barcelona: { status: 'UNKNOWN', error: null },
+    };
+
+    try {
+      // Consultar directamente sin crear registros
+      const navarraCache = await prisma.cache_metadata.findUnique({
+        where: { source: 'NAVARRA_POINTS' },
+        select: { status: true, error_message: true },
+      });
+
+      if (navarraCache) {
+        cacheStatus.navarra = {
+          status: navarraCache.status,
+          error: navarraCache.error_message || null,
+        };
+      }
+
+      const barcelonaCache = await prisma.cache_metadata.findUnique({
+        where: { source: 'BARCELONA_POINTS' },
+        select: { status: true, error_message: true },
+      });
+
+      if (barcelonaCache) {
+        cacheStatus.barcelona = {
+          status: barcelonaCache.status,
+          error: barcelonaCache.error_message || null,
+        };
+      }
+    } catch (err) {
+      console.error('Error fetching cache status:', err.message);
+    }
+
+    // Total de guías de reciclaje
+    let totalGuides = 0;
+    try {
+      totalGuides = await prisma.recycling_guide_item.count();
+    } catch (err) {
+      console.error('Error counting recycling guides:', err.message);
+    }
+
+    // Total de puntos de reciclaje (activos)
+    let totalRecyclingPoints = 0;
+    try {
+      totalRecyclingPoints = await prisma.recycling_point.count({
+        where: { active: true },
+      });
+    } catch (err) {
+      console.error('Error counting recycling points:', err.message);
+    }
+
+    // Total de publicaciones en el marketplace
+    let totalPublications = 0;
+    let activePublications = 0;
+    try {
+      totalPublications = await prisma.publication.count();
+      activePublications = await prisma.publication.count({
+        where: { publication_state: 'Pending' },
+      });
+    } catch (err) {
+      console.error('Error counting publications:', err.message);
+    }
+
+    // Reportes recientes (últimos 5)
+    const recentReports = await prisma.user_report.findMany({
+      take: 5,
+      orderBy: { created_at: 'desc' },
+      include: {
+        reported_user: {
+          select: {
+            user_id: true,
+            username: true,
+            email: true,
+          },
+        },
+        reporter: {
+          select: {
+            user_id: true,
+            username: true,
+          },
+        },
+      },
+    });
+
+    // Usuarios recientes (últimos 5)
+    const recentUsers = await prisma.registered_user.findMany({
+      take: 5,
+      orderBy: { created_at: 'desc' },
+      select: {
+        user_id: true,
+        username: true,
+        email: true,
+        created_at: true,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      stats: {
+        users: {
+          total: totalUsers,
+          blocked: blockedUsers,
+          active: totalUsers - blockedUsers,
+        },
+        reports: {
+          total: totalReports,
+          pending: pendingReports,
+          dismissed: dismissedReports,
+          resolved: resolvedReports,
+        },
+        guides: {
+          total: totalGuides,
+        },
+        recyclingPoints: {
+          total: totalRecyclingPoints,
+        },
+        publications: {
+          total: totalPublications,
+          active: activePublications,
+        },
+        cacheStatus: cacheStatus,
+      },
+      recent: {
+        reports: recentReports.map((report) => ({
+          id: report.report_id,
+          reason: report.reason,
+          status: report.status,
+          reportedUser: {
+            id: report.reported_user.user_id,
+            username: report.reported_user.username,
+            email: report.reported_user.email,
+          },
+          reporterUser: {
+            id: report.reporter.user_id,
+            username: report.reporter.username,
+          },
+          createdAt: report.created_at,
+        })),
+        users: recentUsers.map((user) => ({
+          id: user.user_id,
+          username: user.username,
+          email: user.email,
+          createdAt: user.created_at,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al obtener estadísticas del dashboard',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+}

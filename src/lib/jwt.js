@@ -10,7 +10,14 @@ if (!JWT_SECRET) {
 }
 
 export function signUserJWT(payload) {
-  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  // Agregar timestamp único para evitar JWTs duplicados en llamadas simultáneas
+  const uniquePayload = {
+    ...payload,
+    iat: Math.floor(Date.now() / 1000), // issued at time
+    jti: `${payload.uid}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // unique JWT ID
+  };
+
+  const token = jwt.sign(uniquePayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
   const decoded = jwt.decode(token);
   const expiryDate = new Date(decoded.exp * 1000);
   return { token, expiryDate };

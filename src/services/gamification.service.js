@@ -58,7 +58,8 @@ export const processPoints = async (userId, amount, source, description) => {
 
     // B. Evitar saldo negativo si estamos gastando puntos
     // (amount es negativo en caso de gasto, ej: -500)
-    if (amount < 0 && currentClient.points + amount < 0) {
+    // EXCEPCIÓN: Permitir saldo negativo para ajustes de administrador
+    if (amount < 0 && source !== 'ADMIN_ADJUSTMENT' && currentClient.points + amount < 0) {
       throw new Error(`Saldo insuficiente. Tienes ${currentClient.points} EcoPoints y necesitas ${Math.abs(amount)}.`);
     }
 

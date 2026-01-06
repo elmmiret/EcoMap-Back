@@ -1552,13 +1552,236 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiResponse'
         '404':
-          description: El usuario especificado no existe.
+          description: Usuario no encontrado.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponse'
         '500':
           description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /api/users/admin/account/block/{userId}:
+    post:
+      summary: Bloquear cuenta de usuario (Solo Administradores)
+      description: >-
+        Bloquea la cuenta de un usuario para que no pueda hacer login en la aplicación.
+        Al bloquear un usuario, todas sus sesiones activas se invalidan automáticamente.
+        No se puede bloquear una cuenta de administrador.
+      tags: [Usuarios - Admin]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          schema:
+            type: string
+          required: true
+          description: ID del usuario cuya cuenta se desea bloquear
+      responses:
+        '200':
+          description: Cuenta bloqueada exitosamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          userId:
+                            type: string
+                          username:
+                            type: string
+                          email:
+                            type: string
+        '400':
+          description: El usuario ya está bloqueado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          description: No autorizado (intentando bloquear un administrador).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          description: Usuario no encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '500':
+          description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /api/users/admin/account/unblock/{userId}:
+    post:
+      summary: Desbloquear cuenta de usuario (Solo Administradores)
+      description: >-
+        Desbloquea la cuenta de un usuario permitiéndole volver a hacer login en la aplicación.
+      tags: [Usuarios - Admin]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          schema:
+            type: string
+          required: true
+          description: ID del usuario cuya cuenta se desea desbloquear
+      responses:
+        '200':
+          description: Cuenta desbloqueada exitosamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          userId:
+                            type: string
+                          username:
+                            type: string
+                          email:
+                            type: string
+        '400':
+          description: El usuario no está bloqueado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          description: Usuario no encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '500':
+          description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /api/users/admin/account/status/{userId}:
+    get:
+      summary: Obtener estado de bloqueo de cuenta (Solo Administradores)
+      description: >-
+        Obtiene el estado de bloqueo de una cuenta de usuario.
+      tags: [Usuarios - Admin]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          schema:
+            type: string
+          required: true
+          description: ID del usuario cuyo estado se desea consultar
+      responses:
+        '200':
+          description: Estado de bloqueo obtenido exitosamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          userId:
+                            type: string
+                          blocked:
+                            type: boolean
+                            description: true si la cuenta está bloqueada, false si no lo está
+        '404':
+          description: Usuario no encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '500':
+          description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /api/users/report/{userId}:
+    post:
+      summary: Reportar a un usuario
+      description: |
+        Permite a un usuario autenticado reportar a otro usuario por comportamiento inapropiado.
+        **Tipos de reporte disponibles (report_reason_type):**
+        - `inappropriate_content` - Contenido inapropiado
+        - `harassment` - Acoso
+        - `fake_profile` - Perfil falso
+        - `spam` - Spam
+        - `other` - Otro (requiere descripción obligatoria)
+      tags: [Usuarios - Reportes]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+          description: ID del usuario a reportar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  enum:
+                    - inappropriate_content
+                    - harassment
+                    - fake_profile
+                    - spam
+                    - other
+                  description: Motivo del reporte
+                description:
+                  type: string
+                  description: Descripción adicional (obligatoria si reason es "other")
+      responses:
+        '201':
+          description: Usuario reportado correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserReport'
+        '400':
+          description: Motivo inválido o falta descripción para "other".
+        '404':
+          description: Usuario a reportar no encontrado.
           content:
             application/json:
               schema:
@@ -1703,6 +1926,28 @@ paths:
           description: Sincronización completada.
         '409':
           description: Sincronización ya en progreso.
+
+  /api/recycling-points/{region}/reset:
+    post:
+      summary: Reiniciar estado de caché a ERROR (Solo Admin)
+      description: Desbloquea una caché que está atascada en estado SYNCING
+      tags: [Puntos de Reciclaje]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: region
+          required: true
+          schema:
+            type: string
+            example: navarra
+      responses:
+        '200':
+          description: Estado de caché reiniciado correctamente.
+        '404':
+          description: Región no encontrada.
+        '500':
+          description: Error al reiniciar la caché.
 
   # --- Rutas ---
   /api/routes:

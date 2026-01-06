@@ -3,7 +3,7 @@ import express from 'express';
 const router = express.Router();
 
 import { requireRoleSecret } from '#middlewares/role.middleware.js';
-import { authenticateUser, authenticateBackendJWT } from '#middlewares/auth.middleware.js';
+import { authenticateUser, authenticateBackendJWT, requireAdmin } from '#middlewares/auth.middleware.js';
 import { validatePhone } from '#middlewares/validation.middleware.js';
 import { uploadImageMiddleware } from '#middlewares/upload.middleware.js';
 import {
@@ -26,7 +26,7 @@ import {
   getMyRewardsBought,
   getUserRewardsBoughtById,
   getUserPoints,
-  blockUser,
+  addUserToBlockedList,
   getUserBlockedList,
   reportUser,
   getAllUserReports,
@@ -35,6 +35,10 @@ import {
   getReportsByStatus,
   getReportById,
   createUserByAdmin,
+  blockUser,
+  unblockUser,
+  getUserBlockStatus,
+  getDashboardStats,
 } from '#controllers/user.controller.js';
 
 /**
@@ -56,7 +60,7 @@ router.get('/me', authenticateBackendJWT, getUserProfile);
  * @description Bloquea a un usuario específico añadiéndolo a la lista de bloqueados.
  * @access Protegido
  */
-router.post('/block/:userId', authenticateBackendJWT, blockUser);
+router.post('/block/:userId', authenticateBackendJWT, addUserToBlockedList);
 
 /**
  * @route GET /api/users/admin/block/:userId
@@ -100,9 +104,37 @@ router.get('/admin/reports/detail/:reportId', authenticateBackendJWT, getReportB
 /**
  * @route POST /api/users/admin/create
  * @description Crea un nuevo usuario (cliente o institución) desde el dashboard de admin.
- * @access Protegido (Solo Admin con secret key)
+ * @access Protegido (Solo Admin)
  */
-router.post('/admin/create', authenticateBackendJWT, requireRoleSecret, createUserByAdmin);
+router.post('/admin/create', authenticateBackendJWT, requireAdmin, createUserByAdmin);
+
+/**
+ * @route POST /api/users/admin/account/block/:userId
+ * @description Bloquea la cuenta de un usuario para que no pueda hacer login.
+ * @access Protegido (Solo Admin)
+ */
+router.post('/admin/account/block/:userId', authenticateBackendJWT, requireAdmin, blockUser);
+
+/**
+ * @route POST /api/users/admin/account/unblock/:userId
+ * @description Desbloquea la cuenta de un usuario.
+ * @access Protegido (Solo Admin)
+ */
+router.post('/admin/account/unblock/:userId', authenticateBackendJWT, requireAdmin, unblockUser);
+
+/**
+ * @route GET /api/users/admin/account/status/:userId
+ * @description Obtiene el estado de bloqueo de una cuenta.
+ * @access Protegido (Solo Admin)
+ */
+router.get('/admin/account/status/:userId', authenticateBackendJWT, requireAdmin, getUserBlockStatus);
+
+/**
+ * @route GET /api/users/admin/dashboard/stats
+ * @description Obtiene estadísticas generales para el dashboard de administración.
+ * @access Protegido (Solo Admin)
+ */
+router.get('/admin/dashboard/stats', authenticateBackendJWT, requireAdmin, getDashboardStats);
 
 /**
  * @route POST /api/users/report/:userId

@@ -81,17 +81,34 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // CORS configuration for dashboard
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
+  'http://127.0.0.1:5175',
+  process.env.DASHBOARD_URL, // Production dashboard URL from .env
+];
+
+// Allow Vercel preview and production URLs
+if (process.env.VERCEL_URL) {
+  allowedOrigins.push(`https://${process.env.VERCEL_URL}`);
+}
+
 app.use(
   cors({
-    origin: [
-      'http://localhost:5173',
-      'http://localhost:5174',
-      'http://localhost:5175',
-      'http://127.0.0.1:5173',
-      'http://127.0.0.1:5174',
-      'http://127.0.0.1:5175',
-      process.env.DASHBOARD_URL, // Add your production dashboard URL to .env if needed
-    ].filter(Boolean),
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, etc.)
+      if (!origin) return callback(null, true);
+
+      // Check if origin is in allowed list or matches Vercel pattern
+      if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app') || origin.includes('peskaos-dashboard')) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Role-Secret'],
