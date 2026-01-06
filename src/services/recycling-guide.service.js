@@ -32,6 +32,7 @@ const transformItem = (item, lang = 'es') => {
     keywords: item[fields.keywords],
     container_type: item.container_type,
     description: item[fields.description],
+    image_url: item.image_url, // Representative image
     created_at: item.created_at,
   };
 };
@@ -101,6 +102,7 @@ export const createProduct = async (data) => {
       description_es: data.description_es,
       description_en: data.description_en,
       description_ca: data.description_ca,
+      image_url: data.image_url,
     },
   });
 };
@@ -124,6 +126,7 @@ export const updateProduct = async (itemId, data) => {
   if (data.description_es !== undefined) updateData.description_es = data.description_es;
   if (data.description_en !== undefined) updateData.description_en = data.description_en;
   if (data.description_ca !== undefined) updateData.description_ca = data.description_ca;
+  if (data.image_url !== undefined) updateData.image_url = data.image_url;
 
   return prisma.recycling_guide_item.update({
     where: { item_id: itemId },

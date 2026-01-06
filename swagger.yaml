@@ -595,6 +595,10 @@ components:
           type: string
           nullable: true
           description: Descripción del producto en el idioma solicitado
+        image_url:
+          type: string
+          nullable: true
+          description: URL de la imagen representativa del producto
         created_at:
           type: string
           format: date-time
@@ -639,6 +643,10 @@ components:
           type: string
           nullable: true
           description: Descripción en catalán
+        image_url:
+          type: string
+          nullable: true
+          description: URL de la imagen representativa del producto
 
     # --- External Events Schema ---
     ExternalEventInput:
@@ -2343,12 +2351,11 @@ paths:
 
   /api/publications/rewards/{id}/body:
     patch:
-      summary: Actualizar contenido de un reward
+      summary: Actualizar contenido de un Reward
       description: |
-        Actualiza el título, descripción, contenido, precio de puntos y/o imagen de un reward.
-        Todos los campos son opcionales. Solo se actualizarán los campos proporcionados.
-        También permite cancelar la publicación enviando state: "Cancelled".
-        **Precios permitidos (`pointsPrice`):** 500, 1000, 2000, 5000.
+        Permite actualizar el contenido de un Reward (título, descripción, imagen, contenido, precio).
+        Solo la institución creadora o administradores pueden editar. Permite cambiar el estado a "Cancelled".
+        Gestiona automáticamente el reemplazo de imágenes (borra la antigua de S3 y sube la nueva).
       tags: [Publicaciones]
       security:
         - backendAuth: []
@@ -2359,60 +2366,44 @@ paths:
           schema:
             type: string
             format: uuid
-          description: ID de la publicación reward a actualizar
+          description: ID de la publicación (reward) a actualizar
       requestBody:
         required: false
         content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                title:
-                  type: string
-                  description: Nuevo título del reward
-                description:
-                  type: string
-                  description: Nueva descripción del reward
-                content:
-                  type: string
-                  description: Nuevo contenido del reward
-                pointsPrice:
-                  type: integer
-                  description: 'Nuevo precio en puntos. Valores permitidos: 500, 1000, 2000, 5000.'
-                  enum:
-                    - 500
-                    - 1000
-                    - 2000
-                    - 5000
-                state:
-                  type: string
-                  description: 'Estado de la publicación. Para cancelar: "Cancelled".'
-                  enum:
-                    - Cancelled
           multipart/form-data:
             schema:
               type: object
               properties:
                 title:
                   type: string
+                  description: Nuevo título del reward (opcional)
                 description:
                   type: string
+                  description: Nueva descripción (opcional)
                 content:
                   type: string
-                pointsPrice:
+                  description: Nuevo contenido del reward (opcional)
+                pointsPrice: 
                   type: integer
                   enum:
                     - 500
                     - 1000
                     - 2000
                     - 5000
-                image:
+                  description: Nuevo precio en puntos (opcional)
+                  example: 1000
+                state:
+                  type: string
+                  enum:
+                    - Cancelled
+                  description: Solo se puede cambiar a "Cancelled" por este endpoint
+                file:
                   type: string
                   format: binary
-                  description: Nueva imagen del reward (reemplaza la anterior)
+                  description: Nueva imagen del reward (opcional). Si se proporciona, reemplaza la imagen existente eliminando la antigua de S3
       responses:
         '200':
-          description: Reward actualizado exitosamente.
+          description: Reward actualizado correctamente
           content:
             application/json:
               schema:
@@ -2423,22 +2414,13 @@ paths:
                       data:
                         $ref: '#/components/schemas/Publication'
         '400':
-          description: Datos inválidos (precio de puntos fuera del rango permitido o no es un reward).
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
-                  - type: object
-                    properties:
-                      code:
-                        type: string
-                        enum:
-                          - INVALID_POINTS_PRICE
+          description: Datos inválidos (estado inválido, precio inválido, etc.)
         '403':
-          description: No tienes permiso para editar esta publicación (solo institución creadora).
+          description: No tienes permiso para editar este reward
         '404':
-          description: Publicación no encontrada.
+          description: Publicación no encontrada
+        '500':
+          description: Error del servidor (error al subir imagen a S3, etc.)
 
   /api/publications/rewards/{id}:
     get:
@@ -2786,11 +2768,11 @@ paths:
 
   /api/publications/trades/{id}/body:
     patch:
-      summary: Actualizar contenido de un intercambio
+      summary: Actualizar contenido de un Trade
       description: |
-        Actualiza el título, descripción, precio de puntos y/o imagen de un trade.
-        Todos los campos son opcionales. Solo se actualizarán los campos proporcionados.
-        **Precios permitidos (`pointsPrice`):** 5, 10, 25, 50.
+        Permite actualizar el contenido de un Trade (título, descripción, imagen, estado del objeto, precio).
+        Solo el creador puede editar. Permite cambiar el estado a "Cancelled".
+        Gestiona automáticamente el reemplazo de imágenes (borra la antigua de S3 y sube la nueva).
       tags: [Publicaciones]
       security:
         - backendAuth: []
@@ -2800,36 +2782,29 @@ paths:
           required: true
           schema:
             type: string
-          description: ID de la publicación a actualizar
+            format: uuid
+          description: ID de la publicación (trade) a actualizar
       requestBody:
         required: false
         content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                title:
-                  type: string
-                  description: Nuevo título del trade
-                description:
-                  type: string
-                  description: Nueva descripción del trade
-                pointsPrice:
-                  type: integer
-                  description: 'Nuevo precio en puntos. Valores permitidos: 5, 10, 25, 50.'
-                  enum:
-                    - 5
-                    - 10
-                    - 25
-                    - 50
           multipart/form-data:
             schema:
               type: object
               properties:
                 title:
                   type: string
+                  description: Nuevo título del trade (opcional)
                 description:
                   type: string
+                  description: Nueva descripción (opcional)
+                itemState:
+                  type: string
+                  enum:
+                    - New
+                    - Little_used
+                    - Widely_used
+                    - Bad_condition
+                  description: Nuevo estado del objeto (opcional)
                 pointsPrice:
                   type: integer
                   enum:
@@ -2837,13 +2812,19 @@ paths:
                     - 10
                     - 25
                     - 50
-                image:
+                  description: Nuevo precio en puntos (opcional)
+                state:
+                  type: string
+                  enum:
+                    - Cancelled
+                  description: Solo se puede cambiar a "Cancelled" por este endpoint
+                file:
                   type: string
                   format: binary
-                  description: Nueva imagen del trade (reemplaza la anterior)
+                  description: Nueva imagen del trade (opcional). Si se proporciona, reemplaza la imagen existente eliminando la antigua de S3
       responses:
         '200':
-          description: Trade actualizado exitosamente.
+          description: Trade actualizado correctamente
           content:
             application/json:
               schema:
@@ -2854,7 +2835,73 @@ paths:
                       data:
                         $ref: '#/components/schemas/Publication'
         '400':
-          description: Datos inválidos (precio de puntos fuera del rango permitido o no es un trade).
+          description: Datos inválidos (estado inválido, precio inválido, etc.)
+        '403':
+          description: No tienes permiso para editar este trade
+        '404':
+          description: Publicación no encontrada
+        '500':
+          description: Error del servidor (error al subir imagen a S3, etc.)
+
+  /api/publications/rewards/{id}/body:
+    patch:
+      summary: Actualizar contenido de un Reward
+      description: |
+        Permite actualizar el contenido de un Reward (título, descripción, imagen, contenido, precio).
+        Solo la institución creadora o administradores pueden editar. Permite cambiar el estado a "Cancelled".
+        Gestiona automáticamente el reemplazo de imágenes (borra la antigua de S3 y sube la nueva).
+      tags: [Publicaciones - Rewards]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID de la publicación (reward) a actualizar
+      requestBody:
+        required: false
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  description: Nuevo título del reward (opcional)
+                  example: "Descuento 20% en tienda ecológica"
+                description:
+                  type: string
+                  description: Nueva descripción (opcional)
+                  example: "Descuento válido en toda la tienda durante todo el mes"
+                content:
+                  type: string
+                  description: Nuevo contenido del reward (opcional)
+                  example: "Código de descuento: ECO20"
+                pointsPrice:
+                  type: integer
+                  enum:
+                    - 500
+                    - 1000
+                    - 2000
+                    - 5000
+                  description: Nuevo precio en puntos (opcional)
+                  example: 1000
+                state:
+                  type: string
+                  enum:
+                    - Cancelled
+                  description: Solo se puede cambiar a "Cancelled" por este endpoint
+                  example: "Cancelled"
+                file:
+                  type: string
+                  format: binary
+                  description: Nueva imagen del reward (opcional). Si se proporciona, reemplaza la imagen existente eliminando la antigua de S3
+      responses:
+        '200':
+          description: Reward actualizado correctamente
           content:
             application/json:
               schema:
@@ -2862,14 +2909,16 @@ paths:
                   - $ref: '#/components/schemas/ApiResponse'
                   - type: object
                     properties:
-                      code:
-                        type: string
-                        enum:
-                          - INVALID_POINTS_PRICE
+                      data:
+                        $ref: '#/components/schemas/Publication'
+        '400':
+          description: Datos inválidos (estado inválido, precio inválido, etc.)
         '403':
-          description: No tienes permiso para editar esta publicación.
+          description: No tienes permiso para editar este reward
         '404':
-          description: Publicación no encontrada.
+          description: Publicación no encontrada
+        '500':
+          description: Error del servidor (error al subir imagen a S3, etc.)
 
   /api/publications/{id}:
     delete:
@@ -3667,6 +3716,10 @@ paths:
                   type: string
                   description: Descripción en catalán
                   example: 'Ampolles de vidre transparent o de color'
+                image_url:
+                  type: string
+                  description: URL de la imagen representativa (opcional)
+                  example: 'https://example.com/images/glass-bottle.jpg'
       responses:
         '201':
           description: Producto añadido correctamente.
@@ -3764,6 +3817,10 @@ paths:
                   type: string
                   description: Nueva descripción en catalán (opcional)
                   example: 'Ampolles de plàstic PET transparents'
+                image_url:
+                  type: string
+                  description: Nueva URL de imagen (opcional)
+                  example: 'https://example.com/images/plastic-bottle.jpg'
       responses:
         '200':
           description: Producto actualizado correctamente.

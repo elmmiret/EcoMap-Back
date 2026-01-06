@@ -1100,7 +1100,7 @@ export const updateTradeState = async (req, res) => {
 export const updateTradeBody = async (req, res) => {
   const { id } = req.params;
   const { uid } = req.user;
-  const { title, description, pointsPrice } = req.body;
+  const { title, description, pointsPrice, itemState, state } = req.body;
   const imageFile = req.file; // Archivo subido (opcional)
 
   try {
@@ -1122,6 +1122,26 @@ export const updateTradeBody = async (req, res) => {
     // verificar propiedad
     if (publication.client_id !== uid) {
       return res.status(403).json({ success: false, message: 'No tienes permiso para editar esta publicación.' });
+    }
+
+    // Validar el cambio de estado (solo permitido 'Cancelled' por esta vía)
+    if (state && state !== 'Cancelled') {return res.status(400).json({
+        success: false,
+        message: 'Por este endpoint solo puedes cambiar el estado a "Cancelled".',
+        code: 'INVALID_STATE_UPDATE',
+      });
+    }
+
+    // Validar itemState si se proporciona
+    if (itemState) {
+      const validItemStates = ['New', 'Little_used', 'Widely_used', 'Bad_condition'];
+      if (!validItemStates.includes(itemState)) {
+        return res.status(400).json({
+          success: false,
+          message: `Estado del objeto inválido. Valores permitidos: ${validItemStates.join(', ')}`,
+          code: 'INVALID_ITEM_STATE',
+        });
+      }
     }
 
     // Validar precio de puntos si se proporciona
@@ -1149,22 +1169,24 @@ export const updateTradeBody = async (req, res) => {
 
     await prisma.$transaction(async (tx) => {
       // actualizar tabla padre (publication)
-      if (title || description) {
+      if (title || description || state) {
         await tx.publication.update({
           where: { publication_id: id },
           data: {
             ...(title && { title }),
             ...(description && { description }),
+            ...(state && { publication_state: state }),
           },
         });
       }
 
       // actualizar tabla hija (trade)
-      if (pointsPrice !== undefined) {
+      if (pointsPrice !== undefined || itemState) {
         await tx.trade.update({
           where: { publication_id: id },
           data: {
-            points_price: Number(pointsPrice),
+            ...(pointsPrice !== undefined && { points_price: Number(pointsPrice) }),
+            ...(itemState && { item_state: itemState }),
           },
         });
       }
