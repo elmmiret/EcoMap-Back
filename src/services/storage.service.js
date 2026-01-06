@@ -29,11 +29,17 @@ export const uploadToS3 = async (file) => {
     // ACL: 'public-read', // Descomentar si tu bucket no bloquea ACLs públicas
   };
 
-  await s3Client.send(new PutObjectCommand(uploadParams));
+  try {
+    await s3Client.send(new PutObjectCommand(uploadParams));
 
-  // Construir y devolver la URL
-  // Nota: Esto asume un bucket público. Si es privado, necesitarías generar URLs firmadas.
-  return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+    // Construir la URL manualmente.
+    // Formato estándar: https://bucket.s3.region.amazonaws.com/KEY
+    return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+  } catch (error) {
+    console.error('[Storage Service] Error subiendo a S3:', error);
+    // Relanzamos el error para que el controlador sepa que falló
+    throw new Error(`Fallo subida S3: ${error.message}`);
+  }
 };
 
 /**
