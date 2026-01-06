@@ -93,7 +93,7 @@ export const addItem = async (req, res) => {
           return Array.isArray(parsed) ? parsed : [value];
         } catch {
           // Si no es JSON, dividir por comas o devolver como array de un elemento
-          return value.includes(',') ? value.split(',').map(s => s.trim()) : [value];
+          return value.includes(',') ? value.split(',').map((s) => s.trim()) : [value];
         }
       }
       return [];
@@ -143,7 +143,7 @@ export const updateItem = async (req, res) => {
     if (name_en !== undefined) updateData.name_en = name_en;
     if (name_ca !== undefined) updateData.name_ca = name_ca;
     if (containerType !== undefined) updateData.container_type = containerType;
-    
+
     // Parsear arrays si vienen como strings (multipart/form-data)
     const parseArray = (value) => {
       if (!value) return undefined; // No actualizar si no se proporciona
@@ -153,12 +153,12 @@ export const updateItem = async (req, res) => {
           const parsed = JSON.parse(value);
           return Array.isArray(parsed) ? parsed : [value];
         } catch {
-          return value.includes(',') ? value.split(',').map(s => s.trim()) : [value];
+          return value.includes(',') ? value.split(',').map((s) => s.trim()) : [value];
         }
       }
       return undefined;
     };
-    
+
     if (keywords_es !== undefined) updateData.keywords_es = parseArray(keywords_es);
     if (keywords_en !== undefined) updateData.keywords_en = parseArray(keywords_en);
     if (keywords_ca !== undefined) updateData.keywords_ca = parseArray(keywords_ca);
