@@ -86,6 +86,16 @@ export const getAllProducts = async (lang = 'es') => {
 };
 
 /**
+ * Obtiene un producto específico por ID (sin transformación de idioma)
+ * @param {string} itemId - ID del producto
+ */
+export const getProductById = async (itemId) => {
+  return prisma.recycling_guide_item.findUnique({
+    where: { item_id: itemId },
+  });
+};
+
+/**
  * Crea un nuevo producto (Para un futuro panel de Admin)
  * @param {object} data - Debe incluir name_es, name_en, name_ca, etc.
  */
