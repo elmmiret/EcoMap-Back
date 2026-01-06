@@ -1125,7 +1125,8 @@ export const updateTradeBody = async (req, res) => {
     }
 
     // Validar el cambio de estado (solo permitido 'Cancelled' por esta vía)
-    if (state && state !== 'Cancelled') {return res.status(400).json({
+    if (state && state !== 'Cancelled') {
+      return res.status(400).json({
         success: false,
         message: 'Por este endpoint solo puedes cambiar el estado a "Cancelled".',
         code: 'INVALID_STATE_UPDATE',
