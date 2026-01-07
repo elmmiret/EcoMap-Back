@@ -901,22 +901,15 @@ export const getAllUserIds = async (req, res) => {
     const users = await prisma.registered_user.findMany({
       select: {
         user_id: true,
-        username: true,
-        email: true,
       },
     });
 
-    // Mapear a formato esperado por el frontend
-    const userList = users.map((u) => ({
-      userId: u.user_id,
-      username: u.username,
-      email: u.email,
-    }));
+    const ids = users.map((u) => u.user_id);
 
     return res.status(200).json({
       success: true,
-      count: userList.length,
-      users: userList,
+      count: ids.length,
+      ids,
     });
   } catch (error) {
     console.error('Error getting all user IDs:', error);
