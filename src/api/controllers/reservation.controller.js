@@ -756,7 +756,6 @@ export const getReservationsByTrade = async (req, res) => {
       message: `Se encontraron ${formattedReservations.length} reservas para este trade.`,
       data: formattedReservations,
     });
-
   } catch (error) {
     console.error(`Error obteniendo reservas del trade ${publicationId}:`, error);
     return res.status(500).json({
