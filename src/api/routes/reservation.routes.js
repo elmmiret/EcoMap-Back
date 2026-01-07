@@ -12,6 +12,7 @@ import {
   getEndedReservationsByUserId,
   getReservationValorations,
   createValoration,
+  getReservationsByTrade,
 } from '#controllers/reservation.controller.js';
 
 const router = express.Router();
@@ -35,6 +36,13 @@ router.patch('/:reservationId', authenticateBackendJWT, confirmReservation);
  * @description Cancela una reserva por su ID.
  */
 router.delete('/:reservationId/cancel', authenticateBackendJWT, deleteReservation);
+
+/**
+ * @route GET /api/reservations/trade/:publicationId
+ * @description Obtiene todas las reservas hechas a un Trade específico.
+ * Solo accesible por el dueño del Trade.
+ */
+router.get('/trade/:publicationId', authenticateBackendJWT, getReservationsByTrade);
 
 /**
  * @route GET /api/reservations/ended

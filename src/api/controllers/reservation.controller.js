@@ -670,3 +670,98 @@ export const getReservationValorations = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Error interno.', code: 'SERVER_ERROR' });
   }
 };
+
+/**
+ * Obtiene todas las reservas asociadas a una publicación (Trade) específica.
+ * REGLA: Solo el usuario creador del Trade (o un admin) puede ver quién lo ha reservado.
+ * Endpoint: GET /api/reservations/trade/:publicationId
+ */
+export const getReservationsByTrade = async (req, res) => {
+  const { uid } = req.user; // dueño
+  const { publicationId } = req.params; // id del 'trade's
+
+  try {
+    // buscar la publicación y verificar que es un 'trade'
+    const publication = await prisma.publication.findUnique({
+      where: { publication_id: publicationId },
+      include: { trade: true },
+    });
+
+    if (!publication) {
+      return res.status(404).json({
+        success: false,
+        message: 'Publicación no encontrada.',
+        code: 'PUBLICATION_NOT_FOUND',
+      });
+    }
+
+    if (!publication.trade) {
+      return res.status(400).json({
+        success: false,
+        message: 'Esta publicación no es un Trade.',
+        code: 'NOT_A_TRADE',
+      });
+    }
+
+    // solo el dueño puede ver las solicitudes de reserva
+    if (publication.client_id !== uid) {
+      return res.status(403).json({
+        success: false,
+        message: 'No tienes permiso para ver las reservas de este trade (no eres el propietario).',
+        code: 'FORBIDDEN_NOT_OWNER',
+      });
+    }
+
+    // reservas con la info del solicitante
+    const reservations = await prisma.reservation.findMany({
+      where: { publication_id: publicationId },
+      include: {
+        // datos del solicitante
+        client: {
+          include: {
+            registered_user: {
+              select: {
+                user_id: true,
+                username: true,
+                name: true,
+                surname: true,
+                email: true,
+                profile_picture: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    // formateo de la respuesta
+    const formattedReservations = reservations.map((resv) => ({
+      reservation_id: resv.reservation_id,
+      status: resv.status,
+      created_at: resv.created_at,
+      solicitante: {
+        uid: resv.client.registered_user.user_id,
+        username: resv.client.registered_user.username,
+        name: `${resv.client.registered_user.name} ${resv.client.registered_user.surname || ''}`.trim(),
+        email: resv.client.registered_user.email,
+        profile_picture: resv.client.registered_user.profile_picture,
+        points: resv.client.points,
+        streak: resv.client.streak,
+      },
+    }));
+
+    return res.status(200).json({
+      success: true,
+      message: `Se encontraron ${formattedReservations.length} reservas para este trade.`,
+      data: formattedReservations,
+    });
+  } catch (error) {
+    console.error(`Error obteniendo reservas del trade ${publicationId}:`, error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor.',
+      code: 'SERVER_ERROR',
+    });
+  }
+};
