@@ -463,11 +463,20 @@ enum message_status {
 
 model recycling_guide_item {
   item_id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name           String       @unique
-  keywords       String[]
+  name_es        String       // Spanish name
+  name_en        String       // English name
+  name_ca        String       // Catalan name
+  keywords_es    String[]     // Spanish keywords
+  keywords_en    String[]     // English keywords
+  keywords_ca    String[]     // Catalan keywords
   container_type product_type
-  description    String?
+  description_es String?      // Spanish description
+  description_en String?      // English description
+  description_ca String?      // Catalan description
+  image_url      String?      // Representative image URL
   created_at     DateTime     @default(now())
 
-  @@index([name])
+  @@index([name_es])
+  @@index([name_en])
+  @@index([name_ca])
 }

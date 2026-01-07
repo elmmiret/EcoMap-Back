@@ -579,6 +579,7 @@ export const getUserProfile = async (req, res) => {
         username: true,
         dni: true,
         app_language: true,
+        profile_picture: true,
         client: {
           select: {
             address: true,
@@ -617,7 +618,7 @@ export const getUserProfile = async (req, res) => {
       surname: userProfile.surname,
       username: userProfile.username,
       dni: userProfile.dni,
-      profile_picture: userProfile.client?.profile_picture || null,
+      profile_picture: userProfile.profile_picture || null,
       app_language: userProfile.app_language,
       address: userProfile.client?.address || null,
       phone: userProfile.client?.phone || null,

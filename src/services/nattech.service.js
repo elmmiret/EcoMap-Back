@@ -33,6 +33,8 @@ const mapToExternalFormat = (data) => {
   const localitat = data.address || data.localitat || data.adreca;
   const latitud = data.lat || data.latitud;
   const longitud = data.lon || data.longitud;
+  const entrades = data.entrades;
+  const horari = data.horari;
 
   let fotos_urls = [];
   if (data.image) fotos_urls = [data.image];
@@ -50,6 +52,8 @@ const mapToExternalFormat = (data) => {
     fotos_urls,
     codi: data.codi,
     id: data.id,
+    entrades,
+    horari,
   };
 };
 
@@ -68,7 +72,7 @@ export const getExternalEvents = async (params = {}) => {
   });
 
   // forzar el tag siempre
-  url.searchParams.append('tags', ECO_TAG);
+  //url.searchParams.append('tags', ECO_TAG);
 
   console.log(`[NatTech] GET ${url.toString()}`);
 
@@ -79,14 +83,14 @@ export const getExternalEvents = async (params = {}) => {
 
   const events = await response.json();
 
-  if (Array.isArray(events)) {
+  /*if (Array.isArray(events)) {
     return events.filter((event) => {
       const eventTags = event.tags || '';
       const tagsString = Array.isArray(eventTags) ? eventTags.join(',') : eventTags;
 
       return tagsString.includes(ECO_TAG);
     });
-  }
+  }*/
 
   return events;
 };
