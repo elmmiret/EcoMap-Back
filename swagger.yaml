@@ -1774,7 +1774,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiResponse'
 
-  /api/users/report/{userId}:
+  /api/users/admin/report/{userId}:
     post:
       summary: Reportar a un usuario
       description: |
@@ -2843,7 +2843,7 @@ paths:
         '500':
           description: Error del servidor (error al subir imagen a S3, etc.)
 
-  /api/publications/rewards/{id}/body:
+  /api/publications/rewardss/{id}/body:
     patch:
       summary: Actualizar contenido de un Reward
       description: |
@@ -3328,6 +3328,89 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/Reservation'
+
+  /api/reservations/trade/{publicationId}:
+    get:
+      summary: Obtener reservas de un Trade (Solo dueño)
+      description: >-
+        Devuelve la lista de todas las reservas realizadas sobre una publicación tipo Trade específica.
+        Incluye información del usuario solicitante.
+        Solo puede ser ejecutado por el usuario propietario (creador) del Trade.
+      tags: [Reservas]
+      security:
+        - backendAuth: []
+      parameters:
+        - in: path
+          name: publicationId
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID de la publicación (Trade) del cual se quieren ver las reservas.
+      responses:
+        '200':
+          description: Lista de reservas obtenida correctamente.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            reservation_id:
+                              type: string
+                              format: uuid
+                            status:
+                              type: string
+                              enum: [Pending, Completed, Cancelled]
+                            created_at:
+                              type: string
+                              format: date-time
+                            solicitante:
+                              type: object
+                              properties:
+                                uid:
+                                  type: string
+                                username:
+                                  type: string
+                                name:
+                                  type: string
+                                email:
+                                  type: string
+                                profile_picture:
+                                  type: string
+                                  nullable: true
+                                points:
+                                  type: integer
+        '400':
+          description: La publicación especificada no es un Trade.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          description: No autorizado (No eres el propietario de este Trade).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          description: Publicación no encontrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '500':
+          description: Error del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
 
   /api/reservations/user/{userId}/{reservationId}:
     get:
