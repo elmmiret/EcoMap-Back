@@ -28,11 +28,22 @@ const transformItem = (item, lang = 'es') => {
 
   return {
     item_id: item.item_id,
+    // Return all language fields for admin dashboard
+    name_es: item.name_es,
+    name_en: item.name_en,
+    name_ca: item.name_ca,
+    keywords_es: item.keywords_es,
+    keywords_en: item.keywords_en,
+    keywords_ca: item.keywords_ca,
+    description_es: item.description_es,
+    description_en: item.description_en,
+    description_ca: item.description_ca,
+    // Also provide the language-specific fields for backward compatibility
     name: item[fields.name],
     keywords: item[fields.keywords],
-    container_type: item.container_type,
     description: item[fields.description],
-    image_url: item.image_url, // Representative image
+    container_type: item.container_type,
+    image_url: item.image_url,
     created_at: item.created_at,
   };
 };

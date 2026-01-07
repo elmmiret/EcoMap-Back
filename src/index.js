@@ -103,8 +103,13 @@ app.use(
       // Allow requests with no origin (mobile apps, curl, etc.)
       if (!origin) return callback(null, true);
 
-      // Check if origin is in allowed list or matches Vercel pattern
-      if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app') || origin.includes('peskaos-dashboard')) {
+      // Check if origin is in allowed list or matches Vercel pattern or Railway
+      if (
+        allowedOrigins.includes(origin) ||
+        origin.endsWith('.vercel.app') ||
+        origin.endsWith('.railway.app') ||
+        origin.includes('peskaos-dashboard')
+      ) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));

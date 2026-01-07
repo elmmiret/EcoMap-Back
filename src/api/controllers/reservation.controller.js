@@ -323,8 +323,12 @@ export const confirmReservation = async (req, res) => {
       include: {
         client: true, // datos comprador
         reservation_ended: true,
-        publication: {
-          include: { trade: true, client: true }, //precio del trade
+        trade: {
+          include: {
+            publication: {
+              include: { client: true },
+            },
+          }, //precio del trade
         },
       },
     });
@@ -343,15 +347,15 @@ export const confirmReservation = async (req, res) => {
     }
 
     // verificar que quien confirma es el dueño
-    if (reservation.publication.client_id !== uid) {
+    if (reservation.trade.publication.client_id !== uid) {
       return res.status(403).json({
         success: false,
         message: 'Solo el propietario de la publicación puede confirmar el intercambio.',
       });
     }
 
-    // verificar estado actual
-    if (reservation.status !== 'Pending') {
+    // verificar estado actual de la publicación
+    if (reservation.trade.publication.publication_state !== 'Pending') {
       return res.status(409).json({
         success: false,
         message: 'Esta reserva ya ha sido procesada o cancelada.',
@@ -360,9 +364,9 @@ export const confirmReservation = async (req, res) => {
 
     // lógica de puntos
 
-    const pointsPrice = reservation.publication.trade?.points_price || 0;
+    const pointsPrice = reservation.trade?.points_price || 0;
     const buyerPoints = reservation.client.points;
-    const sellerPoints = reservation.publication.client?.points || 0;
+    const sellerPoints = reservation.trade.publication.client?.points || 0;
 
     // aunque se permite reservar sin puntos, al confirmar debe tener saldo.
     if (buyerPoints < pointsPrice) {
@@ -390,10 +394,30 @@ export const confirmReservation = async (req, res) => {
         data: { points: { decrement: pointsPrice } },
       });
 
+      // registrar en historial del comprador (gasto de puntos)
+      await tx.point_history.create({
+        data: {
+          user_id: reservation.client_id,
+          amount: -pointsPrice,
+          source: 'ECO_TRADER_SALE',
+          description: `Compra de artículo: ${reservation.trade.publication.title}`,
+        },
+      });
+
       // sumar al vendedor
       await tx.client.update({
         where: { user_id: uid },
         data: { points: { increment: pointsPrice } },
+      });
+
+      // registrar en historial del vendedor (ingreso de puntos)
+      await tx.point_history.create({
+        data: {
+          user_id: uid,
+          amount: pointsPrice,
+          source: 'ECO_TRADER_SALE',
+          description: `Venta de artículo: ${reservation.trade.publication.title}`,
+        },
       });
 
       // reserva -> confirmed: true
@@ -404,7 +428,7 @@ export const confirmReservation = async (req, res) => {
 
       // publicación -> completed
       await tx.publication.update({
-        where: { publication_id: reservation.publication_id },
+        where: { publication_id: reservation.trade.publication_id },
         data: { publication_state: 'Completed' },
       });
 
@@ -412,7 +436,7 @@ export const confirmReservation = async (req, res) => {
       await tx.reservation_ended.create({
         data: {
           reservation_id: reservationId,
-          end_date: new Date(),
+          ended_at: new Date(),
         },
       });
     });
@@ -668,5 +692,103 @@ export const getReservationValorations = async (req, res) => {
   } catch (error) {
     console.error(`Error obteniendo valoraciones de reserva ${reservationId}:`, error);
     return res.status(500).json({ success: false, message: 'Error interno.', code: 'SERVER_ERROR' });
+  }
+};
+
+/**
+ * Obtiene todas las reservas asociadas a una publicación (Trade) específica.
+ * REGLA: Solo el usuario creador del Trade (o un admin) puede ver quién lo ha reservado.
+ * Endpoint: GET /api/reservations/trade/:publicationId
+ */
+export const getReservationsByTrade = async (req, res) => {
+  const { uid } = req.user; // dueño
+  const { publicationId } = req.params; // id del 'trade'
+
+  try {
+    // buscar la publicación y verificar que es un 'trade'
+    const publication = await prisma.publication.findUnique({
+      where: { publication_id: publicationId },
+      include: { trade: true },
+    });
+
+    if (!publication) {
+      return res.status(404).json({
+        success: false,
+        message: 'Publicación no encontrada.',
+        code: 'PUBLICATION_NOT_FOUND',
+      });
+    }
+
+    if (!publication.trade) {
+      return res.status(400).json({
+        success: false,
+        message: 'Esta publicación no es un Trade.',
+        code: 'NOT_A_TRADE',
+      });
+    }
+
+    // solo el dueño puede ver las solicitudes de reserva
+    if (publication.client_id !== uid) {
+      return res.status(403).json({
+        success: false,
+        message: 'No tienes permiso para ver las reservas de este trade (no eres el propietario).',
+        code: 'FORBIDDEN_NOT_OWNER',
+      });
+    }
+
+    // reservas con la info del solicitante
+    const reservations = await prisma.reservation.findMany({
+      where: {
+        trade: {
+          publication_id: publicationId,
+        },
+      },
+      include: {
+        client: {
+          include: {
+            registered_user: {
+              select: {
+                user_id: true,
+                username: true,
+                name: true,
+                surname: true,
+                email: true,
+                profile_picture: true,
+              },
+            },
+          },
+        },
+      },
+      //orderBy: { created_at: 'desc' },
+    });
+
+    // formateo de la respuesta
+    const formattedReservations = reservations.map((resv) => ({
+      reservation_id: resv.reservation_id,
+      status: resv.status,
+      created_at: resv.created_at,
+      solicitante: {
+        uid: resv.client.registered_user.user_id,
+        username: resv.client.registered_user.username,
+        name: `${resv.client.registered_user.name} ${resv.client.registered_user.surname || ''}`.trim(),
+        email: resv.client.registered_user.email,
+        profile_picture: resv.client.registered_user.profile_picture,
+        points: resv.client.points,
+        streak: resv.client.streak,
+      },
+    }));
+
+    return res.status(200).json({
+      success: true,
+      message: `Se encontraron ${formattedReservations.length} reservas para este trade.`,
+      data: formattedReservations,
+    });
+  } catch (error) {
+    console.error(`Error obteniendo reservas del trade ${publicationId}:`, error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor.',
+      code: 'SERVER_ERROR',
+    });
   }
 };
