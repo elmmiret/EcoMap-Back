@@ -59,6 +59,11 @@ export const addItem = async (req, res) => {
       req.body;
     const imageFile = req.file; // Archivo subido (si existe)
 
+    console.log('=== ADD ITEM DEBUG ===');
+    console.log('Body:', req.body);
+    console.log('File received:', imageFile);
+    console.log('=====================');
+
     // Validación básica - requerir al menos los nombres en los 3 idiomas
     if (!name_es || !name_en || !name_ca || !containerType) {
       return res.status(400).json({
