@@ -323,8 +323,12 @@ export const confirmReservation = async (req, res) => {
       include: {
         client: true, // datos comprador
         reservation_ended: true,
-        publication: {
-          include: { trade: true, client: true }, //precio del trade
+        trade: {
+          include: {
+            publication: {
+              include: { client: true },
+            },
+          }, //precio del trade
         },
       },
     });
@@ -343,15 +347,15 @@ export const confirmReservation = async (req, res) => {
     }
 
     // verificar que quien confirma es el dueño
-    if (reservation.publication.client_id !== uid) {
+    if (reservation.trade.publication.client_id !== uid) {
       return res.status(403).json({
         success: false,
         message: 'Solo el propietario de la publicación puede confirmar el intercambio.',
       });
     }
 
-    // verificar estado actual
-    if (reservation.status !== 'Pending') {
+    // verificar estado actual de la publicación
+    if (reservation.trade.publication.publication_state !== 'Pending') {
       return res.status(409).json({
         success: false,
         message: 'Esta reserva ya ha sido procesada o cancelada.',
@@ -360,9 +364,9 @@ export const confirmReservation = async (req, res) => {
 
     // lógica de puntos
 
-    const pointsPrice = reservation.publication.trade?.points_price || 0;
+    const pointsPrice = reservation.trade?.points_price || 0;
     const buyerPoints = reservation.client.points;
-    const sellerPoints = reservation.publication.client?.points || 0;
+    const sellerPoints = reservation.trade.publication.client?.points || 0;
 
     // aunque se permite reservar sin puntos, al confirmar debe tener saldo.
     if (buyerPoints < pointsPrice) {
@@ -390,10 +394,30 @@ export const confirmReservation = async (req, res) => {
         data: { points: { decrement: pointsPrice } },
       });
 
+      // registrar en historial del comprador (gasto de puntos)
+      await tx.point_history.create({
+        data: {
+          user_id: reservation.client_id,
+          amount: -pointsPrice,
+          source: 'ECO_TRADER_SALE',
+          description: `Compra de artículo: ${reservation.trade.publication.title}`,
+        },
+      });
+
       // sumar al vendedor
       await tx.client.update({
         where: { user_id: uid },
         data: { points: { increment: pointsPrice } },
+      });
+
+      // registrar en historial del vendedor (ingreso de puntos)
+      await tx.point_history.create({
+        data: {
+          user_id: uid,
+          amount: pointsPrice,
+          source: 'ECO_TRADER_SALE',
+          description: `Venta de artículo: ${reservation.trade.publication.title}`,
+        },
       });
 
       // reserva -> confirmed: true
@@ -404,7 +428,7 @@ export const confirmReservation = async (req, res) => {
 
       // publicación -> completed
       await tx.publication.update({
-        where: { publication_id: reservation.publication_id },
+        where: { publication_id: reservation.trade.publication_id },
         data: { publication_state: 'Completed' },
       });
 
@@ -412,7 +436,7 @@ export const confirmReservation = async (req, res) => {
       await tx.reservation_ended.create({
         data: {
           reservation_id: reservationId,
-          end_date: new Date(),
+          ended_at: new Date(),
         },
       });
     });
