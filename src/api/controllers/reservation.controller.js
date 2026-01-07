@@ -678,7 +678,7 @@ export const getReservationValorations = async (req, res) => {
  */
 export const getReservationsByTrade = async (req, res) => {
   const { uid } = req.user; // dueño
-  const { publicationId } = req.params; // id del 'trade's
+  const { publicationId } = req.params; // id del 'trade'
 
   try {
     // buscar la publicación y verificar que es un 'trade'
@@ -714,9 +714,12 @@ export const getReservationsByTrade = async (req, res) => {
 
     // reservas con la info del solicitante
     const reservations = await prisma.reservation.findMany({
-      where: { publication_id: publicationId },
+      where: {
+        trade: {
+          publication_id: publicationId, // <--- AQUÍ ESTÁ EL CAMBIO CLAVE
+        },
+      },
       include: {
-        // datos del solicitante
         client: {
           include: {
             registered_user: {
@@ -732,7 +735,7 @@ export const getReservationsByTrade = async (req, res) => {
           },
         },
       },
-      orderBy: { created_at: 'desc' },
+      //orderBy: { created_at: 'desc' },
     });
 
     // formateo de la respuesta
