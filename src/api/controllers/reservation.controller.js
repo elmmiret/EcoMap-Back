@@ -716,7 +716,7 @@ export const getReservationsByTrade = async (req, res) => {
     const reservations = await prisma.reservation.findMany({
       where: {
         trade: {
-          publication_id: publicationId, // <--- AQUÍ ESTÁ EL CAMBIO CLAVE
+          publication_id: publicationId,
         },
       },
       include: {
