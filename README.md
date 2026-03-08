@@ -1,128 +1,128 @@
 # EcoMap-Back 🚀
 
-**Backend del projecte EcoMap utilitzant Node.js, Express, TypeScript i Prisma amb PostgreSQL**. Gestiona la lògica de negoci per fomentar el reciclatge a les regions de **Navarra** i **Barcelona**, incloent geolocalització, gamificació i comunicació en temps real.
+**Backend del proyecto EcoMap utilizando Node.js, Express, TypeScript y Prisma con PostgreSQL**. Gestiona la lógica de negocio para fomentar el reciclaje en las regiones de **Navarra** y **Barcelona**, incluyendo geolocalización, gamificación y comunicación en tiempo real.
 
 ---
 
-## 🛠️ Stack Tecnològic
+## 🛠️ Stack Tecnológico
 
-El projecte es basa en les següents tecnologies i llibreries principals:
+El proyecto se basa en las siguientes tecnologías y librerías principales:
 
 * **Runtime**: Node.js (>= 20.0.0).
 * **Framework**: Express (^5.1.0).
-* **ORM**: Prisma (^6.17.1) amb PostgreSQL.
-* **Autenticació**: Firebase Admin (^13.5.0) i JSON Web Tokens (jsonwebtoken ^9.0.2).
-* **Comunicació en Temps Real**: Socket.io (^4.8.1).
-* **Documentació**: Swagger UI Express (^5.0.1).
-* **Infraestructura**: Docker i Docker Compose per a la base de dades i eines d'administració.
+* **ORM**: Prisma (^6.17.1) con PostgreSQL.
+* **Autenticación**: Firebase Admin (^13.5.0) y JSON Web Tokens (jsonwebtoken ^9.0.2).
+* **Comunicación en Tiempo Real**: Socket.io (^4.8.1).
+* **Documentación**: Swagger UI Express (^5.0.1).
+* **Infraestructura**: Docker y Docker Compose para la base de datos y herramientas de administración.
 
 ---
 
-## 📋 Requisits Previs
+## 📋 Requisitos Previos
 
 * **Node.js** >= 18.
-* **Docker Desktop** (inclou Docker Compose).
+* **Docker Desktop** (incluye Docker Compose).
 * **Git**.
 
 ---
 
-## ⚙️ Configuració i Instal·lació
+## ⚙️ Configuración e Instalación
 
-### 1. Clona el repositori i instal·la dependències
+### 1. Clona el repositorio e instala dependencias
 ```bash
 git clone [https://github.com/elmmiret/EcoMap-Back.git](https://github.com/elmmiret/EcoMap-Back.git)
 cd EcoMap-Back
 npm install
 ```
 
-### 2. Variables d'Entorn (.env)
-Obté les credencials reals i crea un arxiu `.env` a l'arrel basant-te en `.env.example`. Has de definir els següents valors:
-* **PORT**: Port del servidor (per defecte 3001).
-* **DATABASE_URL**: URL de connexió a PostgreSQL (ex. `postgres://admin:YOUR_PASSWORD_HERE@localhost:5432/ecomapdb`).
-* **FIREBASE_KEY_PATH**: Ruta a l'arxiu `firebase-service-account-key.json`.
-* **JWT_SECRET**: Clau secreta per a la verificació de tokens JWT.
-* **ORS_API_KEY**: API Key d'OpenRouteService per al càlcul de rutes.
-* **AI_SERVICE_API_KEY**: Clau per al servei d'intel·ligència artificial.
+### 2. Variables de Entorno (.env)
+Obtén las credenciales reales y crea un archivo `.env` en la raíz basándote en `.env.example`. Debes definir los siguientes valores:
+* **PORT**: Puerto del servidor (por defecto 3001).
+* **DATABASE_URL**: URL de conexión a PostgreSQL (ej. `postgres://admin:YOUR_PASSWORD_HERE@localhost:5432/ecomapdb`).
+* **FIREBASE_KEY_PATH**: Ruta al archivo `firebase-service-account-key.json`.
+* **JWT_SECRET**: Clave secreta para la verificación de tokens JWT.
+* **ORS_API_KEY**: API Key de OpenRouteService para el cálculo de rutas.
+* **AI_SERVICE_API_KEY**: Clave para el servicio de inteligencia artificial.
 
-**⚠️ IMPORTANT**: Mai pugis el teu `.env` ni el `firebase-service-account-key.json` al repositori. Assegura't que estan al teu `.gitignore`.
+**⚠️ IMPORTANT**: Nunca subas tu `.env` ni el `firebase-service-account-key.json` al repositorio. Asegúrate de que están en tu `.gitignore`.
 
-### 3. Base de Dades amb Docker
-Assegura't de tenir Docker Desktop obert i després executa:
+### 3. Base de Datos con Docker
+Asegúrate de tener Docker Desktop abierto y después ejecuta:
 ```bash
 docker compose up -d
 ```
-Això arrencarà el contenidor de PostgreSQL configurat per al projecte. Per accedir a la interfície d'administració de la base de dades (Adminer), obre el teu navegador a: [http://localhost:8080](http://localhost:8080).
+Esto arrancará el contenedor de PostgreSQL configurado para el proyecto. Para acceder a la interfaz de administración de la base de datos (Adminer), abre tu navegador en: [http://localhost:8080](http://localhost:8080).
 
-### 4. Estructura de la Base de Dades (Prisma)
-Aplica totes les migracions existents (estructura de taules, enums, etc):
+### 4. Estructura de la Base de Datos (Prisma)
+Aplica todas las migraciones existentes (estructura de tablas, enums, etc):
 ```bash
 npm run migrate
 ```
-Això aplicarà automàticament cada migració necessària sobre la teva base de dades a Docker. Consulta la documentació oficial de Prisma si tens dubtes sobre migracions, resets o sincronització d'esquemes: [https://www.prisma.io/docs](https://www.prisma.io/docs).
+Esto aplicará automáticamente cada migración necesaria sobre tu base de datos en Docker. Consulta la documentación oficial de Prisma si tienes dudas sobre migraciones, resets o sincronización de esquemas: [https://www.prisma.io/docs](https://www.prisma.io/docs).
 
 ---
 
-## 🏃 Execució i Comandes útils
+## 🏃 Ejecución y Comandos útiles
 
-| Comanda | Descripció |
+| Comando | Descripción |
 | :--- | :--- |
-| `npm run dev` | Executa el servidor en mode desenvolupament amb recàrrega automàtica. |
-| `npm run start` | Executa el servidor compilat en producció. |
-| `npm run migrate` | Aplica totes les migracions de la base de dades pendents. |
-| `npm run lint` | Revisa el codi amb ESLint. |
-| `npm run format` | Formata el codi amb Prettier. |
-| `npm test` | Executa els tests amb Vitest. |
+| `npm run dev` | Ejecuta el servidor en modo desarrollo con recarga automática. |
+| `npm run start` | Ejecuta el servidor compilado en producción. |
+| `npm run migrate` | Aplica todas las migraciones de la base de datos pendientes. |
+| `npm run lint` | Revisa el código con ESLint. |
+| `npm run format` | Formatea el código con Prettier. |
+| `npm test` | Ejecuta los tests con Vitest. |
 
 ---
 
-## 📖 Documentació de l'API (Swagger)
+## 📖 Documentación de la API (Swagger)
 
-El projecte inclou una interfície interactiva (Swagger UI) per explorar i provar els endpoints de l'API sense necessitat d'escriure codi.
-1. Assegura't que el servidor està en marxa (`npm run dev`).
-2. Obre el teu navegador i visita: 👉 [http://localhost:3001/api-docs](http://localhost:3001/api-docs).
+El proyecto incluye una interfaz interactiva (Swagger UI) para explorar y probar los endpoints de la API sin necesidad de escribir código.
+1. Asegúrate de que el servidor está en marcha (`npm run dev`).
+2. Abre tu navegador y visita: 👉 [http://localhost:3001/api-docs](http://localhost:3001/api-docs).
 
-Allà trobaràs tots els endpoints disponibles, els esquemes de dades i un botó **"Try it out"** per fer peticions reals directament contra el teu backend local.
-
----
-
-## 📋 Resum d'Endpoints Principals
-
-### 🟢 Públics (Sense autenticació)
-* `GET /`: Verificar estat del servidor (Health Check).
-* `GET /api/recycling-points/:region`: Punts de reciclatge per regió (Barcelona/Navarra) optimitzat amb cache SWR.
-* `GET /api/routes`: Calcular ruta entre coordenades amb ORS API.
-
-### 🔐 Autenticació (Firebase Token)
-* `POST /api/users/sync`: Sincronitzar usuari amb BD i obtenir JWT del backend.
-
-### 🔒 Protegits (Backend JWT)
-* **Gestió d'Usuari**: `GET /api/users/me` (perfil), `PUT /api/users/me` (actualitzar perfil), `PUT /api/users/language` (idioma), `DELETE /api/users/me` (eliminar compte).
-* **Administradors**: `GET /api/recycling-points/:region/status` i `POST /api/recycling-points/:region/refresh` per forçar sincronització immediata de la cache.
+Allí encontrarás todos los endpoints disponibles, los esquemas de datos y un botón **"Try it out"** para hacer peticiones reales directamente contra tu backend local.
 
 ---
 
-## 📂 Estructura del Projecte
+## 📋 Resumen de Endpoints Principales
+
+### 🟢 Públicos (Sin autenticación)
+* `GET /`: Verificar estado del servidor (Health Check).
+* `GET /api/recycling-points/:region`: Puntos de reciclaje por región (Barcelona/Navarra) optimizado con caché SWR.
+* `GET /api/routes`: Calcular ruta entre coordenadas con ORS API.
+
+### 🔐 Autenticación (Firebase Token)
+* `POST /api/users/sync`: Sincronizar usuario con BD y obtener JWT del backend.
+
+### 🔒 Protegidos (Backend JWT)
+* **Gestión de Usuario**: `GET /api/users/me` (perfil), `PUT /api/users/me` (actualizar perfil), `PUT /api/users/language` (idioma), `DELETE /api/users/me` (eliminar cuenta).
+* **Administradores**: `GET /api/recycling-points/:region/status` y `POST /api/recycling-points/:region/refresh` para forzar sincronización inmediata de la caché.
+
+---
+
+## 📂 Estructura del Proyecto
 
 ```plaintext
-├── /prisma/          # Esquema del model de dades i migracions SQL
-├── /src/             # Codi font en TypeScript
-│   ├── /api/         # Endpoints i controladors de l'API
-│   ├── /data/        # Models i accés a dades
-│   └── /services/    # Lògica de negoci i serveis
-├── /tests/           # Tests del projecte
-├── docker-compose.yml # Configuració de Docker per PostgreSQL i Adminer
-├── .env.example      # Plantilla de variables d'entorn
-└── package.json      # Dependències i scripts del projecte
+├── /prisma/          # Esquema del modelo de datos y migraciones SQL
+├── /src/             # Código fuente en TypeScript
+│   ├── /api/         # Endpoints y controladores de la API
+│   ├── /data/        # Modelos y acceso a datos
+│   └── /services/    # Lógica de negocio y servicios
+├── /tests/           # Tests del proyecto
+├── docker-compose.yml # Configuración de Docker para PostgreSQL y Adminer
+├── .env.example      # Plantilla de variables de entorno
+└── package.json      # Dependencias y scripts del proyecto
 ```
 
 ---
 
-## 📝 Logging i Schedulers
+## 📝 Logging y Schedulers
 
-* **Logging Configurable**: El projecte incorpora un logger amb nivells i filtres per namespace controlats per variables d'entorn.
-  * `LOG_LEVEL`: `error` | `warn` | `info` | `debug` | `trace` (per defecte: `info`).
-  * `LOG_NAMESPACES`: llista separada per comes per filtrar namespaces (ex. `navarra-sync`, `cache`, `auth`).
-* **Warmup i Schedulers**: 
-  * El servidor executa un "warmup" (precàrrega de la cache de punts) només en producció (`NODE_ENV=production`).
-  * Les tasques programades (cron) també s’inicien només en producció.
-  * En desenvolupament, ambdós mecanismes es salten automàticament per evitar trànsit innecessari a APIs externes.
+* **Logging Configurable**: El proyecto incorpora un logger con niveles y filtros por namespace controlados por variables de entorno.
+  * `LOG_LEVEL`: `error` | `warn` | `info` | `debug` | `trace` (por defecto: `info`).
+  * `LOG_NAMESPACES`: lista separada por comas para filtrar namespaces (ej. `navarra-sync`, `cache`, `auth`).
+* **Warmup y Schedulers**: 
+  * El servidor ejecuta un "warmup" (precarga de la caché de puntos) solo en producción (`NODE_ENV=production`).
+  * Las tareas programadas (cron) también se inician solo en producción.
+  * En desarrollo, ambos mecanismos se saltan automáticamente para evitar tráfico innecesario a APIs externas.
