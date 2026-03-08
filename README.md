@@ -1,4 +1,4 @@
-# EcoMap Backend 🚀 (`peskaos-back`)
+# EcoMap-Back 🚀
 
 **Backend del projecte EcoMap utilitzant Node.js, Express, TypeScript i Prisma amb PostgreSQL**. Gestiona la lògica de negoci per fomentar el reciclatge a les regions de **Navarra** i **Barcelona**, incloent geolocalització, gamificació i comunicació en temps real.
 
@@ -30,8 +30,8 @@ El projecte es basa en les següents tecnologies i llibreries principals:
 
 ### 1. Clona el repositori i instal·la dependències
 ```bash
-git clone [https://github.com/pes2526q1-1x-gei-upc/PESkaos-back.git](https://github.com/pes2526q1-1x-gei-upc/PESkaos-back.git)
-cd PESkaos-back
+git clone [https://github.com/elmmiret/EcoMap-Back.git](https://github.com/elmmiret/EcoMap-Back.git)
+cd EcoMap-Back
 npm install
 ```
 
